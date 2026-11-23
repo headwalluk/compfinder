@@ -51,6 +51,39 @@ Give at least one of a name or the options below. A URL or a name plus a place w
 A lookup that finds nothing still exits 0. The exit code describes the run, not the
 confidence. See [output.md](output.md) for the result.
 
+### Batch: find --input
+
+```
+compfinder find --input=records.jsonl --output=json > results.jsonl
+compfinder find --input=records.jsonl --output=csv > results.csv
+cat records.jsonl | compfinder find --input=- --dry-run --output=json
+```
+
+Each line of the input is one JSON object, the query for one lookup:
+
+```json
+{"id": "crm-1042", "name": "Example Estates", "url": "https://example.com/branches/reading/"}
+{"id": "crm-1043", "name": "Example Estates Wokingham", "postcode": "RG40 1AA"}
+```
+
+Its keys are `id` (copied back to the result), `name`, `url`, `address`, `postcode`, `phone`,
+`place_id` and `country`. The values are strings, and the id may also be a number. Blank lines
+are skipped. With `--input`, give no name or query options on the command line. The other
+options (`--fields`, `--providers`, `--no-download`, …) apply to every line.
+
+| Option | Means |
+|---|---|
+| `--input=FILE` | Read queries from FILE, or from stdin with `-` |
+| `--concurrency=N` | Run up to N lookups at once, 1 to 16 (default 1). Results are still written in input order |
+| `--max-metered-calls-total=N` | Spend at most N metered calls on the whole batch (also a setting). Once they're spent, metered providers are skipped as `over budget` and free ones carry on |
+| `--dry-run` | Plan every line without making a call, then report the most metered calls the batch could make, for estimating a bill |
+
+Results stream out as each lookup finishes: one JSON line, one CSV row (after a single header
+row), or one text block headed by the line's `id`. A line that can't be looked up gets an error
+in place of a result ([output.md](output.md)), and the batch carries on. A batch exits 0 unless
+its input can't be read. A summary (lines, lines with errors, metered calls) goes to stderr at
+`info`.
+
 ## Options for every command
 
 | Option | Means |

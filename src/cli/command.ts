@@ -14,6 +14,8 @@ export interface CommandContext {
   logger: Logger;
   /** True when text output may use colour: config allows it and stdout is a terminal. */
   colour: boolean;
+  /** Writes straight to stdout, for commands that stream their output (find --input). */
+  write(text: string): void;
 }
 
 /** What a command returns. With --output=json, data is printed; with text, text is. */
@@ -21,6 +23,8 @@ export interface CommandResult {
   exitCode: ExitCodeValue;
   data: Record<string, unknown>;
   text: string;
+  /** True when the command already wrote its output through write(); main then prints nothing more (D-22). */
+  isStreamed?: boolean;
 }
 
 export interface Command {

@@ -5,6 +5,9 @@ import { buildResult } from '../../lookup/result.js';
 import { ERROR_CODES, outputError } from '../../messages/error-codes.js';
 import { isProviderName, PROVIDER_NAMES, type ProviderName } from '../../providers/declarations.js';
 import { builtInProviders } from '../../providers/registry.js';
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
+import { MAX_CONCURRENCY, runBatch } from '../batch.js';
 import { stringFlag, booleanFlag, type ParsedArgs } from '../args.js';
 import type { Command, CommandResult } from '../command.js';
 import { ExitCode } from '../exit-codes.js';
@@ -55,64 +58,122 @@ export const findCommand: Command = {
   usage: 'compfinder find ["Business name"] [--url=URL] [--address=TEXT] [--postcode=CODE] [--phone=NUMBER] [--place-id=ID] '
     + '[--country=CC] [--fields=a,b] [--providers=a,b | --exclude=a,b] [--max-metered-calls=N] [--dry-run] [--explain] '
     + '[--no-download] [--no-cache] [--cache-dir=DIR] '
+    + '| compfinder find --input=FILE|- [--concurrency=N] [--max-metered-calls-total=N] [options] '
     + '[--output=text|json|csv]',
   maxArguments: 1,
   flags: [
     'url', 'address', 'postcode', 'phone', 'place-id', 'country', 'fields', 'providers', 'exclude',
-    'max-metered-calls', 'dry-run', 'explain', 'cache-dir', 'no-cache', 'no-download', 'allow-private-addresses',
+    'max-metered-calls', 'max-metered-calls-total', 'dry-run', 'explain', 'cache-dir', 'no-cache', 'no-download',
+    'allow-private-addresses', 'input', 'concurrency',
   ],
   outputs: ['text', 'json', 'csv'],
-  async run({ args, config, output, logger, colour }): Promise<CommandResult> {
-    const input: QueryInput = { name: args.words[1] };
-    for (const [flag, key] of QUERY_FLAGS) {
-      const value = stringFlag(args, flag);
-      if (value !== undefined) {
-        input[key] = value;
-      }
-    }
-    const { query, problems } = normaliseQuery(input, config.country);
-    const selection = selectionFlags(args);
-    const allProblems = [...problems, ...selection.problems];
-    const isExplain = booleanFlag(args, 'explain');
-    if (isExplain && output === 'csv') {
-      allProblems.push('--explain needs --output=text or json; CSV carries only the chosen values.');
-    }
-    let result: CommandResult;
+  async run(context): Promise<CommandResult> {
+    const inputPath = stringFlag(context.args, 'input');
+    return inputPath === undefined ? findOne(context) : findBatch(context, inputPath);
+  },
+};
 
-    if (allProblems.length > 0) {
-      const code = problems.some((problem) => problem.startsWith('Give at least one')) ? 'input.no_query' : 'input.bad_value';
-      result = { exitCode: ExitCode.usage, data: { error: outputError(code, allProblems.join(' ')), problems: allProblems }, text: allProblems.join('\n') };
-    } else {
-      const request: LookupRequest = {
-        query,
-        providers: builtInProviders(config),
-        config,
-        logger,
+/** Opens a batch input as lines: a file, or stdin for "-". */
+function inputLines(inputPath: string): AsyncIterable<string> {
+  const stream = inputPath === '-' ? process.stdin : createReadStream(inputPath, { encoding: 'utf8' });
+  return createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
+}
+
+/** find --input: one lookup per JSONL line, streamed in order (docs/cli.md). */
+async function findBatch({ args, config, output, logger, colour, write }: Parameters<Command['run']>[0], inputPath: string): Promise<CommandResult> {
+  const selection = selectionFlags(args);
+  const problems = [...selection.problems];
+  const concurrencyText = stringFlag(args, 'concurrency') ?? '1';
+  const concurrency = Number(concurrencyText);
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > MAX_CONCURRENCY) {
+    problems.push(`--concurrency must be a whole number from 1 to ${MAX_CONCURRENCY}; got "${concurrencyText}".`);
+  }
+  if (args.words[1] !== undefined || QUERY_FLAGS.some(([flag]) => stringFlag(args, flag) !== undefined)) {
+    problems.push('With --input, each line is the query: give no name or query options on the command line.');
+  }
+  if (booleanFlag(args, 'explain') && output === 'csv') {
+    problems.push('--explain needs --output=text or json; CSV carries only the chosen values.');
+  }
+  let result: CommandResult;
+  if (problems.length > 0) {
+    result = { exitCode: ExitCode.usage, data: { error: outputError('input.bad_value', problems.join(' ')), problems }, text: problems.join('\n') };
+  } else {
+    try {
+      const summary = await runBatch(inputLines(inputPath), {
+        config, logger, output, colour, write, concurrency,
+        isExplain: booleanFlag(args, 'explain'),
+        isDryRun: booleanFlag(args, 'dry-run'),
         isCacheBypassed: booleanFlag(args, 'no-cache'),
         isDownloadSkipped: booleanFlag(args, 'no-download'),
         ...(selection.fields === undefined ? {} : { fields: selection.fields }),
         ...(selection.only === undefined ? {} : { only: selection.only }),
         ...(selection.exclude === undefined ? {} : { exclude: selection.exclude }),
-      };
-      if (booleanFlag(args, 'dry-run')) {
-        const plan = planLookup(request);
-        result = {
-          exitCode: ExitCode.success,
-          data: { dry_run: true, providers: plan.providers, max_metered_calls: plan.maxMeteredCalls },
-          text: renderPlanText(plan.providers, plan.maxMeteredCalls),
-        };
-      } else {
-        const lookup = buildResult(await runLookup(request), { isExplain });
-        const exitCode = lookup.error === null ? ExitCode.success : ERROR_CODES[lookup.error.code].exitCode;
-        let text: string;
-        if (output === 'csv') {
-          text = `${UTF8_BOM}${csvHeader()}${csvRow(lookup, null)}`;
-        } else {
-          text = renderLookupText(lookup, colour);
-        }
-        result = { exitCode, data: { ...lookup }, text };
+      });
+      const calls = booleanFlag(args, 'dry-run') ? `at most ${summary.meteredCalls}` : String(summary.meteredCalls);
+      logger.info(`Batch: ${summary.lines} lines, ${summary.errors} with errors, ${calls} metered calls.`);
+      result = { exitCode: ExitCode.success, data: { ...summary }, text: '', isStreamed: true };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'EISDIR') {
+        throw error;
       }
+      const problem = `Can't read the input file ${inputPath}: ${(error as Error).message}`;
+      result = { exitCode: ExitCode.usage, data: { error: outputError('input.bad_value', problem), problems: [problem] }, text: problem };
     }
-    return result;
-  },
-};
+  }
+  return result;
+}
+
+/** find with a query on the command line: one lookup. */
+async function findOne({ args, config, output, logger, colour }: Parameters<Command['run']>[0]): Promise<CommandResult> {
+  const input: QueryInput = { name: args.words[1] };
+  for (const [flag, key] of QUERY_FLAGS) {
+    const value = stringFlag(args, flag);
+    if (value !== undefined) {
+      input[key] = value;
+    }
+  }
+  const { query, problems } = normaliseQuery(input, config.country);
+  const selection = selectionFlags(args);
+  const allProblems = [...problems, ...selection.problems];
+  const isExplain = booleanFlag(args, 'explain');
+  if (isExplain && output === 'csv') {
+    allProblems.push('--explain needs --output=text or json; CSV carries only the chosen values.');
+  }
+  let result: CommandResult;
+
+  if (allProblems.length > 0) {
+    const code = problems.some((problem) => problem.startsWith('Give at least one')) ? 'input.no_query' : 'input.bad_value';
+    result = { exitCode: ExitCode.usage, data: { error: outputError(code, allProblems.join(' ')), problems: allProblems }, text: allProblems.join('\n') };
+  } else {
+    const request: LookupRequest = {
+      query,
+      providers: builtInProviders(config),
+      config,
+      logger,
+      isCacheBypassed: booleanFlag(args, 'no-cache'),
+      isDownloadSkipped: booleanFlag(args, 'no-download'),
+      ...(selection.fields === undefined ? {} : { fields: selection.fields }),
+      ...(selection.only === undefined ? {} : { only: selection.only }),
+      ...(selection.exclude === undefined ? {} : { exclude: selection.exclude }),
+    };
+    if (booleanFlag(args, 'dry-run')) {
+      const plan = planLookup(request);
+      result = {
+        exitCode: ExitCode.success,
+        data: { dry_run: true, providers: plan.providers, max_metered_calls: plan.maxMeteredCalls },
+        text: renderPlanText(plan.providers, plan.maxMeteredCalls),
+      };
+    } else {
+      const lookup = buildResult(await runLookup(request), { isExplain });
+      const exitCode = lookup.error === null ? ExitCode.success : ERROR_CODES[lookup.error.code].exitCode;
+      let text: string;
+      if (output === 'csv') {
+        text = `${UTF8_BOM}${csvHeader()}${csvRow(lookup, null)}`;
+      } else {
+        text = renderLookupText(lookup, colour);
+      }
+      result = { exitCode, data: { ...lookup }, text };
+    }
+  }
+  return result;
+}

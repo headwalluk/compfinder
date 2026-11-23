@@ -19,6 +19,9 @@ All notable changes to this project are documented here. The format follows
   `--output=text|json|csv`, `--fields`, `--providers`/`--exclude`, `--max-metered-calls`,
   `--dry-run` and `--explain`. The JSON output follows `schema/result-1.0.json`, documented in
   `docs/output.md`, and every confidence rule is in `docs/confidence.md`.
+- Batch lookups: `compfinder find --input=FILE` (or `-` for stdin) reads one JSON query per line
+  and streams results in input order, as JSON lines, CSV rows or text blocks, with
+  `--concurrency`, a whole-batch budget (`--max-metered-calls-total`) and `--dry-run` costing.
 - The `web-fetch` provider: reads a business's own pages (schema.org JSON-LD and microdata,
   Open Graph, icons, the web app manifest, `tel:`/`mailto:` and social links), honours
   `robots.txt`, stops at bot protection, and reports pages that build their content with

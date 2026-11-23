@@ -283,6 +283,12 @@ function assumeFound(knowledge: Knowledge, supplies: readonly FieldName[]): Know
   if (supplies.includes('place_id') && fields.place_id === undefined) {
     fields.place_id = 'hypothetical';
   }
+  if (supplies.includes('address') && fields.address === undefined) {
+    fields.address = { lines: [], town: 'hypothetical', county: null, postcode: 'hypothetical', country_code: null, formatted: null, lat: null, lon: null };
+  }
+  if (supplies.includes('phone') && fields.phone === undefined) {
+    fields.phone = { e164: '+440000000000', display: 'hypothetical' };
+  }
   return { ...knowledge, fields };
 }
 

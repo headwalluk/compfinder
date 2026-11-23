@@ -125,6 +125,18 @@ which is counted against the provider that found the logo. `cached_calls` counts
 answered from the response cache, which cost nothing. `metered` says whether its calls cost
 money.
 
+## Batch lines
+
+With `find --input --output=json`, each output line is one of:
+
+- a result: the object above, with the line's `id` and `ok` (true when `error` is null) at the
+  front;
+- an error, when the line itself couldn't be looked up:
+  `{"id": …, "ok": false, "error": {"code", "message", "detail"}, "problems": […]}`;
+- with `--dry-run`, a plan: `{"id": …, "ok": true, "dry_run": true, "providers": […], "max_metered_calls": n}`.
+
+Lines come out in input order, whatever `--concurrency` is.
+
 ## Errors
 
 When a lookup as a whole can't produce a result, `error` holds a stable `code`, a `message` and

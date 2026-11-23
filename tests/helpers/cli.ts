@@ -26,10 +26,11 @@ export function runCli(cliArguments: string[], environment: Record<string, strin
   return { exitCode: child.status, stdout: child.stdout, stderr: child.stderr };
 }
 
-/** Runs the CLI without blocking the event loop, for tests whose own server must answer it. */
-export function runCliAsync(cliArguments: string[], environment: Record<string, string>): Promise<CliRun> {
+/** Runs the CLI without blocking the event loop, for tests whose own server must answer it. Optional stdin text. */
+export function runCliAsync(cliArguments: string[], environment: Record<string, string>, stdin?: string): Promise<CliRun> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', MAIN_PATH, ...cliArguments], { env: environment });
+    child.stdin.end(stdin ?? '');
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => {

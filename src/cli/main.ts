@@ -84,7 +84,10 @@ async function runCommand(command: Command, args: ParsedArgs, output: OutputForm
       logger.warn(warning);
     }
     const colour = config.colour && process.stdout.isTTY;
-    result = await command.run({ args, config, output, logger, colour });
+    const write = (text: string): void => {
+      process.stdout.write(text);
+    };
+    result = await command.run({ args, config, output, logger, colour, write });
   } catch (error) {
     if (!(error instanceof ConfigError)) {
       throw error;
@@ -124,7 +127,9 @@ async function main(argv: string[]): Promise<number> {
     result = invocation.length > 0 ? usageResult(invocation, false) : await runCommand(command, args, output);
   }
 
-  if (output === 'json') {
+  if (result.isStreamed === true) {
+    // Already written as it went (find --input).
+  } else if (output === 'json') {
     console.log(JSON.stringify({ ok: result.exitCode === ExitCode.success, exitCode: result.exitCode, ...result.data }));
   } else if (output === 'csv' && result.exitCode !== ExitCode.usage && result.text !== '') {
     // Written as-is: CSV carries its own CRLF line endings and byte-order mark.
