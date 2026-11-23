@@ -29,6 +29,8 @@ All notable changes to this project are documented here. The format follows
 - The `searchapi-io` and `brave-search-api` providers find a business's website when none was
   given, skipping directories and portals. SearchAPI.io also reads Google's business panel. The
   second runs only if the first finds nothing (`discover.run_all` runs both).
+- The `apollo-io` provider: organisation enrichment by domain, organisations only. Its address
+  and phone are treated as the head office's.
 - `compfinder providers check [provider]`: one cheap live call per configured provider, to prove
   its credentials work.
 - Logos: the best candidate is downloaded, identified by its bytes, measured, converted to PNG

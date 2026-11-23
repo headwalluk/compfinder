@@ -51,6 +51,7 @@ describe('web-fetch', () => {
     assert.equal(result.fields.phone.value, '+441184960000');
     assert.equal((result.fields.address.value as { postcode: string }).postcode, 'RG1 1AA');
     assert.equal((result.fields.address.value as { lat: number }).lat, 51.456);
+    assert.deepEqual(result.fields.address.conflicts, [], 'the footer\'s registered-office postcode stays out of the branch\'s record');
     assert.equal(result.fields.email.value, 'reading@example.com');
     assert.equal(result.fields.website.value, 'https://example.com/branches/reading/');
     assert.equal((result.fields.logo.value as { source_url: string }).source_url, 'https://example.com/img/logo.svg');

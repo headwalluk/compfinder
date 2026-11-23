@@ -268,7 +268,9 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
         result.locations.forEach((location, index) => {
           const evidence = [...location.evidence];
           if (result.locations.length === 1) {
-            addUnique(evidence, result.loose.location);
+            // Loose facts only fill gaps: a footer's registered-office postcode must not join a branch's record.
+            const structuredFields = new Set(location.evidence.map((item) => item.field));
+            addUnique(evidence, result.loose.location.filter((item) => !structuredFields.has(item.field)));
           }
           records.push({
             source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',

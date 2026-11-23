@@ -9,7 +9,7 @@ it costs. `compfinder providers list` shows which are configured.
 | `google-places-api` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes | available |
 | `searchapi-io` | `COMPFINDER_SEARCHAPI_IO_API_KEY` | yes | available |
 | `brave-search-api` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes | available |
-| `apollo-io` | `COMPFINDER_APOLLO_API_KEY` | yes | declared, arriving soon |
+| `apollo-io` | `COMPFINDER_APOLLO_API_KEY` | yes | available |
 
 A declared provider that isn't available yet shows as `skipped: not available in this
 version` in a lookup's `providers` list.
@@ -110,6 +110,23 @@ website is known, so with both configured, the second runs only if the first fou
   header.
 - Their responses aren't cached until each provider's terms have been checked.
 - `providers check` makes one small search with each, which costs one query.
+
+## apollo-io
+
+Apollo.io organisation enrichment, by the website's domain. It runs last (the enrich stage),
+once a website is known, and makes one metered call.
+
+- **Organisations only, never people.** It calls only Apollo's organisation endpoint, and reads
+  an explicit list of organisation fields: name, website, phone, street address, town, county,
+  postcode, and LinkedIn company, Facebook and X profiles. People in the response are never
+  read.
+- **Its address and phone are the head office's.** For a query about a branch, they don't
+  displace the branch's own details. They show as conflicts, and a branch value that only Apollo
+  gives is capped at 30 ([confidence.md](confidence.md)).
+- Apollo counts as a source independent of the site and of Google.
+- The key goes in the `X-Api-Key` header. Responses aren't cached until Apollo's terms on storing
+  and redistributing its data have been checked.
+- `providers check` calls Apollo's auth health endpoint.
 
 ## Logos
 

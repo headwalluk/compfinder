@@ -1,5 +1,6 @@
 import type { Config } from '../config.js';
 import type { Provider } from './contract.js';
+import { createApolloProvider } from './apollo-io/index.js';
 import { createBraveSearchProvider } from './brave-search-api/index.js';
 import { createGooglePlacesProvider } from './google-places-api/index.js';
 import { createSearchApiProvider } from './searchapi-io/index.js';
@@ -16,5 +17,6 @@ export function builtInProviders(config: Config): Provider[] {
     createGooglePlacesProvider(),
     createSearchApiProvider({ directoryHosts: config.discover.directoryHosts, isRunAll: config.discover.runAll }),
     createBraveSearchProvider({ directoryHosts: config.discover.directoryHosts, isRunAll: config.discover.runAll }),
+    createApolloProvider(),
   ];
 }
