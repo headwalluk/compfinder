@@ -42,4 +42,6 @@ export interface Provider {
   maxCalls(knowledge: Knowledge): number;
   /** Runs the lookup. Throws ProviderError for a classified failure. */
   run(knowledge: Knowledge, context: ProviderContext): Promise<SourceRecord[]>;
+  /** One cheap live call proving the credentials work (providers check). Absent when there are none to check. */
+  check?(context: ProviderContext): Promise<void>;
 }

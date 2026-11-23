@@ -6,7 +6,7 @@ it costs. `compfinder providers list` shows which are configured.
 | Provider | Needs | Metered | Status in this version |
 |---|---|---|---|
 | `web-fetch` | nothing | no | available |
-| `google-places-api` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes | declared, arriving soon |
+| `google-places-api` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes | available |
 | `searchapi-io` | `COMPFINDER_SEARCHAPI_IO_API_KEY` | yes | declared, arriving soon |
 | `brave-search-api` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes | declared, arriving soon |
 | `apollo-io` | `COMPFINDER_APOLLO_API_KEY` | yes | declared, arriving soon |
@@ -68,6 +68,29 @@ in the response cache (`<cache_dir>/responses/web-fetch/`). Responses that refus
 
 **Settings:** `web_fetch.max_pages`, `web_fetch.honour_robots`, `web_fetch.unreadable_text_chars`
 ([configuration.md](configuration.md)).
+
+## google-places-api
+
+Google Places API (New). It needs a Google Cloud API key with the Places API (New) enabled, in
+`COMPFINDER_GOOGLE_PLACES_API_KEY` or `providers.google-places-api.api_key`. Every call is
+metered by Google.
+
+- **With a place ID** (`--place-id`): one Place Details call.
+- **Otherwise**: one Text Search call, for the best name known plus the best location: the
+  query's postcode, else the postcode or town another provider found, else the query's address.
+  With no name and location, it searches by phone. With neither, it waits for an earlier stage,
+  and is skipped if nothing turns up. It asks for at most 5 candidates, in the lookup's
+  country.
+- **Fields read** (the field mask decides Google's billing tier): `id`, `displayName`,
+  `formattedAddress`, `addressComponents`, `location`, `nationalPhoneNumber`,
+  `internationalPhoneNumber`, `websiteUri`, `businessStatus`.
+- The key is sent in the `X-Goog-Api-Key` header, never in a URL.
+- A place Google lists as closed (temporarily or permanently) is named in `warnings`.
+- Google's responses aren't cached. Google's terms restrict caching most Places content.
+- `providers check` makes one Text Search asking only for place IDs, Google's lowest tier.
+
+Failures: a rejected or invalid key is `auth_failed`, a quota or rate limit is
+`quota_exceeded`, a Google outage is `unreachable`, and anything unparseable is `bad_response`.
 
 ## Logos
 

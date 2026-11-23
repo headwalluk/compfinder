@@ -336,3 +336,53 @@ export function planLookup(request: LookupRequest): { providers: PlannedProvider
   const providers = order.map((name) => planned.get(name)).filter((entry) => entry !== undefined);
   return { providers, maxMeteredCalls: providers.reduce((total, entry) => total + entry.maxCalls, 0) };
 }
+
+/** One provider's result from `providers check`. */
+export interface CheckReport {
+  name: ProviderName;
+  status: 'ok' | 'skipped' | 'not_configured' | ProviderRunStatus;
+  detail: string | null;
+}
+
+/** Proves each configured provider's credentials with one cheap live call. Never prints a key (redacted). */
+export async function checkProviders(request: Pick<LookupRequest, 'providers' | 'config' | 'logger' | 'transport' | 'only'>): Promise<CheckReport[]> {
+  const { config, logger } = request;
+  const implementations = new Map(request.providers.map((provider) => [provider.declaration.name, provider]));
+  const secrets = Object.values(config.providers).map((settings) => settings.apiKey).filter((key) => key !== null);
+  const reports: CheckReport[] = [];
+  for (const name of PROVIDER_NAMES.filter((candidate) => request.only === undefined || request.only.includes(candidate))) {
+    const declaration = PROVIDER_DECLARATIONS[name];
+    const settings = config.providers[name];
+    const provider = implementations.get(name);
+    let report: CheckReport;
+    if (!settings.enabled) {
+      report = { name, status: 'skipped', detail: 'disabled in config' };
+    } else if (declaration.credentialVariable !== null && settings.apiKey === null) {
+      report = { name, status: 'not_configured', detail: `set ${declaration.credentialVariable}` };
+    } else if (provider === undefined) {
+      report = { name, status: 'skipped', detail: 'not available in this version' };
+    } else if (provider.check === undefined) {
+      report = { name, status: 'ok', detail: 'needs no credentials' };
+    } else {
+      const meter = new CallMeter(declaration.metered, []);
+      const signal = AbortSignal.timeout(config.timeouts.requestMs);
+      const http = createHttpClient({
+        transport: request.transport ?? LIVE_TRANSPORT, userAgent: userAgent(), requestTimeoutMs: config.timeouts.requestMs,
+        allowPrivateAddresses: config.net.allowPrivateAddresses, meter, signal, logger: logger.child(name), secrets,
+      });
+      const context: ProviderContext = { settings, meter, http, warn: () => undefined, signal, logger: logger.child(name) };
+      try {
+        await provider.check(context);
+        report = { name, status: 'ok', detail: null };
+      } catch (error) {
+        if (!(error instanceof ProviderError)) {
+          throw error;
+        }
+        report = { name, status: error.status, detail: redact(error.detail, secrets) };
+        logger.warn(`${name} check failed: ${error.status}`, { detail: report.detail });
+      }
+    }
+    reports.push(report);
+  }
+  return reports;
+}

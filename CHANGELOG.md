@@ -23,6 +23,11 @@ All notable changes to this project are documented here. The format follows
   Open Graph, icons, the web app manifest, `tel:`/`mailto:` and social links), honours
   `robots.txt`, stops at bot protection, and reports pages that build their content with
   JavaScript as unreadable.
+- The `google-places-api` provider: Place Details for a known place ID, otherwise one Text Search
+  for the best name and location known. It supplies the place ID, Google's normalised address,
+  phone and website, and warns when Google lists a place as closed.
+- `compfinder providers check [provider]`: one cheap live call per configured provider, to prove
+  its credentials work.
 - Logos: the best candidate is downloaded, identified by its bytes, measured, converted to PNG
   when it's an SVG, and stored in the logo cache. A failed candidate falls back to the next
   (`--no-download` skips this).

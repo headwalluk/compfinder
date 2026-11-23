@@ -1,6 +1,8 @@
-import { PROVIDER_DECLARATIONS, PROVIDER_NAMES, DEFAULT_FIELD_PRIORITY } from '../../providers/declarations.js';
+import { checkProviders } from '../../lookup/engine.js';
+import { PROVIDER_DECLARATIONS, PROVIDER_NAMES, DEFAULT_FIELD_PRIORITY, isProviderName } from '../../providers/declarations.js';
+import { builtInProviders } from '../../providers/registry.js';
 import { providerStatus } from '../../providers/status.js';
-import type { Command } from '../command.js';
+import type { Command, CommandResult } from '../command.js';
 import { ExitCode } from '../exit-codes.js';
 
 /** Gap between the name and status columns. */
@@ -39,5 +41,36 @@ export const providersListCommand: Command = {
       return `${provider.name.padEnd(nameWidth)}${provider.status.padEnd(statusWidth)}${detail}`.trimEnd();
     });
     return { exitCode: ExitCode.success, data: { providers }, text: lines.join('\n') };
+  },
+};
+
+export const providersCheckCommand: Command = {
+  path: ['providers', 'check'],
+  summary: 'Prove each configured provider\'s credentials with one cheap live call. Never prints a key.',
+  usage: 'compfinder providers check [provider] [--output=text|json]',
+  flags: [],
+  maxArguments: 1,
+  outputs: ['text', 'json'],
+  async run({ args, config, logger }) {
+    const requested = args.words[2];
+    let result: CommandResult;
+    if (requested !== undefined && !isProviderName(requested)) {
+      result = {
+        exitCode: ExitCode.usage,
+        data: { error: `Unknown provider ${requested}`, problems: [`"${requested}" isn't a provider. Providers are ${PROVIDER_NAMES.join(', ')}.`] },
+        text: `"${requested}" isn't a provider. Providers are ${PROVIDER_NAMES.join(', ')}.`,
+      };
+    } else {
+      const checks = await checkProviders({ providers: builtInProviders(config), config, logger, ...(requested === undefined ? {} : { only: [requested] }) });
+      const failed = checks.filter((check) => !['ok', 'skipped', 'not_configured'].includes(check.status));
+      const nameWidth = Math.max(...checks.map((check) => check.name.length)) + COLUMN_GAP;
+      const statusWidth = Math.max(...checks.map((check) => check.status.length)) + COLUMN_GAP;
+      result = {
+        exitCode: failed.length > 0 ? ExitCode.failure : ExitCode.success,
+        data: { providers: checks },
+        text: checks.map((check) => `${check.name.padEnd(nameWidth)}${check.status.padEnd(statusWidth)}${check.detail === null ? '' : `(${check.detail})`}`.trimEnd()).join('\n'),
+      };
+    }
+    return result;
   },
 };

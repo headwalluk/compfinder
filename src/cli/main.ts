@@ -5,11 +5,11 @@ import { booleanFlag, parseArgs, stringFlag, type ParsedArgs } from './args.js';
 import { OUTPUT_FORMATS, type Command, type CommandResult, type OutputFormat } from './command.js';
 import { configInitCommand, configPathCommand, configShowCommand } from './commands/config.js';
 import { findCommand } from './commands/find.js';
-import { providersListCommand } from './commands/providers.js';
+import { providersCheckCommand, providersListCommand } from './commands/providers.js';
 import { ExitCode } from './exit-codes.js';
 
 const CLI_NAME = 'compfinder';
-const COMMANDS: Command[] = [findCommand, providersListCommand, configInitCommand, configPathCommand, configShowCommand];
+const COMMANDS: Command[] = [findCommand, providersListCommand, providersCheckCommand, configInitCommand, configPathCommand, configShowCommand];
 /** Flags every command accepts. */
 const GLOBAL_FLAGS = ['output', 'help', 'config'];
 const DEFAULT_OUTPUT: OutputFormat = 'text';

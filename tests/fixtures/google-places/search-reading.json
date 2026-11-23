@@ -1,0 +1,74 @@
+{
+  "places": [
+    {
+      "id": "ChIJexampleReading001",
+      "displayName": {
+        "text": "Example Estates Reading",
+        "languageCode": "en"
+      },
+      "formattedAddress": "1 Broad Street, Reading RG1 1AA, UK",
+      "addressComponents": [
+        {
+          "longText": "1",
+          "shortText": "1",
+          "types": [
+            "street_number"
+          ]
+        },
+        {
+          "longText": "Broad Street",
+          "shortText": "Broad St",
+          "types": [
+            "route"
+          ]
+        },
+        {
+          "longText": "Reading",
+          "shortText": "Reading",
+          "types": [
+            "postal_town"
+          ]
+        },
+        {
+          "longText": "Berkshire",
+          "shortText": "Berkshire",
+          "types": [
+            "administrative_area_level_2",
+            "political"
+          ]
+        },
+        {
+          "longText": "England",
+          "shortText": "England",
+          "types": [
+            "administrative_area_level_1",
+            "political"
+          ]
+        },
+        {
+          "longText": "United Kingdom",
+          "shortText": "GB",
+          "types": [
+            "country",
+            "political"
+          ]
+        },
+        {
+          "longText": "RG1 1AA",
+          "shortText": "RG1 1AA",
+          "types": [
+            "postal_code"
+          ]
+        }
+      ],
+      "location": {
+        "latitude": 51.456,
+        "longitude": -0.973
+      },
+      "nationalPhoneNumber": "0118 496 0000",
+      "internationalPhoneNumber": "+44 118 496 0000",
+      "websiteUri": "https://example.com/branches/reading/",
+      "businessStatus": "OPERATIONAL"
+    }
+  ]
+}

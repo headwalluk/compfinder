@@ -12,6 +12,7 @@ an unknown command and exits 2.
 | Command | Does |
 |---|---|
 | `compfinder find ["Name"] [options]` | Looks up a business (below) |
+| `compfinder providers check [provider]` | Proves each configured provider's credentials with one cheap live call, and reports `ok` or a failure status (`auth_failed`, `quota_exceeded`, …). Exits 1 when any check fails. Never prints a key |
 | `compfinder providers list` | Lists the built-in providers, and whether each is `configured`, `not-configured` (with what to set) or `disabled`. Makes no network calls |
 | `compfinder config init` | Writes a commented config file to the config path. Refuses, with exit 4, if the file already exists. It never overwrites |
 | `compfinder config path` | Shows which config file is used, and whether it exists |

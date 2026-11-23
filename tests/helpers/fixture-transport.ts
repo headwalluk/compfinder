@@ -22,8 +22,11 @@ export interface FixtureTransport extends Transport {
   unmatched: string[];
 }
 
+/** A route: a fixed response, or a function of the request (to check headers or a POST body). */
+export type FixtureRoute = FixtureResponse | ((request: TransportRequest) => FixtureResponse);
+
 /** A transport that answers from fixtures, keyed by absolute URL. */
-export function fixtureTransport(routes: Record<string, FixtureResponse>): FixtureTransport {
+export function fixtureTransport(routes: Record<string, FixtureRoute>): FixtureTransport {
   const requests: string[] = [];
   const unmatched: string[] = [];
   return {
@@ -32,7 +35,8 @@ export function fixtureTransport(routes: Record<string, FixtureResponse>): Fixtu
     async send(request: TransportRequest): Promise<TransportResponse> {
       const key = request.url.href;
       requests.push(`${request.method} ${key}`);
-      const route = routes[key];
+      const entry = routes[key];
+      const route = typeof entry === 'function' ? entry(request) : entry;
       if (route === undefined) {
         unmatched.push(`${request.method} ${key}`);
       }

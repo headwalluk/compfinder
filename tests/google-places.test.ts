@@ -1,0 +1,173 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { describe, test } from 'node:test';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import { checkProviders, runLookup } from '../src/lookup/engine.js';
+import type { QueryInput } from '../src/lookup/query.js';
+import { buildResult, type LookupResult } from '../src/lookup/result.js';
+import type { TransportRequest } from '../src/net/transport.js';
+import { builtInProviders } from '../src/providers/registry.js';
+import { fixtureTransport, type FixtureResponse, type FixtureRoute, type FixtureTransport } from './helpers/fixture-transport.js';
+import { makeQuery, testConfig } from './helpers/records.js';
+import { quietLogger } from './helpers/stub-providers.js';
+
+const API_KEY = 'test-google-key-not-real';
+const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+const DETAILS_URL = 'https://places.googleapis.com/v1/places/ChIJexampleReading001';
+const SCHEMA = JSON.parse(readFileSync(new URL('../schema/result-1.0.json', import.meta.url), 'utf8')) as object;
+const validate = new Ajv2020({ allErrors: true }).compile(SCHEMA);
+
+/** A JSON fixture response from tests/fixtures/google-places/. */
+function google(file: string, status = 200): FixtureResponse {
+  return { status, file: `google-places/${file}`, headers: { 'content-type': 'application/json' } };
+}
+
+/** Records each Google request's headers and body, then answers with a fixture. */
+function recordingRoute(file: string, seen: TransportRequest[], status = 200): FixtureRoute {
+  return (request) => {
+    seen.push(request);
+    return google(file, status);
+  };
+}
+
+const SITE: Record<string, FixtureRoute> = {
+  'https://example.com/robots.txt': { body: 'User-agent: *\nAllow: /\n', headers: { 'content-type': 'text/plain' } },
+  'https://example.com/branches/reading/': { file: 'web-fetch/branch-page/reading.html' },
+  'https://example.com/': { file: 'web-fetch/branch-page/home.html' },
+  'https://example.com/contact/': { file: 'web-fetch/branch-page/contact.html' },
+  'https://example.com/branches/': { file: 'web-fetch/chain/branches.html' },
+};
+
+/** Runs a lookup with every built-in provider, Google's key set, against fixtures. */
+async function find(input: QueryInput, routes: Record<string, FixtureRoute>): Promise<{ result: LookupResult; transport: FixtureTransport }> {
+  const transport = fixtureTransport(routes);
+  const config = testConfig({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: API_KEY } });
+  const outcome = await runLookup({ query: makeQuery(input), providers: builtInProviders(config), config, logger: quietLogger, transport, isDownloadSkipped: true });
+  const result = buildResult(outcome, { isExplain: false });
+  assert.ok(validate(result), JSON.stringify(validate.errors));
+  return { result, transport };
+}
+
+/** Google's entry in a result's providers. */
+function googleReport(result: LookupResult) {
+  return result.providers.find((provider) => provider.name === 'google-places-api');
+}
+
+describe('google-places-api', () => {
+  test('1. the site and Google agree: name, phone, address and place ID all reach 100', async () => {
+    const seen: TransportRequest[] = [];
+    const { result, transport } = await find({ name: 'Example Estates', url: 'https://example.com/branches/reading/' }, {
+      ...SITE, [SEARCH_URL]: recordingRoute('search-reading.json', seen),
+    });
+    assert.deepEqual(transport.unmatched, []);
+    const confidences = Object.fromEntries(Object.entries(result.fields).map(([field, value]) => [field, value.confidence]));
+    assert.deepEqual(confidences, { name: 100, website: 100, address: 100, phone: 100, email: 60, logo: 100, place_id: 100, socials: 60 });
+    assert.equal(result.fields.address.normalised_by, 'google-places-api');
+    assert.equal(googleReport(result)?.calls, 1);
+    assert.equal(googleReport(result)?.metered, true);
+
+    const request = seen[0];
+    assert.equal(request?.method, 'POST');
+    assert.equal(request?.headers['x-goog-api-key'], API_KEY, 'the key goes in a header');
+    assert.ok(!request?.url.href.includes(API_KEY), 'never in the URL');
+    assert.match(request?.headers['x-goog-fieldmask'] ?? '', /^places\.id,places\.displayName,.*places\.businessStatus$/);
+    assert.deepEqual(JSON.parse(request?.body ?? '{}'), { textQuery: 'Example Estates, RG1 1AA', regionCode: 'gb', pageSize: 5 },
+      'the query\'s name with the postcode web-fetch read');
+  });
+
+  test('a known place ID uses Place Details, and confirms the identity', async () => {
+    const seen: TransportRequest[] = [];
+    const { result } = await find({ place_id: 'ChIJexampleReading001' }, { [DETAILS_URL]: recordingRoute('details-reading.json', seen) });
+    assert.equal(seen[0]?.method, 'GET');
+    assert.match(seen[0]?.headers['x-goog-fieldmask'] ?? '', /^id,displayName,/);
+    assert.equal(result.identity.confidence, 100);
+    assert.deepEqual(result.identity.rules, ['identity.input-confirmed']);
+  });
+
+  test('5. no website given: Google supplies one, and web-fetch reads it in the late pass', async () => {
+    const { result, transport } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, {
+      ...SITE, [SEARCH_URL]: google('search-reading.json'),
+    });
+    assert.deepEqual(transport.unmatched, []);
+    assert.equal(transport.requests[0], `POST ${SEARCH_URL}`, 'Google first: nothing for web-fetch to read yet');
+    assert.ok(transport.requests.includes('GET https://example.com/branches/reading/'));
+    assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.status, 'ok');
+    assert.equal(result.fields.phone.confidence, 100);
+  });
+
+  test('3. two branches match a name with no location: both are listed, and the identity is shared', async () => {
+    const { result } = await find({ name: 'Example Estates', phone: '0118 496 0999' }, { [SEARCH_URL]: google('search-two-branches.json') });
+    assert.equal(result.identity.candidates.length, 0, 'the query phone matches neither, so neither is pinned; both are contradicted and dropped');
+    const tied = await find({ name: 'Example Estates', address: 'Berkshire' }, { [SEARCH_URL]: google('search-two-branches.json') });
+    assert.equal(tied.result.identity.candidates.length, 2);
+    assert.equal(tied.result.identity.confidence, 30);
+  });
+
+  test('a permanently closed place is reported in warnings', async () => {
+    const { result } = await find({ name: 'Example Estates', postcode: 'RG9 1AA' }, { [SEARCH_URL]: google('search-closed.json') });
+    assert.ok(result.warnings.includes('Google lists Example Estates Henley as closed permanently.'));
+  });
+
+  test('no results is a successful call that found nothing', async () => {
+    const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, { [SEARCH_URL]: google('search-empty.json') });
+    assert.equal(googleReport(result)?.status, 'ok');
+    assert.equal(result.identity.confidence, 0);
+    assert.equal(result.error, null);
+  });
+
+  test('API errors are classified, and the key never appears in the detail', async () => {
+    const cases: Array<[string, number, string]> = [
+      ['error-permission-denied.json', 403, 'auth_failed'],
+      ['error-key-invalid.json', 400, 'auth_failed'],
+      ['error-quota.json', 429, 'quota_exceeded'],
+      ['search-empty.json', 503, 'unreachable'],
+    ];
+    for (const [file, status, expected] of cases) {
+      const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, { [SEARCH_URL]: google(file, status) });
+      assert.equal(googleReport(result)?.status, expected, file);
+      assert.equal(result.error?.code, 'lookup.all_failed');
+    }
+    const echoesKey = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, {
+      [SEARCH_URL]: { status: 400, body: `{"error":{"message":"API key ${API_KEY} not valid","details":[{"reason":"API_KEY_INVALID"}]}}` },
+    });
+    assert.doesNotMatch(JSON.stringify(echoesKey.result), new RegExp(API_KEY));
+    const notJson = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, { [SEARCH_URL]: { body: '<html>Oops</html>' } });
+    assert.equal(googleReport(notJson.result)?.status, 'bad_response');
+  });
+
+  test('with no name and location to search with, Google waits, then is skipped with the reason', async () => {
+    const { result, transport } = await find({ name: 'Example Estates' }, {});
+    assert.deepEqual(transport.requests, []);
+    assert.equal(googleReport(result)?.reason, 'no place ID, and no name with a location (or a phone) to search with');
+  });
+
+  test('the metered-call budget stops Google before it runs', async () => {
+    const transport = fixtureTransport({ [SEARCH_URL]: google('search-reading.json') });
+    const config = testConfig({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: API_KEY }, fileText: '[budgets]\nmetered_calls_per_lookup = 0\n' });
+    const outcome = await runLookup({ query: makeQuery({ name: 'Example Estates', postcode: 'RG1 1AA' }), providers: builtInProviders(config), config, logger: quietLogger, transport });
+    assert.equal(outcome.reports.find((report) => report.name === 'google-places-api')?.reason, 'over budget');
+    assert.deepEqual(transport.requests, []);
+  });
+});
+
+describe('providers check', () => {
+  test('makes one IDs-only call per configured provider, and classifies a failure', async () => {
+    const seen: TransportRequest[] = [];
+    const config = testConfig({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: API_KEY } });
+    const reports = await checkProviders({
+      providers: builtInProviders(config), config, logger: quietLogger,
+      transport: fixtureTransport({ [SEARCH_URL]: recordingRoute('search-empty.json', seen) }),
+    });
+    assert.deepEqual(reports.map((report) => `${report.name}: ${report.status}`), [
+      'web-fetch: ok', 'google-places-api: ok', 'searchapi-io: not_configured', 'brave-search-api: not_configured', 'apollo-io: not_configured',
+    ]);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0]?.headers['x-goog-fieldmask'], 'places.id');
+
+    const failed = await checkProviders({
+      providers: builtInProviders(config), config, logger: quietLogger, only: ['google-places-api'],
+      transport: fixtureTransport({ [SEARCH_URL]: google('error-key-invalid.json', 400) }),
+    });
+    assert.deepEqual(failed.map((report) => report.status), ['auth_failed']);
+  });
+});

@@ -1,0 +1,74 @@
+{
+  "places": [
+    {
+      "id": "ChIJexampleClosed0001",
+      "displayName": {
+        "text": "Example Estates Henley",
+        "languageCode": "en"
+      },
+      "formattedAddress": "3 Broad Street, Henley RG9 1AA, UK",
+      "addressComponents": [
+        {
+          "longText": "3",
+          "shortText": "3",
+          "types": [
+            "street_number"
+          ]
+        },
+        {
+          "longText": "Broad Street",
+          "shortText": "Broad St",
+          "types": [
+            "route"
+          ]
+        },
+        {
+          "longText": "Henley",
+          "shortText": "Henley",
+          "types": [
+            "postal_town"
+          ]
+        },
+        {
+          "longText": "Berkshire",
+          "shortText": "Berkshire",
+          "types": [
+            "administrative_area_level_2",
+            "political"
+          ]
+        },
+        {
+          "longText": "England",
+          "shortText": "England",
+          "types": [
+            "administrative_area_level_1",
+            "political"
+          ]
+        },
+        {
+          "longText": "United Kingdom",
+          "shortText": "GB",
+          "types": [
+            "country",
+            "political"
+          ]
+        },
+        {
+          "longText": "RG9 1AA",
+          "shortText": "RG9 1AA",
+          "types": [
+            "postal_code"
+          ]
+        }
+      ],
+      "location": {
+        "latitude": 51.456,
+        "longitude": -0.973
+      },
+      "nationalPhoneNumber": "0118 496 0456",
+      "internationalPhoneNumber": "+44 118 496 0456",
+      "websiteUri": "https://example.com/",
+      "businessStatus": "CLOSED_PERMANENTLY"
+    }
+  ]
+}

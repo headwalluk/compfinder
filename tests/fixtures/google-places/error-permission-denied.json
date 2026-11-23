@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "message": "Requests to this API are blocked.",
+    "status": "PERMISSION_DENIED"
+  }
+}
