@@ -34,6 +34,8 @@ export interface CandidateAssessment {
   baseScore: number;
   baseRule: RuleId;
   baseReason: string;
+  /** True when the query is a whole business (a home page, no location) and this candidate is its head office. */
+  isPreferredHeadOffice: boolean;
 }
 
 export interface IdentityResult {
@@ -153,6 +155,7 @@ function assessCandidate(candidate: Candidate, query: Query): CandidateAssessmen
     baseReason = `one source only (${sources}), from loose page content`;
   }
   const isPinnedByQuery = keys.some((match) => PINNING_KEYS.has(match.key) && match.state === 'confirmed');
+  const isWholeBusinessQuery = !queryHasLocation(query) && query.website !== null;
   return {
     candidate,
     keys,
@@ -162,16 +165,18 @@ function assessCandidate(candidate: Candidate, query: Query): CandidateAssessmen
     baseScore: ruleScore(baseRule),
     baseRule,
     baseReason,
+    isPreferredHeadOffice: isWholeBusinessQuery && candidate.records.some((record) => record.role === 'head-office'),
   };
 }
 
-/** Ranks two candidates: a confirmed place ID, most confirmed keys, fewest contradictions, most origins. 0 is a tie. */
+/** Ranks two candidates: a confirmed place ID, the head office for a whole-business query, most confirmed keys, fewest contradictions, most origins. 0 is a tie. */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
   const placeIdRank = (assessment: CandidateAssessment): number => (
     assessment.keys.some((match) => match.key === 'place_id' && match.state === 'confirmed') ? 1 : 0
   );
   const count = (assessment: CandidateAssessment, state: KeyState): number => assessment.keys.filter((match) => match.state === state).length;
   return placeIdRank(second) - placeIdRank(first)
+    || Number(second.isPreferredHeadOffice) - Number(first.isPreferredHeadOffice)
     || count(second, 'confirmed') - count(first, 'confirmed')
     || count(first, 'contradicted') - count(second, 'contradicted')
     || second.origins.length - first.origins.length;

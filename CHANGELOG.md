@@ -15,6 +15,14 @@ All notable changes to this project are documented here. The format follows
   template, find the config file in use, and see every effective setting and where it came from.
 - Configuration from `~/.config/compfinder/config.toml`, with `COMPFINDER_*` environment
   variables and command-line flags as overrides. Every problem is reported at once.
-- The lookup engine and confidence scoring behind `find`, with the JSON output contract
-  (`schema/result-1.0.json`) documented in `docs/output.md`, and every confidence rule in
-  `docs/confidence.md`. `find` itself arrives with the first provider.
+- `compfinder find`: look up a business by name, URL, address, postcode, phone or place ID, with
+  `--output=text|json|csv`, `--fields`, `--providers`/`--exclude`, `--max-metered-calls`,
+  `--dry-run` and `--explain`. The JSON output follows `schema/result-1.0.json`, documented in
+  `docs/output.md`, and every confidence rule is in `docs/confidence.md`.
+- The `web-fetch` provider: reads a business's own pages (schema.org JSON-LD and microdata,
+  Open Graph, icons, the web app manifest, `tel:`/`mailto:` and social links), honours
+  `robots.txt`, stops at bot protection, and reports pages that build their content with
+  JavaScript as unreadable.
+- Network safeguards: refuses private and reserved addresses at connect time and on every
+  redirect, caps response sizes after decompression, and sends an honest User-Agent
+  (`docs/security.md`).

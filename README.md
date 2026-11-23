@@ -13,13 +13,14 @@ needs no key. Google Places, SearchAPI.io, Brave Search and Apollo.io each add d
 confidence once you give them an API key. compfinder is deterministic: it makes no LLM calls,
 and the same provider responses always give the same answer.
 
-**Status:** early development. Configuration and `providers list` work today. Business lookups
-(`compfinder find`) are being built.
+**Status:** early development. `find` works today with `web-fetch`, which reads a business's
+own site. The API providers (Google Places, search, Apollo) are on their way.
 
 ```sh
 npm install -g @headwall/compfinder
-compfinder config init        # writes ~/.config/compfinder/config.toml
-compfinder providers list     # shows which providers are configured
+compfinder find "Example Estates" --url https://example.com/branches/reading/
+compfinder find --url example.com --output=json      # for scripts and agents
+compfinder config init        # writes ~/.config/compfinder/config.toml, for API keys
 ```
 
 ## Documentation
@@ -29,6 +30,8 @@ For people running compfinder:
 - [Documentation index](docs/README.md)
 - [Configuration](docs/configuration.md): the config file, every setting, environment overrides
 - [Command line](docs/cli.md): every command and option, output formats, exit codes
+- [Providers](docs/providers.md): what each provider reads, needs and costs
+- [Security](docs/security.md): network behaviour, refused addresses, untrusted content, personal data
 
 For scripts and agents reading the output:
 
@@ -37,6 +40,7 @@ For scripts and agents reading the output:
 
 For developers:
 
+- [Development](docs/development.md): setup, layout, how a lookup flows, adding a provider, tests
 - [Changelog](CHANGELOG.md)
 
 ## Licence

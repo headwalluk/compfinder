@@ -3,6 +3,7 @@ import type { CallMeter } from '../lookup/budget.js';
 import type { FieldName } from '../lookup/fields.js';
 import type { FieldValues, Query, SourceRecord } from '../lookup/types.js';
 import type { Logger } from '../logger.js';
+import type { HttpClient } from '../net/http-client.js';
 import type { ProviderDeclaration } from './declarations.js';
 
 /** What the engine knows when a provider is about to run: the query and the best value of each field so far. */
@@ -23,6 +24,10 @@ export interface ProviderContext {
   settings: ProviderSettings;
   /** Every call goes through meter.record(), which debits the budget for metered calls. */
   meter: CallMeter;
+  /** The guarded HTTP client; every network request goes through it, and it records each call on the meter. */
+  http: HttpClient;
+  /** Adds a warning to the lookup's result. */
+  warn(message: string): void;
   /** Aborts at the lookup's deadline. */
   signal: AbortSignal;
   logger: Logger;

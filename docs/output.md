@@ -8,7 +8,7 @@ A lookup's result comes in one of three formats, chosen with `--output`:
 | Format | For | Contract |
 |---|---|---|
 | `json` | Scripts and agents | Yes: the shape below, versioned by `schema_version`, with a JSON Schema in [`schema/result-1.0.json`](../schema/result-1.0.json) |
-| `csv` | Spreadsheets | The column list is part of the schema version (arrives with `find`) |
+| `csv` | Spreadsheets | The column list below is part of the schema version |
 | `text` | People | No: it may change in any release |
 
 ## The JSON result
@@ -136,6 +136,31 @@ a `detail`. Match on the `code`, never on the message.
 | `input.bad_value` | 2 | A value in the query is invalid (`detail` says which) |
 
 A lookup that finds nothing isn't an error. It's `error: null` with confidence 0.
+
+## CSV
+
+`--output=csv` writes UTF-8 with a byte-order mark (so spreadsheets read accented addresses
+correctly), CRLF line endings, a header row, then one row per lookup. Cells with a comma, quote
+or line break are quoted, with quotes doubled. A cell starting with `=`, `+`, `-`, `@`, a tab
+or a carriage return gets a leading `'`, so a spreadsheet won't run it as a formula. Page
+content is untrusted, and this also keeps `+441184960000` from becoming `4.41E+11`. Lists
+(address lines, socials, warnings) are joined with `; `.
+
+The columns, in order:
+
+```
+id, input_name, input_url, input_postcode, identity_confidence, candidate_count,
+name, name_confidence, website, website_confidence,
+address_lines, address_town, address_county, address_postcode, address_country_code,
+address_lat, address_lon, address_confidence,
+phone, phone_display, phone_confidence, email, email_confidence,
+logo_url, logo_path, logo_confidence, place_id, place_id_confidence,
+socials, socials_confidence, conflict_fields, failed_providers, warnings, error_code
+```
+
+`id` is the caller's id in batch mode. `conflict_fields` names the fields that have conflicts,
+and `failed_providers` lists `provider: status` for each failure. CSV carries chosen values only.
+Evidence, reasons and the conflicting values themselves are in the JSON output.
 
 ## Versioning
 

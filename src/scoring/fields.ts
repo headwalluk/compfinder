@@ -107,10 +107,10 @@ function groupItems<Field extends FieldName>(field: Field, items: Array<FieldIte
   }));
 }
 
-/** Specificity of a group's value: more words in a name wins a tie. */
+/** Specificity of a group's value: more distinct words in a name wins a tie, so repeating a word gains nothing. */
 function specificity<Field extends FieldName>(field: Field, group: ValueGroup<Field>): number {
   const first = group.items[0];
-  return field === 'name' && first !== undefined ? nameTokens(first.value as string).length : 0;
+  return field === 'name' && first !== undefined ? new Set(nameTokens(first.value as string)).size : 0;
 }
 
 /** Orders groups: most independent origins, then structured, then specificity, then priority, then value. */

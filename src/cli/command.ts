@@ -30,6 +30,8 @@ export interface Command {
   usage: string;
   /** Flags the command accepts, beyond the global ones. */
   flags: readonly string[];
+  /** Positional arguments allowed after the command's words; 0 when absent. */
+  maxArguments?: number;
   /** Output formats the command supports. */
   outputs: readonly OutputFormat[];
   run(context: CommandContext): Promise<CommandResult>;

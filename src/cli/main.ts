@@ -4,11 +4,12 @@ import { packageVersion } from '../package-files.js';
 import { booleanFlag, parseArgs, stringFlag, type ParsedArgs } from './args.js';
 import { OUTPUT_FORMATS, type Command, type CommandResult, type OutputFormat } from './command.js';
 import { configInitCommand, configPathCommand, configShowCommand } from './commands/config.js';
+import { findCommand } from './commands/find.js';
 import { providersListCommand } from './commands/providers.js';
 import { ExitCode } from './exit-codes.js';
 
 const CLI_NAME = 'compfinder';
-const COMMANDS: Command[] = [providersListCommand, configInitCommand, configPathCommand, configShowCommand];
+const COMMANDS: Command[] = [findCommand, providersListCommand, configInitCommand, configPathCommand, configShowCommand];
 /** Flags every command accepts. */
 const GLOBAL_FLAGS = ['output', 'help', 'config'];
 const DEFAULT_OUTPUT: OutputFormat = 'text';
@@ -16,7 +17,7 @@ const DEFAULT_OUTPUT: OutputFormat = 'text';
 const FLAG_HINTS: Record<string, string> = { json: 'Use --output=json.', csv: 'Use --output=csv.' };
 
 /** Finds the command whose path matches the leading words. */
-function findCommand(args: ParsedArgs): Command | undefined {
+function matchCommand(args: ParsedArgs): Command | undefined {
   return COMMANDS.find((command) => command.path.every((word, position) => args.words[position] === word));
 }
 
@@ -31,7 +32,7 @@ function helpText(): string {
     ...lines,
     `  ${CLI_NAME} ${'version'.padEnd(width)}  Show the version.`,
     '',
-    'Every command takes --output=text|json (default text), --config=PATH and --help.',
+    'Every command takes --output=text|json (default text; find also takes csv), --config=PATH and --help.',
     'Exit codes are listed in docs/cli.md.',
   ].join('\n');
 }
@@ -51,7 +52,7 @@ function invocationProblems(command: Command, args: ParsedArgs, output: OutputFo
       problems.push(`Unknown option --${name} for ${command.path.join(' ')}. ${FLAG_HINTS[name] ?? ''}`.trimEnd());
     }
   }
-  const extraWords = args.words.slice(command.path.length);
+  const extraWords = args.words.slice(command.path.length + (command.maxArguments ?? 0));
   if (extraWords.length > 0) {
     problems.push(`Unexpected argument: ${extraWords.map((word) => `"${word}"`).join(' ')}.`);
   }
@@ -98,7 +99,7 @@ async function main(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   const outputValue = stringFlag(args, 'output') ?? DEFAULT_OUTPUT;
   const output = OUTPUT_FORMATS.find((format) => format === outputValue);
-  const command = findCommand(args);
+  const command = matchCommand(args);
   const firstWord = args.words[0];
   const problems = [...args.problems];
   if (output === undefined) {
@@ -125,6 +126,9 @@ async function main(argv: string[]): Promise<number> {
 
   if (output === 'json') {
     console.log(JSON.stringify({ ok: result.exitCode === ExitCode.success, exitCode: result.exitCode, ...result.data }));
+  } else if (output === 'csv' && result.exitCode !== ExitCode.usage && result.text !== '') {
+    // Written as-is: CSV carries its own CRLF line endings and byte-order mark.
+    process.stdout.write(result.text);
   } else if (result.text !== '') {
     const write = result.exitCode === ExitCode.success ? console.log : console.error;
     write(result.text);

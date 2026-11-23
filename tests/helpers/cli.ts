@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,4 +24,21 @@ export function runCli(cliArguments: string[], environment: Record<string, strin
     encoding: 'utf8',
   });
   return { exitCode: child.status, stdout: child.stdout, stderr: child.stderr };
+}
+
+/** Runs the CLI without blocking the event loop, for tests whose own server must answer it. */
+export function runCliAsync(cliArguments: string[], environment: Record<string, string>): Promise<CliRun> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--import', 'tsx', MAIN_PATH, ...cliArguments], { env: environment });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('close', (exitCode) => resolve({ exitCode, stdout, stderr }));
+  });
 }

@@ -5,6 +5,8 @@
 - [Configuration](configuration.md): where the config file lives, every setting and its
   default, environment variable overrides, and precedence
 - [Command line](cli.md): every command and option, the output formats, and the exit codes
+- [Providers](providers.md): what each provider reads, needs and costs, and how they run in stages
+- [Security](security.md): network behaviour, refused addresses, untrusted content, personal data, credentials
 
 ## For scripts and agents reading the output
 
@@ -13,6 +15,5 @@
 
 ## For developers
 
+- [Development](development.md): setup, layout, how a lookup flows, adding a provider, tests
 - [Changelog](../CHANGELOG.md)
-
-More pages arrive as the tool grows: the providers, security, and development.

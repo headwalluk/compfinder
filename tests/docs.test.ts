@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 import { ExitCode } from '../src/cli/exit-codes.js';
 import { SETTING_FLAGS, knownVariables, settingSpecs } from '../src/config.js';
@@ -49,6 +49,16 @@ describe('documentation agrees with the code', () => {
     }
     for (const status of PROVIDER_RUN_STATUSES) {
       assert.match(OUTPUT_DOC, new RegExp(`^\\| \`${status}\` \\|`, 'm'), `${status} documented`);
+    }
+  });
+
+  test('every docs/ page cited from the source exists', () => {
+    const sourceRoot = new URL('../src/', import.meta.url);
+    const files = readdirSync(sourceRoot, { recursive: true }).map(String).filter((name) => name.endsWith('.ts'));
+    const cited = new Set(files.flatMap((name) => readFileSync(new URL(name, sourceRoot), 'utf8').match(/docs\/[a-z-]+\.md/g) ?? []));
+    assert.ok(cited.size > 0);
+    for (const page of cited) {
+      assert.ok(existsSync(new URL(`../${page}`, import.meta.url)), `${page} exists`);
     }
   });
 });

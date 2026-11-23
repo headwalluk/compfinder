@@ -1,5 +1,9 @@
 import type { Config } from '../config.js';
 import type { Logger } from '../logger.js';
+import { createHttpClient } from '../net/http-client.js';
+import { redact } from '../net/redact.js';
+import { LIVE_TRANSPORT, type Transport } from '../net/transport.js';
+import { userAgent } from '../net/user-agent.js';
 import type { Knowledge, Provider, ProviderContext } from '../providers/contract.js';
 import { PROVIDER_DECLARATIONS, PROVIDER_NAMES, PROVIDER_STAGES, type ProviderName } from '../providers/declarations.js';
 import { scoreLookup, type ScoreResult } from '../scoring/index.js';
@@ -36,6 +40,8 @@ export interface LookupRequest {
   batchBudget?: CallBudget;
   logger: Logger;
   signal?: AbortSignal;
+  /** The network; tests pass a fixture transport. */
+  transport?: Transport;
 }
 
 export interface LookupOutcome {
@@ -113,6 +119,8 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
   const records: SourceRecord[] = [];
   const reports = new Map<ProviderName, ProviderReport>();
   const waiting = new Map<ProviderName, string>();
+  const warnings: string[] = [];
+  const secrets = Object.values(config.providers).map((settings) => settings.apiKey).filter((key) => key !== null);
   let score = scoreLookup(records, query, anchor, config.priority);
   let knowledge = knowledgeFrom(query, score);
 
@@ -145,16 +153,33 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
       skip('skipped', 'over budget');
     } else {
       waiting.delete(name);
-      const context: ProviderContext = { settings: config.providers[name], meter, signal, logger: logger.child(name) };
+      const http = createHttpClient({
+        transport: request.transport ?? LIVE_TRANSPORT,
+        userAgent: userAgent(),
+        requestTimeoutMs: config.timeouts.requestMs,
+        allowPrivateAddresses: config.net.allowPrivateAddresses,
+        meter,
+        signal,
+        logger: logger.child(name),
+        secrets,
+      });
+      const context: ProviderContext = {
+        settings: config.providers[name],
+        meter,
+        http,
+        warn: (message) => warnings.push(redact(message, secrets)),
+        signal,
+        logger: logger.child(name),
+      };
       let status: ProviderRunStatus = 'ok';
       let detail: string | null = null;
       try {
         records.push(...await provider.run(knowledge, context));
       } catch (error) {
         if (error instanceof ProviderError) {
-          logger.warn(`${name} failed: ${error.status}`, { detail: error.detail });
+          detail = redact(error.detail, secrets);
+          logger.warn(`${name} failed: ${error.status}`, { detail });
           status = error.status;
-          detail = error.detail;
         } else if (error instanceof BudgetExhaustedError) {
           logger.info(`${name} stopped at the metered call budget`);
           status = meter.calls > 0 ? 'ok' : 'skipped';
@@ -164,9 +189,9 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           status = 'timeout';
           detail = 'the lookup timed out';
         } else {
-          logger.error(`${name} failed unexpectedly`, { error });
+          detail = redact(error instanceof Error ? error.message : String(error), secrets);
+          logger.error(`${name} failed unexpectedly`, { detail, stack: error instanceof Error ? redact(error.stack ?? '', secrets) : null });
           status = 'internal_error';
-          detail = error instanceof Error ? error.message : String(error);
         }
       }
       reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, calls: meter.calls, metered });
@@ -193,6 +218,85 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
     records,
     reports: PROVIDER_NAMES.map((name) => reports.get(name)).filter((report) => report !== undefined),
     score,
-    warnings: [...score.warnings],
+    warnings: [...score.warnings, ...warnings],
   };
+}
+
+/** One provider's line in a --dry-run plan. */
+export interface PlannedProvider {
+  name: ProviderName;
+  stage: string;
+  status: 'would_run' | 'skipped' | 'not_configured';
+  reason: string | null;
+  metered: boolean;
+  /** The most metered calls it could make; 0 when it wouldn't run or isn't metered. */
+  maxCalls: number;
+}
+
+const HYPOTHETICAL_URL = 'https://hypothetical.invalid/';
+
+/** Pretends a provider found everything it can supply, so later providers' readiness can be judged. */
+function assumeFound(knowledge: Knowledge, supplies: readonly FieldName[]): Knowledge {
+  const fields: Knowledge['fields'] = { ...knowledge.fields };
+  if (supplies.includes('website') && fields.website === undefined) {
+    fields.website = { url: HYPOTHETICAL_URL, domain: 'hypothetical.invalid' };
+  }
+  if (supplies.includes('name') && fields.name === undefined) {
+    fields.name = 'hypothetical';
+  }
+  if (supplies.includes('place_id') && fields.place_id === undefined) {
+    fields.place_id = 'hypothetical';
+  }
+  return { ...knowledge, fields };
+}
+
+/** Plans a lookup without making any call: which providers would run, in order, and the most metered calls (--dry-run). */
+export function planLookup(request: LookupRequest): { providers: PlannedProvider[]; maxMeteredCalls: number } {
+  const { query, config } = request;
+  const requested = new Set<FieldName>(request.fields ?? FIELD_NAMES);
+  const implementations = new Map(request.providers.map((provider) => [provider.declaration.name, provider]));
+  const available = new Set(implementations.keys());
+  const order = runOrder(config, requested);
+  const planned = new Map<ProviderName, PlannedProvider>();
+  const waiting = new Set<ProviderName>();
+  let remaining = config.budgets.meteredCallsPerLookup;
+  let knowledge: Knowledge = { query, fields: query.website === null ? {} : { website: query.website }, settled: new Set() };
+
+  const plan = (name: ProviderName, isLatePass: boolean): void => {
+    const declaration = PROVIDER_DECLARATIONS[name];
+    const provider = implementations.get(name);
+    const skipped = staticSkip(name, request, requested, available);
+    const line = (status: PlannedProvider['status'], reason: string | null, maxCalls = 0): PlannedProvider => (
+      { name, stage: declaration.stage, status, reason, metered: declaration.metered, maxCalls }
+    );
+    const readiness = provider?.readiness(knowledge);
+    if (skipped !== null) {
+      planned.set(name, line(skipped.status === 'not_configured' ? 'not_configured' : 'skipped', skipped.reason));
+    } else if (provider === undefined || readiness === undefined) {
+      planned.set(name, line('skipped', 'not available in this version'));
+    } else if (readiness.state === 'never' || (readiness.state === 'waiting' && isLatePass)) {
+      planned.set(name, line('skipped', readiness.reason));
+    } else if (readiness.state === 'waiting') {
+      waiting.add(name);
+    } else {
+      const calls = declaration.metered ? Math.min(provider.maxCalls(knowledge), remaining) : 0;
+      if (declaration.metered && calls < 1) {
+        planned.set(name, line('skipped', 'over budget'));
+      } else {
+        remaining -= calls;
+        planned.set(name, line('would_run', null, calls));
+        knowledge = assumeFound(knowledge, declaration.supplies);
+      }
+      waiting.delete(name);
+    }
+  };
+  for (const name of order) {
+    plan(name, false);
+  }
+  for (const name of order.filter((candidate) => waiting.has(candidate))) {
+    plan(name, true);
+  }
+  // In run order, so the plan reads top to bottom as the lookup would run.
+  const providers = order.map((name) => planned.get(name)).filter((entry) => entry !== undefined);
+  return { providers, maxMeteredCalls: providers.reduce((total, entry) => total + entry.maxCalls, 0) };
 }
