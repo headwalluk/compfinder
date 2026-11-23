@@ -1,0 +1,15 @@
+# Working notes and code-analysis reports stay out of a github.com repo.
+dev-notes/
+code-analysis/
+
+node_modules/
+dist/
+coverage/
+
+# Local settings and secrets. config.sample.toml is the documented template.
+/config.toml
+.env
+.env.*
+
+# Live responses recorded for calibration; never committed (docs/development.md).
+recordings/

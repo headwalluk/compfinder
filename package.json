@@ -1,0 +1,58 @@
+{
+  "name": "@headwall/compfinder",
+  "version": "0.1.0",
+  "description": "Find a business's website, address, phone, email, logo and Google place ID from several providers, with sources and confidence for every value.",
+  "license": "MIT",
+  "author": "Paul Faulkner (https://headwall-hosting.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/headwalluk/compfinder.git"
+  },
+  "homepage": "https://github.com/headwalluk/compfinder#readme",
+  "bugs": "https://github.com/headwalluk/compfinder/issues",
+  "keywords": [
+    "business",
+    "company",
+    "address",
+    "lookup",
+    "enrichment",
+    "cli",
+    "schema.org",
+    "google-places"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "compfinder": "bin/compfinder"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "config.sample.toml",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "compfinder": "tsx src/cli/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "node --import tsx --test --test-concurrency=1 'tests/**/*.test.ts' 'tools/**/*.test.js'",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "smol-toml": "^1.9.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.15.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0"
+  }
+}

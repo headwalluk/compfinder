@@ -1,0 +1,3 @@
+#!/usr/bin/env node
+// Runs the compiled CLI from dist/. In development use `npm run compfinder -- <command>`.
+import('../dist/cli/main.js');
