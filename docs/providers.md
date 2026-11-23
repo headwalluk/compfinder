@@ -7,8 +7,8 @@ it costs. `compfinder providers list` shows which are configured.
 |---|---|---|---|
 | `web-fetch` | nothing | no | available |
 | `google-places-api` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes | available |
-| `searchapi-io` | `COMPFINDER_SEARCHAPI_IO_API_KEY` | yes | declared, arriving soon |
-| `brave-search-api` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes | declared, arriving soon |
+| `searchapi-io` | `COMPFINDER_SEARCHAPI_IO_API_KEY` | yes | available |
+| `brave-search-api` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes | available |
 | `apollo-io` | `COMPFINDER_APOLLO_API_KEY` | yes | declared, arriving soon |
 
 A declared provider that isn't available yet shows as `skipped: not available in this
@@ -91,6 +91,25 @@ metered by Google.
 
 Failures: a rejected or invalid key is `auth_failed`, a quota or rate limit is
 `quota_exceeded`, a Google outage is `unreachable`, and anything unparseable is `bad_response`.
+
+## Search providers: searchapi-io and brave-search-api
+
+Both find a business's website when none was given. They need a name to search for, and they
+search for it with the best location known. Each makes one metered call. They run only while no
+website is known, so with both configured, the second runs only if the first found nothing
+(`discover.run_all = true` runs both).
+
+- **The website** is the first result whose host isn't a directory, social network or property
+  portal (`discover.directory_hosts`). A search result counts as the site it points at, so it
+  never confirms that site: confirmation has to come from somewhere independent, such as
+  Google's listing.
+- **`searchapi-io`** (SearchAPI.io's Google results) also reads Google's business panel: name,
+  phone, address and website. That's Google's data, so it shares Google's origin and doesn't
+  count as independent of `google-places-api`. The key goes in an `Authorization: Bearer` header.
+- **`brave-search-api`** reads Brave's web results. The key goes in the `X-Subscription-Token`
+  header.
+- Their responses aren't cached until each provider's terms have been checked.
+- `providers check` makes one small search with each, which costs one query.
 
 ## Logos
 

@@ -26,6 +26,9 @@ All notable changes to this project are documented here. The format follows
 - The `google-places-api` provider: Place Details for a known place ID, otherwise one Text Search
   for the best name and location known. It supplies the place ID, Google's normalised address,
   phone and website, and warns when Google lists a place as closed.
+- The `searchapi-io` and `brave-search-api` providers find a business's website when none was
+  given, skipping directories and portals. SearchAPI.io also reads Google's business panel. The
+  second runs only if the first finds nothing (`discover.run_all` runs both).
 - `compfinder providers check [provider]`: one cheap live call per configured provider, to prove
   its credentials work.
 - Logos: the best candidate is downloaded, identified by its bytes, measured, converted to PNG

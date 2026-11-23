@@ -1,0 +1,16 @@
+{
+  "type": "search",
+  "web": {
+    "type": "search",
+    "results": [
+      {
+        "title": "Example Estates - Zoopla",
+        "url": "https://www.zoopla.co.uk/find-agents/branch/example-estates-reading-1/"
+      },
+      {
+        "title": "Example Estates Reading",
+        "url": "https://example.com/branches/reading/"
+      }
+    ]
+  }
+}
