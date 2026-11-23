@@ -15,3 +15,6 @@ All notable changes to this project are documented here. The format follows
   template, find the config file in use, and see every effective setting and where it came from.
 - Configuration from `~/.config/compfinder/config.toml`, with `COMPFINDER_*` environment
   variables and command-line flags as overrides. Every problem is reported at once.
+- The lookup engine and confidence scoring behind `find`, with the JSON output contract
+  (`schema/result-1.0.json`) documented in `docs/output.md`, and every confidence rule in
+  `docs/confidence.md`. `find` itself arrives with the first provider.

@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/headwalluk/compfinder/schema/result-1.0.json",
+  "title": "compfinder lookup result, schema 1.x",
+  "description": "One lookup's result from compfinder find --output=json. Minor versions only add properties, so additional properties are allowed.",
+  "type": "object",
+  "required": ["schema_version", "query", "identity", "fields", "providers", "warnings", "error"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "exitCode": { "type": "integer" },
+    "id": { "description": "The caller's id, copied back in batch mode." },
+    "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "query": {
+      "type": "object",
+      "required": ["name", "url", "address", "postcode", "phone", "place_id", "country"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] },
+        "postcode": { "type": ["string", "null"] },
+        "phone": { "type": ["string", "null"] },
+        "place_id": { "type": ["string", "null"] },
+        "country": { "type": "string", "pattern": "^[A-Z]{2}$" }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "required": ["confidence", "rules", "reasons", "candidates"],
+      "properties": {
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "rules": { "$ref": "#/$defs/strings" },
+        "reasons": { "$ref": "#/$defs/strings" },
+        "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+        "considered": {
+          "type": "array",
+          "items": {
+            "allOf": [{ "$ref": "#/$defs/candidate" }],
+            "required": ["status", "keys"],
+            "properties": {
+              "status": { "enum": ["leader", "beaten", "rejected"] },
+              "keys": { "type": "object", "additionalProperties": { "enum": ["confirmed", "contradicted"] } }
+            }
+          }
+        }
+      }
+    },
+    "fields": {
+      "type": "object",
+      "required": ["name", "website", "address", "phone", "email", "logo", "place_id", "socials"],
+      "properties": {
+        "name": { "allOf": [{ "$ref": "#/$defs/field" }], "properties": { "value": { "type": ["string", "null"] } } },
+        "website": {
+          "allOf": [{ "$ref": "#/$defs/field" }],
+          "required": ["domain"],
+          "properties": {
+            "value": { "type": ["string", "null"], "pattern": "^https?://" },
+            "domain": { "type": ["string", "null"] }
+          }
+        },
+        "address": {
+          "allOf": [{ "$ref": "#/$defs/field" }],
+          "required": ["normalised_by"],
+          "properties": {
+            "value": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/address" }] },
+            "normalised_by": { "type": ["string", "null"] }
+          }
+        },
+        "phone": {
+          "allOf": [{ "$ref": "#/$defs/field" }],
+          "required": ["display"],
+          "properties": {
+            "value": { "type": ["string", "null"], "pattern": "^\\+[1-9][0-9]{6,14}$" },
+            "display": { "type": ["string", "null"] }
+          }
+        },
+        "email": {
+          "allOf": [{ "$ref": "#/$defs/field" }],
+          "required": ["kind"],
+          "properties": {
+            "value": { "type": ["string", "null"] },
+            "kind": { "enum": ["role", null] }
+          }
+        },
+        "logo": {
+          "allOf": [{ "$ref": "#/$defs/field" }],
+          "properties": { "value": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/logo" }] } }
+        },
+        "place_id": { "allOf": [{ "$ref": "#/$defs/field" }], "properties": { "value": { "type": ["string", "null"] } } },
+        "socials": {
+          "allOf": [{ "$ref": "#/$defs/field" }],
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["network", "url", "confidence"],
+                "properties": {
+                  "network": { "enum": ["facebook", "instagram", "linkedin", "x", "youtube", "tiktok"] },
+                  "url": { "type": "string", "pattern": "^https?://" },
+                  "confidence": { "$ref": "#/$defs/confidence" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "reason", "detail", "calls", "metered"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": {
+            "enum": ["ok", "skipped", "not_configured", "auth_failed", "quota_exceeded", "blocked", "unreadable",
+              "unreachable", "timeout", "bad_response", "internal_error"]
+          },
+          "reason": { "type": ["string", "null"] },
+          "detail": { "type": ["string", "null"] },
+          "calls": { "type": "integer", "minimum": 0 },
+          "metered": { "type": "boolean" }
+        }
+      }
+    },
+    "warnings": { "$ref": "#/$defs/strings" },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["code", "message", "detail"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "detail": { "type": ["string", "null"] }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "strings": { "type": "array", "items": { "type": "string" } },
+    "sources": { "type": "array", "items": { "type": "string" } },
+    "field": {
+      "type": "object",
+      "required": ["value", "confidence", "sources", "rules", "reasons", "conflicts"],
+      "properties": {
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "sources": { "$ref": "#/$defs/sources" },
+        "rules": { "$ref": "#/$defs/strings" },
+        "reasons": { "$ref": "#/$defs/strings" },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["value", "sources"],
+            "properties": { "sources": { "$ref": "#/$defs/sources" } }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source", "value", "quality", "reference", "agreed"],
+            "properties": {
+              "source": { "type": "string" },
+              "quality": { "enum": ["structured", "loose"] },
+              "reference": {
+                "type": "object",
+                "required": ["url", "record_id", "detail"],
+                "properties": {
+                  "url": { "type": ["string", "null"] },
+                  "record_id": { "type": ["string", "null"] },
+                  "detail": { "type": "string" }
+                }
+              },
+              "agreed": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "address": {
+      "type": "object",
+      "required": ["lines", "town", "county", "postcode", "country_code", "formatted", "lat", "lon"],
+      "properties": {
+        "lines": { "$ref": "#/$defs/strings" },
+        "town": { "type": ["string", "null"] },
+        "county": { "type": ["string", "null"] },
+        "postcode": { "type": ["string", "null"] },
+        "country_code": { "type": ["string", "null"] },
+        "formatted": { "type": ["string", "null"] },
+        "lat": { "type": ["number", "null"] },
+        "lon": { "type": ["number", "null"] }
+      }
+    },
+    "logo": {
+      "type": "object",
+      "required": ["source_url", "kind", "path", "mime", "width", "height", "converted_from"],
+      "properties": {
+        "source_url": { "type": "string", "pattern": "^https?://" },
+        "kind": { "enum": ["logo", "social-image", "icon"] },
+        "path": { "type": ["string", "null"] },
+        "mime": { "type": ["string", "null"] },
+        "width": { "type": ["integer", "null"] },
+        "height": { "type": ["integer", "null"] },
+        "converted_from": { "type": ["string", "null"] }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "required": ["name", "address", "place_id", "website", "confidence"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] },
+        "place_id": { "type": ["string", "null"] },
+        "website": { "type": ["string", "null"] },
+        "confidence": { "$ref": "#/$defs/confidence" }
+      }
+    }
+  }
+}

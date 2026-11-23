@@ -30,6 +30,7 @@
   "files": [
     "dist/",
     "bin/",
+    "schema/",
     "config.sample.toml",
     "README.md",
     "LICENSE",
@@ -45,11 +46,13 @@
     "prepack": "npm run build"
   },
   "dependencies": {
+    "libphonenumber-js": "^1.13.16",
     "smol-toml": "^1.9.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.5",
+    "ajv": "^8.20.0",
     "eslint": "^10.15.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",

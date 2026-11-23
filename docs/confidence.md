@@ -1,0 +1,99 @@
+# Confidence
+
+This page is for scripts, agents and people deciding which values to trust. Every confidence in
+compfinder's output is an integer from 0 to 100. It comes from named rules, and every score
+lists the rules that produced it in `rules`. The numbers are fixed in each release, so 100
+means the same thing to every caller.
+
+compfinder doesn't decide what's good enough. A queue that writes back only values at 100,
+and sends the rest to a person, is the intended pattern.
+
+## Sources and independence
+
+A value is believed more when **independent** sources agree on it. Each piece of evidence has
+an origin, and values from the same origin count once:
+
+| Evidence from | Origin |
+|---|---|
+| Any page on the business's own site | the site |
+| `google-places-api` | Google's business listing |
+| `searchapi-io`'s business panel | Google's business listing (it's Google's data too) |
+| A search result's title or URL | the site the result points at |
+| `apollo-io` | Apollo |
+| Your own query | never independent |
+
+So two pages of the same site are one source, and a search result that repeats the site's own
+text confirms nothing. Google's listing counts as independent of the site, even though the
+business owner may edit both.
+
+## Identity
+
+First, compfinder works out which real business (and which branch) the evidence is about. It
+links records that share a place ID, a phone number, a postcode (with compatible names) or the
+same branch page, and each linked group is a **candidate**. Candidates are matched against your
+query. A candidate the query contradicts is dropped, unless one of your query's pinning values
+(place ID, phone, postcode, branch page) is confirmed. In that case the other mismatches are
+treated as stale data and shown as field conflicts.
+
+| Rule | Score | Applies when |
+|---|---|---|
+| `identity.input-confirmed` | 100 | A place ID, phone, postcode or page URL from your query is confirmed by structured data |
+| `identity.independent-agreement` | 100 | Records from two or more independent sources describe the same place |
+| `identity.single-structured` | 60 | One source only, with structured data (schema.org markup, an API field) |
+| `identity.single-loose` | 40 | One source only, from loose page content (a `tel:` link, a postcode in the text) |
+| `identity.none` | 0 | Nothing matches, or every candidate contradicts the query |
+| `identity.tie` | ÷ n | *n* candidates match equally: each gets ⌊score ÷ n⌋ and all are listed in `candidates` |
+| `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
+
+## Fields
+
+For each field, values that are the same fact are grouped. Phone numbers are equal by E.164,
+addresses by postcode and building number, websites by site, and names after removing case,
+punctuation and legal suffixes. The group with the most independent sources wins.
+
+| Rule | Score | Applies when |
+|---|---|---|
+| `field.independent-agreement` | 100 | Two or more independent sources agree |
+| `field.input-confirmed` | 100 | One source confirms the value you supplied, from structured data |
+| `field.input-confirmed-loose` | 60 | One source confirms the value you supplied, from loose page content |
+| `field.single-structured` | 60 | One source only, from structured data |
+| `field.single-loose` | 40 | One source only, from loose page content |
+| `field.input-only` | 20 | Only your query gave the value: nothing confirms it |
+| `field.none` | 0 | Nothing found: `value` is `null` (`[]` for socials) |
+
+Then, in this order:
+
+| Rule | Effect |
+|---|---|
+| `field.identity-record` | For `place_id` only: a place ID from a record the identity rests on is as sure as the identity. It names that very record |
+| `field.conflict` | Sources disagree: the score becomes ⌊score × winning sources ÷ all disagreeing sources⌋, and the other values are listed in `conflicts`. For example, the site and Google agree on a phone and Apollo gives another: ⌊100 × 2 ÷ 3⌋ = 66 |
+| `field.head-office` | Capped at 30 when you asked about a branch, but the only source for an address, phone or email is a head-office record |
+| `field.identity-cap` | A value about one place (name, address, phone, email, place ID, branch page) is capped at the identity's confidence |
+| `field.brand-cap` | A value about the whole brand (logo, socials, the website's home page) is capped at the brand's confidence. When tied candidates are branches of one chain on one site, the brand isn't in doubt, so its logo keeps full confidence |
+
+Disagreement with your own query doesn't lower a score, but it is listed in `conflicts` with
+the source `query`. That's how stale records show up.
+
+## Logos
+
+A logo rarely appears in more than one source, so agreement can't score it. The score depends
+on what kind of image it is:
+
+| Rule | Ceiling | Image |
+|---|---|---|
+| `logo.schema-org` | 100 | The site's own schema.org `logo` |
+| `logo.manifest-icon` | 60 | A large web app icon (192 px or more) or `apple-touch-icon` |
+| `logo.social-image` | 40 | A social sharing image (`og:image`, `twitter:image`) |
+| `logo.favicon` | 40 | A favicon |
+| `logo.website-cap` | — | A logo is capped at the website's own confidence, because it's only as sure as the site it came from |
+
+## Social profiles
+
+Each profile is scored on its own with the field rules: a schema.org `sameAs` link is
+structured, and a link in the page is loose. The `socials` field's confidence is that of its
+best profile.
+
+## Calibration
+
+These numbers are a reasoned starting point, to be calibrated against a set of known businesses
+before 1.0. A change to any number is noted in the changelog.

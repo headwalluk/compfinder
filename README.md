@@ -30,6 +30,11 @@ For people running compfinder:
 - [Configuration](docs/configuration.md): the config file, every setting, environment overrides
 - [Command line](docs/cli.md): every command and option, output formats, exit codes
 
+For scripts and agents reading the output:
+
+- [Output](docs/output.md): the JSON result and its schema
+- [Confidence](docs/confidence.md): what the scores mean
+
 For developers:
 
 - [Changelog](CHANGELOG.md)
