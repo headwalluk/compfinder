@@ -33,6 +33,8 @@ export class CallMeter {
   private readonly budgets: readonly CallBudget[];
   private readonly isMetered: boolean;
   calls = 0;
+  /** Requests answered from the cache: they cost nothing and aren't in calls. */
+  cachedCalls = 0;
 
   constructor(isMetered: boolean, budgets: readonly CallBudget[]) {
     this.isMetered = isMetered;

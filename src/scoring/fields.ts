@@ -266,11 +266,16 @@ export function scoreField<Field extends Exclude<FieldName, 'logo' | 'socials'>>
   return result;
 }
 
+/** Orders logo candidates best first: highest ceiling, then the widest. */
+export function rankLogoItems(items: ReadonlyArray<FieldItem<'logo'>>): Array<FieldItem<'logo'>> {
+  const ceiling = (item: FieldItem<'logo'>): number => ruleScore(LOGO_RULES[item.value.source]);
+  return [...items].sort((first, second) => ceiling(second) - ceiling(first) || (second.value.width ?? 0) - (first.value.width ?? 0));
+}
+
 /** Scores the logo: the best candidate's ceiling, capped by the website's confidence (05: logo rules). */
 export function scoreLogo(records: readonly SourceRecord[], websiteConfidence: number, context: FieldContext): FieldResult<'logo'> {
   const items = fieldItems(records, 'logo');
-  const ceiling = (item: FieldItem<'logo'>): number => ruleScore(LOGO_RULES[item.value.source]);
-  const best = [...items].sort((first, second) => ceiling(second) - ceiling(first) || (second.value.width ?? 0) - (first.value.width ?? 0))[0];
+  const best = rankLogoItems(items)[0];
   const result: FieldResult<'logo'> = {
     field: 'logo',
     value: best?.value ?? null,

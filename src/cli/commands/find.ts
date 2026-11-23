@@ -54,11 +54,12 @@ export const findCommand: Command = {
   summary: 'Look up a business: its website, address, phone, email, logo, socials and place ID, with confidence.',
   usage: 'compfinder find ["Business name"] [--url=URL] [--address=TEXT] [--postcode=CODE] [--phone=NUMBER] [--place-id=ID] '
     + '[--country=CC] [--fields=a,b] [--providers=a,b | --exclude=a,b] [--max-metered-calls=N] [--dry-run] [--explain] '
+    + '[--no-download] [--no-cache] [--cache-dir=DIR] '
     + '[--output=text|json|csv]',
   maxArguments: 1,
   flags: [
     'url', 'address', 'postcode', 'phone', 'place-id', 'country', 'fields', 'providers', 'exclude',
-    'max-metered-calls', 'dry-run', 'explain', 'cache-dir', 'allow-private-addresses',
+    'max-metered-calls', 'dry-run', 'explain', 'cache-dir', 'no-cache', 'no-download', 'allow-private-addresses',
   ],
   outputs: ['text', 'json', 'csv'],
   async run({ args, config, output, logger, colour }): Promise<CommandResult> {
@@ -87,6 +88,8 @@ export const findCommand: Command = {
         providers: builtInProviders(config),
         config,
         logger,
+        isCacheBypassed: booleanFlag(args, 'no-cache'),
+        isDownloadSkipped: booleanFlag(args, 'no-download'),
         ...(selection.fields === undefined ? {} : { fields: selection.fields }),
         ...(selection.only === undefined ? {} : { only: selection.only }),
         ...(selection.exclude === undefined ? {} : { exclude: selection.exclude }),

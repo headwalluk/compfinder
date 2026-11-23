@@ -45,7 +45,7 @@ writes it out.
 
 ## Runtime dependencies
 
-- `htmlparser2` and `domhandler`: HTML parsing
+- `htmlparser2`, `domhandler` and `domutils`: HTML parsing and tree traversal
 - `@resvg/resvg-js`: SVG to PNG for logos. It ships a native binary through per-platform
   optional dependencies, and has no install script
 - `libphonenumber-js`: phone numbers to E.164

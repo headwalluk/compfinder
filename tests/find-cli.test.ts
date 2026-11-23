@@ -25,7 +25,7 @@ let baseUrl: string;
 
 /** Runs `compfinder find` against the local fixture site. */
 function find(cliArguments: string[]): Promise<CliRun> {
-  return runCliAsync(['find', ...cliArguments, '--allow-private-addresses'], { HOME: makeTemporaryHome() });
+  return runCliAsync(['find', ...cliArguments, '--allow-private-addresses', '--no-download'], { HOME: makeTemporaryHome() });
 }
 
 before(async () => {

@@ -62,5 +62,23 @@ once.
 `unreadable` (pages with no usable content as served, because they build their content with
 JavaScript), `unreachable`, `timeout` or `bad_response`.
 
+**Caching:** pages and the web app manifest are kept for an hour, and `robots.txt` for a day,
+in the response cache (`<cache_dir>/responses/web-fetch/`). Responses that refused the request
+(401, 403, 429) or failed on the server (5xx) aren't cached. `--no-cache` bypasses the cache.
+
 **Settings:** `web_fetch.max_pages`, `web_fetch.honour_robots`, `web_fetch.unreadable_text_chars`
 ([configuration.md](configuration.md)).
+
+## Logos
+
+After the providers run, compfinder downloads the best logo candidate: a schema.org logo first,
+then large icons (192 px or more, or `apple-touch-icon`), then social images, then favicons, and
+within each kind the widest first ([confidence.md](confidence.md)). It identifies the image by its
+bytes, not by the server's Content-Type or the URL's extension. It accepts PNG, JPEG, GIF, WebP,
+ICO and SVG, and reads the pixel size from the image's header. An SVG is rendered to PNG,
+scaled so its longest side is at most 1200 px, with no external resources and no system fonts.
+
+If a candidate turns out not to be a usable image, the next is tried: each URL once, three at
+most. The file is stored in the logo cache at `<cache_dir>/logos/<domain>/<kind>-<hash>.<ext>`.
+The cache is long-lived and safe to delete. `--no-download` reports the logo's URL without
+downloading it.

@@ -42,6 +42,9 @@ Give at least one of a name or the options below. A URL or a name plus a place w
 | `--max-metered-calls=N` | Spend at most N metered calls on this lookup (also a setting) |
 | `--dry-run` | Show which providers would run, in what order, and the most metered calls. No calls are made |
 | `--explain` | Include every piece of evidence behind each field (text or JSON output) |
+| `--no-download` | Report logo URLs without downloading them |
+| `--no-cache` | Don't reuse cached responses or logos. A downloaded logo is still stored, because its path is part of the result |
+| `--cache-dir=DIR` | Where the response and logo caches live (also a setting) |
 | `--output=text\|json\|csv` | `csv` writes a header row and one row per lookup, UTF-8 with a byte-order mark, for spreadsheets |
 
 A lookup that finds nothing still exits 0. The exit code describes the run, not the

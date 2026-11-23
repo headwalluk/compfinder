@@ -11,6 +11,8 @@ export interface FixtureResponse {
   body?: string;
   /** A file under tests/fixtures/, read as the body. */
   file?: string;
+  /** Binary body bytes. */
+  bytes?: Buffer;
 }
 
 export interface FixtureTransport extends Transport {
@@ -34,12 +36,19 @@ export function fixtureTransport(routes: Record<string, FixtureResponse>): Fixtu
       if (route === undefined) {
         unmatched.push(`${request.method} ${key}`);
       }
-      const body = route?.file === undefined ? (route?.body ?? '') : readFileSync(new URL(route.file, FIXTURES_URL), 'utf8');
+      let body: Buffer;
+      if (route?.bytes !== undefined) {
+        body = route.bytes;
+      } else if (route?.file !== undefined) {
+        body = readFileSync(new URL(route.file, FIXTURES_URL));
+      } else {
+        body = Buffer.from(route?.body ?? '');
+      }
       return {
         status: route?.status ?? (route === undefined ? NOT_FOUND : 200),
         headers: { 'content-type': 'text/html; charset=utf-8', ...route?.headers },
         body: (async function* yieldBody() {
-          yield Buffer.from(body);
+          yield body;
         })(),
       };
     },

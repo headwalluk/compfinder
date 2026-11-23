@@ -25,6 +25,9 @@ const SERVER_ERROR_MIN = 500;
 const SUCCESS_MIN = 200;
 const SUCCESS_MAX = 299;
 const SITE_ORIGIN_PREFIX = 'site:';
+/** How long web-fetch may keep responses (docs/providers.md): pages and manifests an hour, robots.txt a day. */
+const PAGE_CACHE_TTL_SECONDS = 60 * 60;
+const ROBOTS_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 /** What reading one page produced. */
 interface PageResult {
@@ -55,7 +58,9 @@ async function loadRobots(origin: string, context: ProviderContext): Promise<Rob
   const url = new URL('/robots.txt', origin).href;
   let response: HttpResponse;
   try {
-    response = await context.http.request({ url, kind: 'robots', canFollowRedirect: (from, to) => isSameSite(from.hostname, to.hostname) });
+    response = await context.http.request({
+      url, kind: 'robots', cacheTtlSeconds: ROBOTS_CACHE_TTL_SECONDS, canFollowRedirect: (from, to) => isSameSite(from.hostname, to.hostname),
+    });
   } catch (error) {
     if (!(error instanceof HttpError)) {
       throw error;
@@ -76,6 +81,7 @@ async function fetchPage(url: string, isStart: boolean, site: string, context: P
     const response = await context.http.request({
       url,
       kind: 'html',
+      cacheTtlSeconds: PAGE_CACHE_TTL_SECONDS,
       // The start page may redirect anywhere (a business that moved domain); later pages must stay on the site.
       canFollowRedirect: (from, to) => isStart || isSameSite(to.hostname, site),
     });
@@ -293,7 +299,9 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       const hasSchemaLogo = brand.some((item) => item.field === 'logo' && item.value.source === 'schema-org');
       if (manifestUrl !== null && !hasSchemaLogo) {
         try {
-          const manifest = await context.http.request({ url: manifestUrl, kind: 'manifest', canFollowRedirect: (from, to) => isSameSite(to.hostname, site) });
+          const manifest = await context.http.request({
+            url: manifestUrl, kind: 'manifest', cacheTtlSeconds: PAGE_CACHE_TTL_SECONDS, canFollowRedirect: (from, to) => isSameSite(to.hostname, site),
+          });
           if (manifest.status >= SUCCESS_MIN && manifest.status <= SUCCESS_MAX) {
             addUnique(brand, manifestEvidence(decodeBody(manifest.body, manifest.headers['content-type']), manifest.url));
           }

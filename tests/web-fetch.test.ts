@@ -22,7 +22,7 @@ const BRANCH_SITE: Record<string, FixtureResponse> = {
 async function find(input: QueryInput, routes: Record<string, FixtureResponse>, fileText?: string): Promise<{ result: LookupResult; transport: FixtureTransport }> {
   const transport = fixtureTransport(routes);
   const config = testConfig({ fileText });
-  const outcome = await runLookup({ query: makeQuery(input), providers: builtInProviders(config), config, logger: quietLogger, transport });
+  const outcome = await runLookup({ query: makeQuery(input), providers: builtInProviders(config), config, logger: quietLogger, transport, isDownloadSkipped: true });
   return { result: buildResult(outcome, { isExplain: false }), transport };
 }
 

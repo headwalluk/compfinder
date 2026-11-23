@@ -15,7 +15,7 @@ const KEYS = { COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key', COMPFINDER_APOLLO_A
 
 /** Runs a lookup through the engine and builds its result, checking it against the published schema. */
 async function find(input: QueryInput, providers: Provider[], isExplain = false): Promise<LookupResult> {
-  const outcome = await runLookup({ query: makeQuery(input), providers, config: testConfig({ variables: KEYS }), logger: quietLogger });
+  const outcome = await runLookup({ query: makeQuery(input), providers, config: testConfig({ variables: KEYS }), logger: quietLogger, isDownloadSkipped: true });
   const result = buildResult(outcome, { isExplain });
   const isValid = validate(result);
   assert.ok(isValid, JSON.stringify(validate.errors, null, 2));

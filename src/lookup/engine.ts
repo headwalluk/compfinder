@@ -6,7 +6,11 @@ import { LIVE_TRANSPORT, type Transport } from '../net/transport.js';
 import { userAgent } from '../net/user-agent.js';
 import type { Knowledge, Provider, ProviderContext } from '../providers/contract.js';
 import { PROVIDER_DECLARATIONS, PROVIDER_NAMES, PROVIDER_STAGES, type ProviderName } from '../providers/declarations.js';
+import { NO_CACHE, providerCache } from '../cache/store.js';
+import { rankLogoItems } from '../scoring/fields.js';
 import { scoreLookup, type ScoreResult } from '../scoring/index.js';
+import { SYSTEM_CLOCK, type Clock } from './clock.js';
+import { settleLogo } from './logo.js';
 import { CallBudget, CallMeter } from './budget.js';
 import { BudgetExhaustedError, ProviderError, type ProviderRunStatus } from './errors.js';
 import { FIELD_NAMES, type FieldName } from './fields.js';
@@ -22,6 +26,8 @@ export interface ProviderReport {
   /** What went wrong, for a failure. Never holds a credential. */
   detail: string | null;
   calls: number;
+  /** Requests answered from the cache, which cost nothing. */
+  cached_calls: number;
   metered: boolean;
 }
 
@@ -42,6 +48,11 @@ export interface LookupRequest {
   signal?: AbortSignal;
   /** The network; tests pass a fixture transport. */
   transport?: Transport;
+  /** --no-cache: neither read nor write the response cache, and don't reuse cached logos. */
+  isCacheBypassed?: boolean;
+  /** --no-download: report logo URLs without downloading them. */
+  isDownloadSkipped?: boolean;
+  clock?: Clock;
 }
 
 export interface LookupOutcome {
@@ -90,7 +101,7 @@ function staticSkip(name: ProviderName, request: LookupRequest, requested: Reado
   const declaration = PROVIDER_DECLARATIONS[name];
   const settings = request.config.providers[name];
   const skip = (status: ProviderRunStatus, reason: string): ProviderReport => (
-    { name, status, reason, detail: null, calls: 0, metered: declaration.metered }
+    { name, status, reason, detail: null, calls: 0, cached_calls: 0, metered: declaration.metered }
   );
   let report: ProviderReport | null = null;
   if ((request.only !== undefined && !request.only.includes(name)) || request.exclude?.includes(name) === true) {
@@ -136,7 +147,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
   const attempt = async (provider: Provider, isLatePass: boolean): Promise<void> => {
     const { name, metered, supplies } = provider.declaration;
     const skip = (status: ProviderRunStatus, reason: string): void => {
-      reports.set(name, { name, status, reason, detail: null, calls: 0, metered });
+      reports.set(name, { name, status, reason, detail: null, calls: 0, cached_calls: 0, metered });
     };
     const readiness = provider.readiness(knowledge);
     const meter = new CallMeter(metered, budgets);
@@ -162,6 +173,9 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
         signal,
         logger: logger.child(name),
         secrets,
+        cache: request.isCacheBypassed === true ? NO_CACHE : providerCache(name, {
+          directory: config.cacheDir, clock: request.clock ?? SYSTEM_CLOCK, logger, warn: (message) => warnings.push(message),
+        }),
       });
       const context: ProviderContext = {
         settings: config.providers[name],
@@ -194,7 +208,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           status = 'internal_error';
         }
       }
-      reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, calls: meter.calls, metered });
+      reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, calls: meter.calls, cached_calls: meter.cachedCalls, metered });
       score = scoreLookup(records, query, anchor, config.priority);
       knowledge = knowledgeFrom(query, score);
     }
@@ -211,6 +225,28 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
     if (provider !== undefined && waiting.has(name)) {
       await attempt(provider, true);
     }
+  }
+
+  const logoCandidates = rankLogoItems(score.fields.logo.evidence.map((entry) => entry.item));
+  const logoSource = logoCandidates[0]?.record.source;
+  if (requested.has('logo') && request.isDownloadSkipped !== true && logoSource !== undefined && logoSource !== 'query') {
+    const meter = new CallMeter(false, budgets);
+    const http = createHttpClient({
+      transport: request.transport ?? LIVE_TRANSPORT,
+      userAgent: userAgent(),
+      requestTimeoutMs: config.timeouts.requestMs,
+      allowPrivateAddresses: config.net.allowPrivateAddresses,
+      meter,
+      signal,
+      logger: logger.child('logo'),
+      secrets,
+    });
+    await settleLogo(logoCandidates, { http, cacheDir: config.cacheDir, isCacheBypassed: request.isCacheBypassed === true, logger: logger.child('logo') });
+    const report = reports.get(logoSource);
+    if (report !== undefined) {
+      report.calls += meter.calls;
+    }
+    score = scoreLookup(records, query, anchor, config.priority);
   }
 
   return {

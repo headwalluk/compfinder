@@ -23,6 +23,11 @@ All notable changes to this project are documented here. The format follows
   Open Graph, icons, the web app manifest, `tel:`/`mailto:` and social links), honours
   `robots.txt`, stops at bot protection, and reports pages that build their content with
   JavaScript as unreadable.
+- Logos: the best candidate is downloaded, identified by its bytes, measured, converted to PNG
+  when it's an SVG, and stored in the logo cache. A failed candidate falls back to the next
+  (`--no-download` skips this).
+- A response cache for web pages and `robots.txt`, so repeated lookups cost no requests
+  (`--no-cache` bypasses it). Each provider's `cached_calls` shows how many requests it saved.
 - Network safeguards: refuses private and reserved addresses at connect time and on every
   redirect, caps response sizes after decompression, and sends an honest User-Agent
   (`docs/security.md`).

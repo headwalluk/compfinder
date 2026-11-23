@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { createBrotliDecompress, createGunzip, createInflate, type Gunzip } from 'node:zlib';
 import type { CallMeter } from '../lookup/budget.js';
 import type { Logger } from '../logger.js';
+import type { ProviderCache } from '../cache/store.js';
 import { isAddressAllowed } from './address-guard.js';
 import { redact } from './redact.js';
 import type { Transport } from './transport.js';
@@ -49,6 +50,8 @@ export interface HttpRequest {
   json?: unknown;
   /** Says whether to follow a redirect; refusing ends the request with redirect_refused. */
   canFollowRedirect?: (from: URL, to: URL, hop: number) => boolean;
+  /** Keep a GET response in the provider's cache this long; absent or 0 means don't. */
+  cacheTtlSeconds?: number;
 }
 
 export interface HttpResponse {
@@ -76,7 +79,23 @@ export interface HttpClientOptions {
   logger?: Logger;
   /** Values to keep out of logged URLs. */
   secrets?: readonly string[];
+  /** The provider's response cache, for requests that ask to be cached. */
+  cache?: ProviderCache;
 }
+
+/** A cached response, as stored. */
+interface CachedResponse {
+  status: number;
+  headers: Record<string, string>;
+  url: string;
+  body: string;
+}
+
+/** Statuses not worth caching: refusals and server errors may be temporary. */
+const UNCACHEABLE_STATUSES = new Set([401, 403, 429]);
+const SERVER_ERROR_MIN = 500;
+/** Response headers kept in the cache; nothing that could identify the caller. */
+const CACHED_HEADERS = ['content-type', 'server', 'cf-mitigated'];
 
 /** Picks a decompressor for a Content-Encoding, or null for identity. */
 function decompressor(encoding: string | undefined): Gunzip | ReturnType<typeof createBrotliDecompress> | null {
@@ -139,6 +158,14 @@ function checkUrl(url: URL, allowPrivateAddresses: boolean): void {
 export function createHttpClient(options: HttpClientOptions): HttpClient {
   return {
     async request(request: HttpRequest): Promise<HttpResponse> {
+      const ttlSeconds = request.method === 'POST' ? 0 : (request.cacheTtlSeconds ?? 0);
+      const cacheKey = redact(request.url, options.secrets ?? []);
+      const cached = ttlSeconds > 0 ? options.cache?.get(request.kind, cacheKey) as CachedResponse | undefined : undefined;
+      if (cached !== undefined) {
+        options.meter.cachedCalls += 1;
+        options.logger?.debug(`GET ${cacheKey} ${cached.status} from cache`);
+        return { status: cached.status, headers: cached.headers, url: cached.url, body: Buffer.from(cached.body, 'base64') };
+      }
       const kind = REQUEST_KINDS[request.kind];
       let url = new URL(request.url);
       let method = request.method ?? 'GET';
@@ -194,6 +221,10 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
           options.logger?.debug(`${method} ${logged} ${sent.status} ${bytes.byteLength} bytes in ${Math.round(performance.now() - startedAt)} ms`);
           response = { status: sent.status, headers: sent.headers, url: url.href, body: bytes };
         }
+      }
+      if (ttlSeconds > 0 && response.status < SERVER_ERROR_MIN && !UNCACHEABLE_STATUSES.has(response.status)) {
+        const headers = Object.fromEntries(CACHED_HEADERS.filter((name) => response.headers[name] !== undefined).map((name) => [name, response.headers[name] ?? '']));
+        options.cache?.set(request.kind, cacheKey, { status: response.status, headers, url: response.url, body: response.body.toString('base64') } satisfies CachedResponse, ttlSeconds);
       }
       return response;
     },

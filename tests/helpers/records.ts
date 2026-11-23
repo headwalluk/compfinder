@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { loadConfig, type Config } from '../../src/config.js';
 import { normaliseQuery, queryRecord, type QueryInput } from '../../src/lookup/query.js';
 import type {
@@ -80,13 +83,19 @@ export function record(
   };
 }
 
-/** The default test config: no file, no variables. */
+/** A fresh, empty cache directory for one test. */
+export function temporaryCacheDir(): string {
+  return mkdtempSync(path.join(tmpdir(), 'compfinder-cache-'));
+}
+
+/** The default test config: no variables, and a fresh temporary cache directory unless the file text sets one. */
 export function testConfig(changes: { fileText?: string; variables?: Record<string, string> } = {}): Config {
+  const fileText = changes.fileText ?? '';
   return loadConfig({
     variables: changes.variables ?? {},
     configPath: '/home/tester/.config/compfinder/config.toml',
     isConfigPathExplicit: false,
-    fileText: changes.fileText,
+    fileText: /^cache_dir\s*=/m.test(fileText) ? fileText : `cache_dir = ${JSON.stringify(temporaryCacheDir())}\n${fileText}`,
     overrides: {},
     workingDirectory: '/work',
     homeDirectory: '/home/tester',

@@ -20,7 +20,9 @@ const PHONE = '0118 496 0000';
 async function lookup(providers: Provider[], changes: Partial<LookupRequest> & { fileText?: string; variables?: Record<string, string> } = {}) {
   const { fileText, variables, ...requestChanges } = changes;
   const config = testConfig({ fileText, variables: variables ?? ALL_KEYS });
-  return runLookup({ query: makeQuery({ name: 'Example Estates', url: 'https://example.com/' }), providers, config, logger: quietLogger, ...requestChanges });
+  return runLookup({
+    query: makeQuery({ name: 'Example Estates', url: 'https://example.com/' }), providers, config, logger: quietLogger, isDownloadSkipped: true, ...requestChanges,
+  });
 }
 
 /** Finds one provider's report. */
@@ -66,7 +68,7 @@ describe('runLookup', () => {
     const webFetch = stubProvider('web-fetch', { readiness: needsWebsite });
     const outcome = await lookup([webFetch], { query: makeQuery({ name: 'Example Estates' }) });
     assert.deepEqual(reportFor(outcome.reports, 'web-fetch'), {
-      name: 'web-fetch', status: 'skipped', reason: 'no website known', detail: null, calls: 0, metered: false,
+      name: 'web-fetch', status: 'skipped', reason: 'no website known', detail: null, calls: 0, cached_calls: 0, metered: false,
     });
   });
 
