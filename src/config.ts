@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { parse as parseToml, TomlDate, TomlError } from 'smol-toml';
+import { normaliseCountryCode } from './normalise/country/codes.js';
 import { FIELD_NAMES, type FieldName } from './lookup/fields.js';
 import {
   DEFAULT_FIELD_PRIORITY,
@@ -44,7 +45,6 @@ const ENV_PREFIX = 'COMPFINDER_';
 const CONFIG_PATH_VARIABLE = 'COMPFINDER_CONFIG';
 const CONFIG_PATH_FLAG = 'config';
 
-const COUNTRY_CODE_PATTERN = /^[A-Za-z]{2}$/;
 const HOSTNAME_PATTERN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const BOOLEAN_TRUE_WORDS = new Set(['true', '1', 'yes']);
 const BOOLEAN_FALSE_WORDS = new Set(['false', '0', 'no']);
@@ -356,8 +356,9 @@ class SettingsReader {
 
   private parseCountry(raw: unknown, label: string): string | undefined {
     let parsed: string | undefined;
-    if (typeof raw === 'string' && COUNTRY_CODE_PATTERN.test(raw.trim())) {
-      parsed = raw.trim().toUpperCase();
+    const code = typeof raw === 'string' ? normaliseCountryCode(raw) : null;
+    if (code !== null) {
+      parsed = code;
     } else {
       this.problems.push(`${label} must be a two-letter country code such as GB; got ${describeValue(raw)}.`);
     }

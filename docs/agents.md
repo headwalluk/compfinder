@@ -48,7 +48,7 @@ Each lookup is one line of JSON (JSONL). Every value is a string:
 | `address` | The address as one line of text | Missing |
 | `phone` | The phone number as written: `0118 496 0123` or `+44 118 496 0123` | Missing |
 | `place_id` | A Google place ID (`ChIJ…`), if the record somehow has one | Anything else, including a Maps link |
-| `country` | Two letters, when the row isn't in the configured country (usually `GB`) | The row is in the default country |
+| `country` | A two-letter ISO country code (`GB`, `IE`, `US`), when the row isn't in the configured country (usually `GB`). `UK` is read as `GB`; a code that isn't a real country (`XX`) makes the line `input.bad_value` | The row is in the default country |
 
 Rules worth following:
 

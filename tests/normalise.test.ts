@@ -158,6 +158,14 @@ describe('untrusted text', () => {
 });
 
 describe('queries', () => {
+  test('country must be a real two-letter code; UK means GB, and case doesn\'t matter', () => {
+    assert.equal(normaliseQuery({ name: 'Example', country: 'UK' }, 'US').query.country, 'GB');
+    assert.equal(normaliseQuery({ name: 'Example', country: 'gb' }, 'US').query.country, 'GB');
+    assert.equal(normaliseQuery({ name: 'Example', country: 'ie' }, 'GB').query.country, 'IE');
+    assert.match(normaliseQuery({ name: 'Example', country: 'XX' }, 'GB').problems.join(' '), /two-letter country code/);
+    assert.equal(normaliseQuery({ name: 'Example', phone: '0118 496 0000', country: 'UK' }, 'US').problems.length, 0, 'a UK row\'s national phone number reads as GB');
+  });
+
   test('normalise every input, and find a postcode in a free-text address', () => {
     const { query, problems } = normaliseQuery({ name: ' Example Estates ', url: 'example.com/branches/reading', address: '1 Broad St, Reading rg1 1aa' }, 'GB');
     assert.deepEqual(problems, []);

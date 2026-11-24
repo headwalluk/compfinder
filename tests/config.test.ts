@@ -178,6 +178,11 @@ describe('loadConfig', () => {
     assert.match(problems.join('\n'), /must list provider names .*; got "nobody"/);
   });
 
+  test('the country setting must be a real code; UK is read as GB', () => {
+    assert.equal(loadConfig(inputs({ fileText: 'country = "uk"\n' })).country, 'GB');
+    assert.match(problemsFor({ fileText: 'country = "XX"\n' }).join('\n'), /two-letter country code/);
+  });
+
   test('a request timeout longer than the lookup timeout is a problem', () => {
     const problems = problemsFor({ fileText: '[timeouts]\nrequest_ms = 20000\nlookup_ms = 10000\n' });
     assert.deepEqual(problems, ['timeouts.request_ms (20000) must not be longer than timeouts.lookup_ms (10000).']);

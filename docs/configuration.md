@@ -57,7 +57,7 @@ An API key that's set but empty is an error too. Remove the key to leave a provi
 
 | Setting | Default | Environment | Flag | Meaning |
 |---|---|---|---|---|
-| `country` | `"GB"` | `COMPFINDER_COUNTRY` | `--country` | Two-letter country code to prefer when a lookup doesn't give one |
+| `country` | `"GB"` | `COMPFINDER_COUNTRY` | `--country` | Two-letter (ISO 3166-1) country code to prefer when a lookup doesn't give one. Case doesn't matter, and `UK` is read as `GB`. A code that isn't a real country (`XX`) is a problem |
 | `log_level` | `"info"` | `COMPFINDER_LOG_LEVEL` | | `warn`, `info` or `debug`. Errors are always written. Logs go to stderr |
 | `cache_dir` | `${XDG_CACHE_HOME:-~/.cache}/compfinder` | `COMPFINDER_CACHE_DIR` | `--cache-dir` | Where the logo and response caches live. Safe to delete at any time |
 | `skip_settled` | `true` | | | Skip a metered provider when every field it could supply is already at confidence 100 |

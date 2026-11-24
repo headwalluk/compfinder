@@ -1,3 +1,4 @@
+import { normaliseCountryCode } from '../normalise/country/codes.js';
 import { countryRules } from '../normalise/country/index.js';
 import { normalisePhone } from '../normalise/phone.js';
 import { sanitiseText } from '../normalise/text.js';
@@ -40,7 +41,6 @@ export function readQueryInput(value: unknown, extraKeys: readonly string[] = []
 
 /** Google place IDs are URL-safe base64-like tokens. */
 const PLACE_ID_PATTERN = /^[A-Za-z0-9_-]{10,300}$/;
-const COUNTRY_CODE_PATTERN = /^[A-Za-z]{2}$/;
 const QUERY_SUBJECT = 'query';
 const QUERY_DETAIL = 'given in the query';
 
@@ -55,8 +55,9 @@ export function normaliseQuery(input: QueryInput, defaultCountry: string): { que
   const problems: string[] = [];
   const countryInput = present(input.country);
   let country = defaultCountry;
-  if (countryInput !== null && COUNTRY_CODE_PATTERN.test(countryInput)) {
-    country = countryInput.toUpperCase();
+  const countryCode = countryInput === null ? null : normaliseCountryCode(countryInput);
+  if (countryCode !== null) {
+    country = countryCode;
   } else if (countryInput !== null) {
     problems.push(`country must be a two-letter country code such as GB; got "${countryInput}".`);
   }
