@@ -2,7 +2,7 @@ import type { Config } from '../config.js';
 import { CallBudget } from '../lookup/budget.js';
 import { planLookup, runLookup, type LookupRequest } from '../lookup/engine.js';
 import type { FieldName } from '../lookup/fields.js';
-import { normaliseQuery, type QueryInput } from '../lookup/query.js';
+import { normaliseQuery, readQueryInput, type QueryInput } from '../lookup/query.js';
 import { buildResult } from '../lookup/result.js';
 import type { Logger } from '../logger.js';
 import { outputError, type ErrorCode, type OutputError } from '../messages/error-codes.js';
@@ -12,9 +12,8 @@ import type { OutputFormat } from './command.js';
 import { csvHeader, csvRow, UTF8_BOM } from './output/csv.js';
 import { renderLookupText, renderPlanText } from './output/text.js';
 
-/** Keys a batch line may have. */
-const INPUT_KEYS = new Set(['id', 'name', 'url', 'address', 'postcode', 'phone', 'place_id', 'country']);
-const QUERY_KEYS = ['name', 'url', 'address', 'postcode', 'phone', 'place_id', 'country'] as const;
+/** Keys a batch line may have besides the query's. */
+const LINE_KEYS = ['id'] as const;
 /** Upper bound on --concurrency: lookups in flight at once. */
 export const MAX_CONCURRENCY = 16;
 
@@ -69,13 +68,9 @@ function parseLine(line: string): { id: string | null; input: QueryInput | null;
     error = 'input.bad_value';
     problems.push('Each line must be a JSON object.');
   } else if (record !== null) {
-    for (const key of Object.keys(record).filter((candidate) => !INPUT_KEYS.has(candidate))) {
-      problems.push(`Unknown key "${key}". Keys are ${[...INPUT_KEYS].join(', ')}.`);
-    }
-    for (const key of QUERY_KEYS.filter((candidate) => record[candidate] !== undefined && typeof record[candidate] !== 'string')) {
-      problems.push(`"${key}" must be a string.`);
-    }
-    input = Object.fromEntries(QUERY_KEYS.filter((key) => typeof record[key] === 'string').map((key) => [key, record[key]])) as QueryInput;
+    const read = readQueryInput(record, LINE_KEYS);
+    problems.push(...read.problems);
+    input = read.input;
     error = problems.length > 0 ? 'input.bad_value' : null;
   }
   return { id, input, error, problems };

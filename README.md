@@ -13,14 +13,23 @@ needs no key. Google Places, SearchAPI.io, Brave Search and Apollo.io each add d
 confidence once you give them an API key. compfinder is deterministic: it makes no LLM calls,
 and the same provider responses always give the same answer.
 
-**Status:** early development. `find` works today with `web-fetch`, which reads a business's
-own site. The API providers (Google Places, search, Apollo) are on their way.
+**Status:** early development, before 1.0. Every provider is built; the API providers are still
+being checked against the live services.
 
 ```sh
 npm install -g @headwall/compfinder
 compfinder find "Example Estates" --url https://example.com/branches/reading/
 compfinder find --url example.com --output=json      # for scripts and agents
 compfinder config init        # writes ~/.config/compfinder/config.toml, for API keys
+```
+
+It works as a library too, returning the same result as `--output=json`:
+
+```ts
+import { createFinder } from '@headwall/compfinder';
+
+const finder = createFinder({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY } });
+const result = await finder.find({ name: 'Example Estates', postcode: 'RG1 1AA' });
 ```
 
 ## Documentation
@@ -38,7 +47,11 @@ For scripts and agents reading the output:
 - [Output](docs/output.md): the JSON result and its schema
 - [Confidence](docs/confidence.md): what the scores mean
 
-For developers:
+For developers using compfinder in their own code:
+
+- [Library](docs/library.md): `createFinder`, settings in code, errors, and examples
+
+For developers working on compfinder:
 
 - [Development](docs/development.md): setup, layout, how a lookup flows, adding a provider, tests
 - [Changelog](CHANGELOG.md)

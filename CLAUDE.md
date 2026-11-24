@@ -13,6 +13,11 @@ comes from built-in providers: `web-fetch` (no key needed), `google-places-api`,
 `brave-search-api` and `apollo-io`. The tool makes no LLM calls. It's published as
 `@headwall/compfinder` under the MIT licence, and the command is `compfinder`.
 
+It's also a library: `src/index.ts` is the public API (`createFinder`), documented in
+`docs/library.md`. Only what it exports is a contract; a change there is a semver change.
+The main use is AI agents cleaning lists of sales leads, so results must carry their data even
+when the score is low, for the agent to decide.
+
 ## Documentation
 
 - `docs/` holds the long-lived documentation, and is what code comments cite

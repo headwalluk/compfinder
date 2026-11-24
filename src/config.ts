@@ -638,3 +638,19 @@ export function loadConfigFromEnvironment(overrides: ConfigOverrides): Config {
   }
   return loadConfig({ variables, configPath, isConfigPathExplicit, fileText, fileMode, overrides, workingDirectory, homeDirectory });
 }
+
+/** Names the settings source in problems when settings were passed in code rather than read from a file. */
+export const IN_CODE_CONFIG_LABEL = '(settings passed in code)';
+
+/** Loads the Config from settings passed in code: TOML text and COMPFINDER_* variables, never the environment or a file. */
+export function loadConfigFromValues(values: { toml?: string; variables?: Record<string, string | undefined> }): Config {
+  return loadConfig({
+    variables: values.variables ?? {},
+    configPath: IN_CODE_CONFIG_LABEL,
+    isConfigPathExplicit: false,
+    fileText: values.toml,
+    overrides: {},
+    workingDirectory: process.cwd(),
+    homeDirectory: homedir(),
+  });
+}

@@ -22,6 +22,7 @@ so output stays deterministic.
 ## Layout
 
 ```
+src/index.ts         the library's public API (docs/library.md); nothing else is a contract
 src/config.ts        the only reader of process.env and config.toml
 src/cli/             commands, argument parsing, output renderers (text, csv)
 src/lookup/          query normalisation, the engine, budgets, the result builder

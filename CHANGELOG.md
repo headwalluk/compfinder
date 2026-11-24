@@ -48,4 +48,7 @@ All notable changes to this project are documented here. The format follows
   no longer rejects the business it plainly means.
 - A query whose website is confirmed but whose name isn't is kept rather than dropped, under
   `identity.name-mismatch`: capped at 40, with a warning giving both names.
+- A library API: `import { createFinder } from '@headwall/compfinder'`, with settings passed in
+  code, `find`, `plan` and `checkProviders`, TypeScript declarations, and the result schema
+  exported as `@headwall/compfinder/schema/result-1.0.json`. See `docs/library.md`.
 

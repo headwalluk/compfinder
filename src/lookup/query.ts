@@ -15,6 +15,29 @@ export interface QueryInput {
   country?: string;
 }
 
+/** The keys a query may have, in documentation order. */
+export const QUERY_INPUT_KEYS = ['name', 'url', 'address', 'postcode', 'phone', 'place_id', 'country'] as const;
+
+/** Reads untyped input (a JSON object) into query input, listing unknown keys and non-string values. */
+export function readQueryInput(value: unknown, extraKeys: readonly string[] = []): { input: QueryInput | null; problems: string[] } {
+  const problems: string[] = [];
+  let input: QueryInput | null = null;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    problems.push('The query must be an object.');
+  } else {
+    const record = value as Record<string, unknown>;
+    const allowed = new Set<string>([...extraKeys, ...QUERY_INPUT_KEYS]);
+    for (const key of Object.keys(record).filter((candidate) => !allowed.has(candidate))) {
+      problems.push(`Unknown key "${key}". Keys are ${[...allowed].join(', ')}.`);
+    }
+    for (const key of QUERY_INPUT_KEYS.filter((candidate) => record[candidate] !== undefined && record[candidate] !== null && typeof record[candidate] !== 'string')) {
+      problems.push(`"${key}" must be a string.`);
+    }
+    input = Object.fromEntries(QUERY_INPUT_KEYS.filter((key) => typeof record[key] === 'string').map((key) => [key, record[key]])) as QueryInput;
+  }
+  return { input, problems };
+}
+
 /** Google place IDs are URL-safe base64-like tokens. */
 const PLACE_ID_PATTERN = /^[A-Za-z0-9_-]{10,300}$/;
 const COUNTRY_CODE_PATTERN = /^[A-Za-z]{2}$/;

@@ -13,7 +13,12 @@
 - [Output](output.md): the JSON result, every field, provider statuses, error codes, versioning
 - [Confidence](confidence.md): what the numbers mean, and every rule that produces them
 
-## For developers
+## For developers using compfinder in their own code
+
+- [Library](library.md): `createFinder`, settings in code, errors, and examples (cleaning a list
+  of leads, an HTTP API)
+
+## For developers working on compfinder
 
 - [Development](development.md): setup, layout, how a lookup flows, adding a provider, tests
 - [Changelog](../CHANGELOG.md)
