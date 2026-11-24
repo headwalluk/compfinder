@@ -75,6 +75,37 @@ describe('google-places-api', () => {
       'the query\'s name with the postcode web-fetch read');
   });
 
+  test('a Google Maps cid in the site\'s schema links it to Google\'s listing, even when phone and address differ', async () => {
+    const CID = '16220045999431265364';
+    /** A branch page that has moved: new phone and address, and optionally its Maps link. */
+    const movedPage = (hasMap: boolean): FixtureResponse => ({
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body: `<html><head><title>Example Estates</title><script type="application/ld+json">${JSON.stringify({
+        '@context': 'https://schema.org', '@type': 'RealEstateAgent', name: 'Example Estates Reading', url: 'https://example.com/',
+        telephone: '0118 496 0111', address: { '@type': 'PostalAddress', streetAddress: '5 King Street', addressLocality: 'Reading', postalCode: 'RG1 2AB' },
+        ...(hasMap ? { hasMap: `https://maps.google.com/?cid=${CID}`, sameAs: [`https://www.google.co.uk/maps?cid=${CID}`] } : {}),
+      })}</script></head><body></body></html>`,
+    });
+    const listing = JSON.parse(readFileSync(new URL('./fixtures/google-places/search-reading.json', import.meta.url), 'utf8')) as { places: Array<Record<string, unknown>> };
+    const withUri = { places: listing.places.map((place) => ({ ...place, websiteUri: 'https://example.com/', googleMapsUri: `https://maps.google.com/?cid=${CID}` })) };
+    const routes = (hasMap: boolean): Record<string, FixtureRoute> => ({
+      'https://example.com/robots.txt': SITE['https://example.com/robots.txt'] as FixtureRoute,
+      'https://example.com/': movedPage(hasMap),
+      [SEARCH_URL]: { headers: { 'content-type': 'application/json' }, body: JSON.stringify(withUri) },
+    });
+
+    const linked = await find({ name: 'Example Estates' , url: 'https://example.com/' }, routes(true));
+    assert.equal(linked.result.identity.confidence, 100);
+    assert.match(linked.result.identity.reasons[0] ?? '', /agree on Google Maps listing cid 16220045999431265364/);
+    assert.equal(linked.result.fields.place_id.value, 'ChIJexampleReading001');
+    assert.equal(linked.result.fields.place_id.confidence, 100);
+    assert.equal(linked.result.fields.phone.conflicts.length, 1, 'the two phones are shown, not hidden');
+    assert.ok(!JSON.stringify(linked.result.fields).includes(CID), 'the cid links records but is never a field value');
+
+    const unlinked = await find({ name: 'Example Estates', url: 'https://example.com/' }, routes(false));
+    assert.ok(unlinked.result.identity.confidence < 100, 'without the cid, nothing links the moved branch to the old listing');
+  });
+
   test('a known place ID uses Place Details, and confirms the identity', async () => {
     const seen: TransportRequest[] = [];
     const { result } = await find({ place_id: 'ChIJexampleReading001' }, { [DETAILS_URL]: recordingRoute('details-reading.json', seen) });

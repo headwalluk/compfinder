@@ -1,6 +1,7 @@
 import type { AddressValue, Evidence, SourceRecord } from '../../lookup/types.js';
 import { ProviderError } from '../../lookup/errors.js';
 import { countryRules } from '../../normalise/country/index.js';
+import { mapsCid } from '../../normalise/maps.js';
 import { normalisePhone } from '../../normalise/phone.js';
 import { sanitiseText } from '../../normalise/text.js';
 import { normaliseUrl } from '../../normalise/url.js';
@@ -15,7 +16,7 @@ const FIELD_MASK_HEADER = 'x-goog-fieldmask';
 /** The fields read from a place; the mask decides Google's billing tier (docs/providers.md). */
 const PLACE_FIELDS = [
   'id', 'displayName', 'formattedAddress', 'addressComponents', 'location',
-  'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri', 'businessStatus',
+  'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri', 'googleMapsUri', 'businessStatus',
 ];
 /** Candidates asked for per text search. */
 const SEARCH_PAGE_SIZE = 5;
@@ -35,6 +36,7 @@ interface Place {
   nationalPhoneNumber?: string;
   internationalPhoneNumber?: string;
   websiteUri?: string;
+  googleMapsUri?: string;
   businessStatus?: string;
 }
 
@@ -88,7 +90,8 @@ export function placeRecord(place: Place, countryCode: string, detail: string): 
     if (website !== null) {
       evidence.push({ field: 'website', value: website, quality: 'structured', reference: { ...reference, url: website.url } });
     }
-    record = { source: 'google-places-api', origin: ORIGIN, subject: placeId, scope: 'location', role: 'unknown', evidence };
+    const cid = place.googleMapsUri === undefined ? null : mapsCid(place.googleMapsUri);
+    record = { source: 'google-places-api', origin: ORIGIN, subject: placeId, scope: 'location', role: 'unknown', evidence, ...(cid === null ? {} : { mapsCids: [cid] }) };
   }
   return record;
 }

@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 import { normaliseQuery } from '../src/lookup/query.js';
 import { countryRules } from '../src/normalise/country/index.js';
 import { classifyEmail, normaliseEmail } from '../src/normalise/email.js';
+import { mapsCid } from '../src/normalise/maps.js';
 import { compareNames, compareQueryName, comparableName, isOneEditApart } from '../src/normalise/name.js';
 import { normalisePhone } from '../src/normalise/phone.js';
 import { decodeEscapes, sanitiseText, TEXT_LIMITS } from '../src/normalise/text.js';
@@ -97,6 +98,19 @@ describe('business names', () => {
     assert.ok(isOneEditApart('headwall', 'headwell'));
     assert.ok(!isOneEditApart('headwall', 'hedwal'));
     assert.ok(!isOneEditApart('headwall', 'wallhead'));
+  });
+});
+
+describe('Google Maps cid links', () => {
+  test('read the listing\'s cid from maps.google.com and google.<country>/maps links only', () => {
+    assert.equal(mapsCid('https://maps.google.com/?cid=16220045999431265364'), '16220045999431265364');
+    assert.equal(mapsCid('https://www.google.co.uk/maps?cid=0016220045999431265364'), '16220045999431265364');
+    assert.equal(mapsCid('https://maps.google.co.uk/?cid=42&hl=en'), '42');
+    assert.equal(mapsCid('https://maps.app.goo.gl/yaKEiDcRR98Xy2av6'), null, 'a short link has no cid to read');
+    assert.equal(mapsCid('https://example.com/?cid=42'), null);
+    assert.equal(mapsCid('https://www.google.com/search?cid=42'), null);
+    assert.equal(mapsCid('https://maps.google.com/?cid=18446744073709551616'), null, 'over 64 bits');
+    assert.equal(mapsCid('https://maps.google.com/?cid=12abc'), null);
   });
 });
 

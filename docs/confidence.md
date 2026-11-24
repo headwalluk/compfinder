@@ -29,8 +29,9 @@ business owner may edit both.
 ## Identity
 
 First, compfinder works out which real business (and which branch) the evidence is about. It
-links records that share a place ID, a phone number, a postcode (with compatible names) or the
-same branch page, and each linked group is a **candidate**. Candidates are matched against your
+links records that share a place ID, a Google Maps listing (the `cid` in a Maps link, such as
+the site's schema.org `hasMap` and Google's own link for the place), a phone number, a postcode
+(with compatible names) or the same branch page, and each linked group is a **candidate**. Candidates are matched against your
 query. A candidate the query contradicts is dropped, unless one of your query's pinning values
 (place ID, phone, postcode, branch page) is confirmed. In that case the other mismatches are
 treated as stale data and shown as field conflicts.

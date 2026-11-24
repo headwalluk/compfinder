@@ -48,7 +48,7 @@ Reads the business's own pages. It needs no key, and it's free.
 
 | From | Gives |
 |---|---|
-| schema.org `Organization`, `LocalBusiness` and their subtypes, in JSON-LD (including `@graph`) and microdata | name, address (with `geo`), phone, email, website, logo, `sameAs` social profiles. These are structured evidence |
+| schema.org `Organization`, `LocalBusiness` and their subtypes, in JSON-LD (including `@graph`) and microdata | name, address (with `geo`), phone, email, website, logo, `sameAs` social profiles, and a Google Maps `?cid=` link in `hasMap` or `sameAs`. These are structured evidence |
 | Open Graph and Twitter tags | `og:site_name`, `og:image` and `twitter:image` as social images |
 | `<link rel="icon">`, `apple-touch-icon` and the web app manifest | icons |
 | `tel:` and `mailto:` links, social links | phone, role email and social profiles. These are loose evidence |
@@ -83,7 +83,12 @@ metered by Google.
   country.
 - **Fields read** (the field mask decides Google's billing tier): `id`, `displayName`,
   `formattedAddress`, `addressComponents`, `location`, `nationalPhoneNumber`,
-  `internationalPhoneNumber`, `websiteUri`, `businessStatus`.
+  `internationalPhoneNumber`, `websiteUri`, `googleMapsUri`, `businessStatus`. Phone and website
+  already put the request in Google's top tier for Text Search, so `googleMapsUri` adds no cost.
+- **Maps listing cid**: the `cid` in a place's `googleMapsUri` is compared with any `?cid=` Maps
+  link in the site's schema. A match links the two as the same place, even when their phone
+  numbers and addresses differ (see [confidence.md](confidence.md)). The cid itself is never an
+  output value, and compfinder never converts a cid into a place ID.
 - The key is sent in the `X-Goog-Api-Key` header, never in a URL.
 - A place Google lists as closed (temporarily or permanently) is named in `warnings`.
 - Google's responses aren't cached. Google's terms restrict caching most Places content.

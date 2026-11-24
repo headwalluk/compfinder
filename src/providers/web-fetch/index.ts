@@ -32,7 +32,7 @@ const ROBOTS_CACHE_TTL_SECONDS = 24 * 60 * 60;
 /** What reading one page produced. */
 interface PageResult {
   page: ParsedPage;
-  locations: Array<{ evidence: Evidence[]; isLocalBusiness: boolean }>;
+  locations: Array<{ evidence: Evidence[]; isLocalBusiness: boolean; mapsCids: string[] }>;
   brand: Evidence[];
   loose: { location: Evidence[]; brand: Evidence[] };
   manifestUrl: string | null;
@@ -128,7 +128,7 @@ function readPage(page: ParsedPage, countryCode: string, minimumTextChars: numbe
   for (const block of allBlocks) {
     const evidence = blockEvidence(block, page, countryCode, withheld);
     if (evidence.location.length > 0) {
-      locations.push({ evidence: evidence.location, isLocalBusiness: evidence.isLocalBusiness });
+      locations.push({ evidence: evidence.location, isLocalBusiness: evidence.isLocalBusiness, mapsCids: evidence.mapsCids });
     }
     brand.push(...evidence.brand);
     for (const item of [...evidence.location, ...evidence.brand]) {
@@ -275,6 +275,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
           records.push({
             source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
             role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses), evidence,
+            ...(location.mapsCids.length === 0 ? {} : { mapsCids: location.mapsCids }),
           });
         });
       }

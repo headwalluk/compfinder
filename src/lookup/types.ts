@@ -97,6 +97,8 @@ export interface SourceRecord {
   scope: RecordScope;
   role: RecordRole;
   evidence: Evidence[];
+  /** Google Maps listing CIDs the record names (a ?cid= link). They link records only; never output. */
+  mapsCids?: string[];
 }
 
 /** The caller's inputs, normalised. Any may be null. */

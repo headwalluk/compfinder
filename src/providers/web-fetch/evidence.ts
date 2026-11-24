@@ -3,6 +3,7 @@ import { countryRules } from '../../normalise/country/index.js';
 import { classifyEmail, normaliseEmail } from '../../normalise/email.js';
 import { nameTokens } from '../../normalise/name.js';
 import { normalisePhone } from '../../normalise/phone.js';
+import { mapsCid } from '../../normalise/maps.js';
 import { parseSocialProfile } from '../../normalise/social.js';
 import { sanitiseText, type TextKind } from '../../normalise/text.js';
 import { normaliseUrl } from '../../normalise/url.js';
@@ -30,6 +31,8 @@ export interface BlockEvidence {
   brand: Evidence[];
   isLocalBusiness: boolean;
   hasAddress: boolean;
+  /** Google Maps listing CIDs from hasMap and sameAs links. */
+  mapsCids: string[];
 }
 
 /** The first string (or number) in a value that may be a list, sanitised; null when there's none. */
@@ -162,7 +165,8 @@ export function blockEvidence(block: BusinessBlock, page: ParsedPage, countryCod
   for (const sameAs of allTexts(properties.sameAs)) {
     addSocial(sameAs, 'structured', `${detail} sameAs`, page.url, brand, withheld);
   }
-  return { location, brand, isLocalBusiness: block.isLocalBusiness, hasAddress: address !== null };
+  const mapsCids = [...new Set([...allTexts(properties.hasMap), ...allTexts(properties.sameAs)].map(mapsCid).filter((cid) => cid !== null))];
+  return { location, brand, isLocalBusiness: block.isLocalBusiness, hasAddress: address !== null, mapsCids };
 }
 
 /** The pixel width declared in a sizes attribute such as "192x192", the largest when there are several. */

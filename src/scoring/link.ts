@@ -15,7 +15,7 @@ export interface Candidate {
   linkedBy: string[];
 }
 
-/** The strong key two records share, or null when they share none (05: linking). */
+/** The strong key two records share, or null when they share none (docs/confidence.md: identity). */
 function sharedKey(first: SourceRecord, second: SourceRecord): string | null {
   let key: string | null = null;
   const firstPlaceIds = fieldItems([first], 'place_id').map((item) => item.value);
@@ -25,6 +25,7 @@ function sharedKey(first: SourceRecord, second: SourceRecord): string | null {
   const firstPostcodes = fieldItems([first], 'address').map((item) => item.value.postcode).filter((postcode) => postcode !== null);
   const secondPostcodes = new Set(fieldItems([second], 'address').map((item) => item.value.postcode));
   const placeId = firstPlaceIds.find((value) => secondPlaceIds.has(value));
+  const mapsCid = first.mapsCids?.find((value) => second.mapsCids?.includes(value) === true);
   const phone = firstPhones.find((value) => secondPhones.has(value));
   const postcode = firstPostcodes.find((value) => secondPostcodes.has(value));
   const page = fieldItems([first], 'website').find((firstItem) => !isSiteRoot(firstItem.value.url)
@@ -32,6 +33,8 @@ function sharedKey(first: SourceRecord, second: SourceRecord): string | null {
       && pagePath(firstItem.value.url) === pagePath(secondItem.value.url)));
   if (placeId !== undefined) {
     key = `place ID ${placeId}`;
+  } else if (mapsCid !== undefined) {
+    key = `Google Maps listing cid ${mapsCid}`;
   } else if (phone !== undefined) {
     key = `phone ${phone}`;
   } else if (postcode !== undefined && namesCompatible(first, second)) {

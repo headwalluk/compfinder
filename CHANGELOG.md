@@ -51,4 +51,6 @@ All notable changes to this project are documented here. The format follows
 - A library API: `import { createFinder } from '@headwall/compfinder'`, with settings passed in
   code, `find`, `plan` and `checkProviders`, TypeScript declarations, and the result schema
   exported as `@headwall/compfinder/schema/result-1.0.json`. See `docs/library.md`.
+- A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's
+  listing for the same place, so they agree even when their phone or address differs.
 
