@@ -35,6 +35,16 @@ query. A candidate the query contradicts is dropped, unless one of your query's 
 (place ID, phone, postcode, branch page) is confirmed. In that case the other mismatches are
 treated as stale data and shown as field conflicts.
 
+A website from your query that the sources confirm is treated more gently. If the name is the
+only thing that disagrees, the candidate is kept under `identity.name-mismatch`, so a trading
+name, a rebrand or a bad typo still returns data, at a score low enough to say it needs checking.
+
+The name you type is matched forgivingly: it agrees with a source's name when all its words are in
+that name (or the other way round), allowing one typo (a wrong, missing, extra or swapped letter)
+in each word of five letters or more. So `Headwlal Hosting` still matches `Headwall Hosting`, and
+the source's spelling wins the name field, with yours shown as a conflict. Names from two sources
+are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` stay apart.
+
 | Rule | Score | Applies when |
 |---|---|---|
 | `identity.input-confirmed` | 100 | A place ID, phone, postcode or page URL from your query is confirmed by structured data |
@@ -43,6 +53,7 @@ treated as stale data and shown as field conflicts.
 | `identity.single-loose` | 40 | One source only, from loose page content (a `tel:` link, a postcode in the text) |
 | `identity.none` | 0 | Nothing matches, or every candidate contradicts the query |
 | `identity.tie` | ÷ n | *n* candidates match equally: each gets ⌊score ÷ n⌋ and all are listed in `candidates` |
+| `identity.name-mismatch` | ≤ 40 | Your query's site is confirmed but its name isn't, even allowing for typos. The business is kept rather than dropped, its identity (and so every field) is capped at 40, and a warning gives both names |
 | `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
 
 ## Fields

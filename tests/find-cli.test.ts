@@ -57,6 +57,23 @@ describe('compfinder find', () => {
     assert.match(result.stdout, /^ {2}Providers\s+web-fetch ok \(5 calls\)/m);
   });
 
+  test('--explain in text lists each piece of evidence, socials included', async () => {
+    const result = await find(['Example Estates', `--url=${baseUrl}/branches/reading/`, '--explain']);
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.match(result.stdout, /· web-fetch: facebook\.com\//);
+  });
+
+  test('a wrong name with a confirmed site keeps the business, capped at 40 with a warning', async () => {
+    const result = await find(['Totally Different Agents', `--url=${baseUrl}/`, '--output=json']);
+    assert.equal(result.exitCode, 0, result.stderr);
+    const output = JSON.parse(result.stdout) as { identity: { confidence: number; rules: string[] }; fields: { phone: { value: string; confidence: number } }; warnings: string[] };
+    assert.equal(output.identity.confidence, 40);
+    assert.ok(output.identity.rules.includes('identity.name-mismatch'));
+    assert.notEqual(output.fields.phone.value, null, 'the data is still there');
+    assert.ok(output.fields.phone.confidence <= 40);
+    assert.ok(output.warnings.some((warning) => warning.includes('"Totally Different Agents" doesn\'t match')));
+  });
+
   test('--output=json prints one line that validates against the published schema', async () => {
     const result = await find([`--url=${baseUrl}/branches/reading/`, '--output=json']);
     assert.equal(result.exitCode, 0, result.stderr);

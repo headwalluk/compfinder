@@ -2,6 +2,8 @@
 const LEGAL_SUFFIXES = new Set(['ltd', 'limited', 'plc', 'llp', 'inc', 'llc', 'gmbh']);
 const PUNCTUATION = /[^\p{L}\p{N}\s]/gu;
 const WHITESPACE_RUN = /\s+/g;
+/** Words shorter than this must match exactly when comparing a typed name. */
+const MIN_TYPO_WORD_LENGTH = 5;
 
 export type NameRelation = 'equal' | 'compatible' | 'incompatible';
 
@@ -40,6 +42,38 @@ export function compareNames(first: string, second: string): NameRelation {
     relation = 'compatible';
   } else {
     relation = 'incompatible';
+  }
+  return relation;
+}
+
+/** True when two words differ by at most one edit: a substitution, insertion, deletion or swap of neighbours. */
+export function isOneEditApart(first: string, second: string): boolean {
+  let isNear = first === second;
+  if (!isNear && Math.abs(first.length - second.length) <= 1) {
+    let start = 0;
+    while (start < first.length && first[start] === second[start]) {
+      start += 1;
+    }
+    const firstRest = first.slice(start);
+    const secondRest = second.slice(start);
+    const isSwap = firstRest.length === secondRest.length && firstRest.length >= 2
+      && firstRest[0] === secondRest[1] && firstRest[1] === secondRest[0] && firstRest.slice(2) === secondRest.slice(2);
+    isNear = isSwap || firstRest.slice(1) === secondRest.slice(1) || firstRest === secondRest.slice(1) || firstRest.slice(1) === secondRest;
+  }
+  return isNear;
+}
+
+/** Compares a name typed into the query with a source's name, forgiving one typo in each longer word. */
+export function compareQueryName(queryName: string, sourceName: string): NameRelation {
+  let relation = compareNames(queryName, sourceName);
+  const queryTokens = nameTokens(queryName);
+  const sourceTokens = nameTokens(sourceName);
+  const isNearMatch = (token: string, others: readonly string[]): boolean => others.some((other) => (
+    token === other || (Math.min(token.length, other.length) >= MIN_TYPO_WORD_LENGTH && isOneEditApart(token, other))
+  ));
+  if (relation === 'incompatible' && queryTokens.length > 0 && sourceTokens.length > 0
+    && (queryTokens.every((token) => isNearMatch(token, sourceTokens)) || sourceTokens.every((token) => isNearMatch(token, queryTokens)))) {
+    relation = 'compatible';
   }
   return relation;
 }

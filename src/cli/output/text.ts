@@ -45,7 +45,9 @@ function describeValue(name: string, field: OutputField): string {
     const logo = value as { path: string | null; source_url: string };
     text = logo.path ?? logo.source_url;
   } else if (name === 'socials') {
-    text = (value as Array<{ url: string }>).map((social) => social.url.replace(/^https:\/\//, '')).join(', ');
+    // A field's value is a list of profiles; each piece of evidence is one profile.
+    const profiles = Array.isArray(value) ? value as Array<{ url: string }> : [value as { url: string }];
+    text = profiles.map((social) => social.url.replace(/^https:\/\//, '')).join(', ');
   } else {
     text = String(value);
   }

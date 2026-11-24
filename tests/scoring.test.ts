@@ -97,6 +97,16 @@ describe('identity rules', () => {
     assert.equal(result.identity.brandConfidence, 60, 'both leaders are on example.com, so the brand isn\'t in doubt');
   });
 
+  test('identity.name-mismatch: the query\'s site is confirmed but its name isn\'t; kept, capped at 40', () => {
+    const result = score({ name: 'Totally Different Agents', url: 'https://example.com/' }, [siteBranch]);
+    assert.equal(result.identity.confidence, 40);
+    expectRules(result.identity.rules, ['identity.single-structured', 'identity.name-mismatch']);
+    assert.equal(result.fields.phone.confidence, 40);
+    assert.ok(result.identity.warnings.some((warning) => warning.includes('"Example Estates Reading"')));
+    const otherSite = score({ name: 'Totally Different Agents', url: 'https://other.example/' }, [siteBranch]);
+    assert.equal(otherSite.identity.confidence, 0, 'with the site not confirmed either, it\'s still dropped');
+  });
+
   test('identity.head-office: a chain\'s home page with no location is the head office', () => {
     const headOffice = record('web-fetch', [fact.name('Example Estates'), fact.phone(PHONE)], { role: 'head-office' });
     const result = score({ url: 'https://example.com/' }, [headOffice]);

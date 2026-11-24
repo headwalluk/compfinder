@@ -9,6 +9,7 @@ export const RULES = {
   'identity.single-loose': { score: 40, summary: 'One source, with loose evidence only' },
   'identity.none': { score: 0, summary: 'No candidate is consistent with the query' },
   'identity.tie': { score: null, summary: 'Several candidates are equally likely: the score is divided between them' },
+  'identity.name-mismatch': { score: 40, summary: 'The query\'s site is confirmed but its name isn\'t: the business is kept, capped at this score' },
   'identity.head-office': { score: null, summary: 'A chain\'s home page with no location: the identity is the head office' },
 
   'field.independent-agreement': { score: 100, summary: 'Two or more independent sources agree' },

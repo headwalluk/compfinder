@@ -1,7 +1,7 @@
 import type { Query, SourceRecord } from '../lookup/types.js';
-import { compareNames } from '../normalise/name.js';
+import { compareQueryName } from '../normalise/name.js';
 import { isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
-import { fieldItems } from './evidence.js';
+import { fieldItems, recordSite } from './evidence.js';
 import type { Candidate } from './link.js';
 import { ruleScore, type RuleId } from './rules.js';
 
@@ -36,6 +36,8 @@ export interface CandidateAssessment {
   baseReason: string;
   /** True when the query is a whole business (a home page, no location) and this candidate is its head office. */
   isPreferredHeadOffice: boolean;
+  /** True when the query's site is confirmed and its name is the only contradiction (identity.name-mismatch). */
+  isNameMismatch: boolean;
 }
 
 export interface IdentityResult {
@@ -115,7 +117,7 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[])
   } else if (key === 'name' && query.name !== null) {
     const items = fieldItems(records, 'name');
     const queryName = query.name;
-    for (const item of items.filter((candidate) => compareNames(candidate.value, queryName) !== 'incompatible')) {
+    for (const item of items.filter((candidate) => compareQueryName(queryName, candidate.value) !== 'incompatible')) {
       confirm(item.value, item.quality === 'structured', item.record.source);
     }
     state = state === 'silent' && items.length > 0 ? 'contradicted' : state;
@@ -156,26 +158,35 @@ function assessCandidate(candidate: Candidate, query: Query): CandidateAssessmen
   }
   const isPinnedByQuery = keys.some((match) => PINNING_KEYS.has(match.key) && match.state === 'confirmed');
   const isWholeBusinessQuery = !queryHasLocation(query) && query.website !== null;
+  const contradicted = keys.filter((match) => match.state === 'contradicted').map((match) => match.key);
+  const querySite = query.website?.domain ?? null;
+  const isSiteConfirmed = querySite !== null && candidate.records.some((record) => {
+    const site = recordSite(record);
+    return site !== null && isSameSite(site, querySite);
+  });
+  const isNameMismatch = !isPinnedByQuery && isSiteConfirmed && contradicted.length === 1 && contradicted[0] === 'name';
   return {
     candidate,
     keys,
     // A confirmed pinning key outweighs other mismatches: those are stale data, shown as field conflicts.
-    isConsistent: isPinnedByQuery || keys.every((match) => match.state !== 'contradicted'),
+    isConsistent: isPinnedByQuery || isNameMismatch || contradicted.length === 0,
     origins,
     baseScore: ruleScore(baseRule),
     baseRule,
     baseReason,
     isPreferredHeadOffice: isWholeBusinessQuery && candidate.records.some((record) => record.role === 'head-office'),
+    isNameMismatch,
   };
 }
 
-/** Ranks two candidates: a confirmed place ID, the head office for a whole-business query, most confirmed keys, fewest contradictions, most origins. 0 is a tie. */
+/** Ranks two candidates: a confirmed place ID, a matching name, the head office for a whole-business query, most confirmed keys, fewest contradictions, most origins. 0 is a tie. */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
   const placeIdRank = (assessment: CandidateAssessment): number => (
     assessment.keys.some((match) => match.key === 'place_id' && match.state === 'confirmed') ? 1 : 0
   );
   const count = (assessment: CandidateAssessment, state: KeyState): number => assessment.keys.filter((match) => match.state === state).length;
   return placeIdRank(second) - placeIdRank(first)
+    || Number(first.isNameMismatch) - Number(second.isNameMismatch)
     || Number(second.isPreferredHeadOffice) - Number(first.isPreferredHeadOffice)
     || count(second, 'confirmed') - count(first, 'confirmed')
     || count(first, 'contradicted') - count(second, 'contradicted')
@@ -222,6 +233,15 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
     }
     const leaderSites = new Set(leaders.flatMap((leader) => fieldItems(leader.candidate.records, 'website').map((item) => item.value.domain)));
     brandConfidence = leaderSites.size === 1 ? first.baseScore : confidence;
+    if (first.isNameMismatch) {
+      const cap = ruleScore('identity.name-mismatch');
+      const siteName = fieldItems(first.candidate.records, 'name')[0]?.value ?? 'another name';
+      confidence = Math.min(confidence, cap);
+      brandConfidence = Math.min(brandConfidence, cap);
+      rules.push('identity.name-mismatch');
+      reasons.push(`the query's site is confirmed, but its name isn't (the sources say ${siteName}); capped at ${cap}`);
+      warnings.push(`The query's name "${query.name ?? ''}" doesn't match the site's name "${siteName}". Check that this is the business you meant.`);
+    }
     isHeadOffice = !queryHasLocation(query) && first.candidate.records.some((record) => record.role === 'head-office');
     if (isHeadOffice) {
       rules.push('identity.head-office');

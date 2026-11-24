@@ -1,7 +1,6 @@
 import { FAILURE_STATUSES } from './errors.js';
 import { outputError, type OutputError } from '../messages/error-codes.js';
 import type { CandidateAssessment } from '../scoring/identity.js';
-import { canonicalValue } from '../scoring/match.js';
 import type { FieldResult } from '../scoring/fields.js';
 import type { RuleId } from '../scoring/rules.js';
 import { fieldItems } from '../scoring/evidence.js';
@@ -142,7 +141,7 @@ function summariseCandidate(assessment: CandidateAssessment, confidence: number)
   const address = fieldItems(records, 'address')[0]?.value;
   return {
     name: fieldItems(records, 'name')[0]?.value ?? null,
-    address: address === undefined ? null : address.formatted ?? canonicalValue('address', address),
+    address: address === undefined ? null : address.formatted ?? [...address.lines, address.town, address.postcode].filter((part) => part !== null && part !== '').join(', '),
     place_id: fieldItems(records, 'place_id')[0]?.value ?? null,
     website: fieldItems(records, 'website')[0]?.value.url ?? null,
     confidence,

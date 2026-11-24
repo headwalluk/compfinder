@@ -3,7 +3,7 @@ import { describe, test } from 'node:test';
 import { normaliseQuery } from '../src/lookup/query.js';
 import { countryRules } from '../src/normalise/country/index.js';
 import { classifyEmail, normaliseEmail } from '../src/normalise/email.js';
-import { compareNames, comparableName } from '../src/normalise/name.js';
+import { compareNames, compareQueryName, comparableName, isOneEditApart } from '../src/normalise/name.js';
 import { normalisePhone } from '../src/normalise/phone.js';
 import { decodeEscapes, sanitiseText, TEXT_LIMITS } from '../src/normalise/text.js';
 import { isSameSite, isSiteRoot, normaliseUrl, pagePath } from '../src/normalise/url.js';
@@ -79,6 +79,24 @@ describe('business names', () => {
   test('are compatible when one\'s words are all in the other', () => {
     assert.equal(compareNames('Example Estates', 'Example Estates - Reading'), 'compatible');
     assert.equal(compareNames('Example Estates', 'Other Agents'), 'incompatible');
+  });
+
+  test('a typed query name forgives one typo in each word of five letters or more', () => {
+    assert.equal(compareQueryName('Headwlal Hosting', 'Headwall Hosting'), 'compatible', 'swapped letters');
+    assert.equal(compareQueryName('Exampel Estate', 'Example Estates - Reading'), 'compatible');
+    assert.equal(compareQueryName('Smyth Estates', 'Smith Estates'), 'compatible');
+    assert.equal(compareQueryName('Hedwal Hosting', 'Headwall Hosting'), 'incompatible', 'two edits');
+    assert.equal(compareQueryName('Bake Shop', 'Bike Shop'), 'incompatible', 'short words must match exactly');
+    assert.equal(compareNames('Smyth Estates', 'Smith Estates'), 'incompatible', 'source names are never fuzzy');
+  });
+
+  test('one edit apart: substitution, insertion, deletion or a swap of neighbours', () => {
+    assert.ok(isOneEditApart('headwall', 'headwlal'));
+    assert.ok(isOneEditApart('headwall', 'headwal'));
+    assert.ok(isOneEditApart('headwall', 'headwalll'));
+    assert.ok(isOneEditApart('headwall', 'headwell'));
+    assert.ok(!isOneEditApart('headwall', 'hedwal'));
+    assert.ok(!isOneEditApart('headwall', 'wallhead'));
   });
 });
 

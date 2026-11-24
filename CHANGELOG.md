@@ -44,3 +44,8 @@ All notable changes to this project are documented here. The format follows
 - Network safeguards: refuses private and reserved addresses at connect time and on every
   redirect, caps response sizes after decompression, and sends an honest User-Agent
   (`docs/security.md`).
+- The name in a query forgives one typo in each word of five letters or more, so a misspelt name
+  no longer rejects the business it plainly means.
+- A query whose website is confirmed but whose name isn't is kept rather than dropped, under
+  `identity.name-mismatch`: capped at 40, with a warning giving both names.
+
