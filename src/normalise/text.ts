@@ -39,6 +39,25 @@ export function decodeEntities(value: string): string {
 }
 const WHITESPACE_RUN = /\s+/g;
 
+/** Longest phrase, in words, checked for an immediate repeat in a name. */
+const MAX_REPEATED_PHRASE_WORDS = 4;
+
+/** Drops a phrase repeated straight after itself ("Brentford Estate Agents Estate Agents" -> "Brentford Estate Agents"). */
+export function collapseRepeatedPhrase(name: string): string {
+  const words = name.split(' ');
+  let length = MAX_REPEATED_PHRASE_WORDS;
+  let collapsed = name;
+  while (length >= 1 && collapsed === name) {
+    const start = words.length - 2 * length;
+    const tail = words.slice(start + length).join(' ').toLowerCase();
+    if (start >= 0 && tail !== '' && words.slice(start, start + length).join(' ').toLowerCase() === tail) {
+      collapsed = words.slice(0, start + length).join(' ');
+    }
+    length -= 1;
+  }
+  return collapsed;
+}
+
 /** Decodes character references, then strips markup, control and invisible characters, collapses whitespace, and caps the length. */
 export function sanitiseText(value: string, kind: TextKind): string {
   const cleaned = decodeEntities(value)
@@ -47,7 +66,8 @@ export function sanitiseText(value: string, kind: TextKind): string {
     .replace(UNSAFE_CHARACTERS, ' ')
     .replace(WHITESPACE_RUN, ' ')
     .trim();
-  return Array.from(cleaned).slice(0, TEXT_LIMITS[kind]).join('').trim();
+  const tidied = kind === 'name' ? collapseRepeatedPhrase(cleaned) : cleaned;
+  return Array.from(tidied).slice(0, TEXT_LIMITS[kind]).join('').trim();
 }
 
 /** Decodes %-escapes, leaving the text as it was when an escape is malformed. */

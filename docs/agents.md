@@ -182,6 +182,7 @@ For a list of branches that share one website:
 | `web-fetch` status `blocked` | The site refused automated requests (Cloudflare and similar) | Nothing to fix on the site. Google can still give a result: with only a URL, it searches the domain's name and keeps only places on that site, which works for a branch page but often gives a tie for a chain's home page. Sending the name and a location too gives the best result |
 | `web-fetch` status `unreadable` | The site builds its pages with JavaScript, so there's nothing to read | As above |
 | `skipped`, reason `over budget` | The batch's metered budget ran out | Re-run those lines with a new budget |
+| `timeout` on `web-fetch` or `google-places-api` | The site or Google was too slow this time (`timeouts.request_ms`, `timeouts.lookup_ms`) | It isn't "not found". Re-run the line later. The other providers' results still stand, and an unread branch page doesn't count against Google's answer |
 | `auth_failed`, `quota_exceeded` | A key was rejected, or a provider's quota was used up | Stop and report it: every later line will hit it too |
 | A warning that the site "lists N phone number(s)" | The site shows many branches' details without marking which is which, so none was taken as this business's | Give the branch's postcode, phone or own page, or a name with its town for Google to search |
 

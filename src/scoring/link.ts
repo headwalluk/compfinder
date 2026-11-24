@@ -176,7 +176,10 @@ function attachBrandRecords(candidates: Candidate[], brands: readonly SourceReco
     for (const candidate of candidates) {
       const candidateSites = candidate.records.map(recordSite).filter((site) => site !== null);
       const appliesToAll = brandSite === null || (querySite !== null && isSameSite(brandSite, querySite));
-      if (appliesToAll || candidateSites.some((site) => isSameSite(site, brandSite))) {
+      // A place with no website of its own takes the brand of a site whose name it shares (a search found the site).
+      const isNamedSiteless = candidateSites.length === 0 && candidate.records.some((record) => namesCompatible(brand, record) && fieldItems([record], 'name').length > 0)
+        && fieldItems([brand], 'name').length > 0;
+      if (appliesToAll || isNamedSiteless || candidateSites.some((site) => isSameSite(site, brandSite))) {
         candidate.brandRecords.push(brand);
       }
     }

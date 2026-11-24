@@ -70,12 +70,13 @@ export function listInWords(items: readonly string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`;
 }
 
-/** True when one page path's last segment begins with the other's (/shops/reading and /shops/reading-broad-street). */
+/** True when every word of one path's last segment is in the other's (/offices/chiswick and /offices/dexters-chiswick-estate-agents). */
 function isRelatedPath(first: string, second: string): boolean {
-  const lastSegment = (path: string): string => path.split('/').pop() ?? '';
-  const firstSegment = lastSegment(first);
-  const secondSegment = lastSegment(second);
-  return firstSegment !== '' && secondSegment !== '' && (firstSegment.startsWith(secondSegment) || secondSegment.startsWith(firstSegment));
+  const segmentWords = (path: string): Set<string> => new Set((path.split('/').pop() ?? '').split(/[-_.+]+/).filter((word) => word !== ''));
+  const firstWords = segmentWords(first);
+  const secondWords = segmentWords(second);
+  const isWithin = (inner: Set<string>, outer: Set<string>): boolean => inner.size > 0 && [...inner].every((word) => outer.has(word));
+  return isWithin(firstWords, secondWords) || isWithin(secondWords, firstWords);
 }
 
 /** Compares one query key with a candidate's values. */
@@ -237,7 +238,10 @@ function describeRejection(assessment: CandidateAssessment): string {
 
 /** Orders candidates by rank, then the best-sourced first (it supplies the fields in a tie), then by position. */
 function compareAssessments(first: CandidateAssessment, second: CandidateAssessment): number {
-  return rankDifference(first, second) || second.origins.length - first.origins.length || first.candidate.index - second.candidate.index;
+  return rankDifference(first, second)
+    || second.origins.length - first.origins.length
+    || second.candidate.brandRecords.length - first.candidate.brandRecords.length
+    || first.candidate.index - second.candidate.index;
 }
 
 /** True when the query names a specific place rather than a whole business. */

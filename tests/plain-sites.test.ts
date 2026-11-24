@@ -3,7 +3,7 @@ import { describe, test } from 'node:test';
 import { runLookup } from '../src/lookup/engine.js';
 import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
-import { decodeEntities } from '../src/normalise/text.js';
+import { collapseRepeatedPhrase, decodeEntities } from '../src/normalise/text.js';
 import { normaliseUrl } from '../src/normalise/url.js';
 import { builtInProviders } from '../src/providers/registry.js';
 import { fixtureTransport, type FixtureResponse, type FixtureTransport } from './helpers/fixture-transport.js';
@@ -103,6 +103,12 @@ describe('cleaning values', () => {
     assert.equal(decodeEntities('Hunters Estate Agents &amp; Letting Agents'), 'Hunters Estate Agents & Letting Agents');
     assert.equal(decodeEntities('Caf&#233; &#x2013; &rsquo;'), 'Café – ’');
     assert.equal(decodeEntities('AT&T &unknown; &#0;'), 'AT&T &unknown; &#0;', 'anything else is left as written');
+  });
+
+  test('a phrase repeated straight after itself in a name is collapsed', () => {
+    assert.equal(collapseRepeatedPhrase('Dexters Brentford Estate Agents Estate Agents'), 'Dexters Brentford Estate Agents');
+    assert.equal(collapseRepeatedPhrase('Bang Bang'), 'Bang');
+    assert.equal(collapseRepeatedPhrase('Estate Agents & Letting Agents'), 'Estate Agents & Letting Agents', 'a repeated word that isn\'t adjacent stays');
   });
 
   test('tracking parameters are removed from URLs; other parameters stay', () => {

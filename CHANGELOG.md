@@ -70,6 +70,10 @@ All notable changes to this project are documented here. The format follows
 - A home page with no location searches Google on the site's name, kept to the site; with no
   name known, the URL's path comes before a page's phone. An unread branch page isn't
   contradicted by an alias URL for it.
+- An unread branch page (blocked, timed out or unreadable) is an alias of another URL when one's
+  last path segment has all its words in the other's. A place with no website takes the brand of
+  a found site that shares its name, so a co-listed place shows the listing that site supports.
+  A phrase repeated straight after itself in a name is collapsed.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.
 - A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's

@@ -168,6 +168,10 @@ describe('identity rules', () => {
     const result = score({ name: 'Example', phone: PHONE }, [sales, lettings]);
     assert.equal(result.identity.confidence, 100, 'not divided between the listings');
     expectRules(result.identity.rules, ['identity.input-confirmed', 'identity.co-listed']);
+    const site = record('web-fetch', [fact.name('Example Lettings'), fact.website('https://example-lettings.com/')], { scope: 'brand', origin: 'site:example-lettings.com' });
+    const withSite = score({ name: 'Example', phone: PHONE }, [sales, lettings, site]);
+    assert.equal(withSite.fields.name.value, 'Example Lettings', 'the listing a found site\'s name supports is shown, the site and Google agreeing on its name');
+    assert.equal(withSite.fields.website.value?.url, 'https://example-lettings.com/', 'and that site is its website');
   });
 
   test('identity.chain: a chain\'s home page that matches several of its places is the chain, with the brand\'s fields', () => {
@@ -186,6 +190,10 @@ describe('identity rules', () => {
     const google = record('google-places-api', [fact.name('Example Books'), fact.website('https://example.com/shops/reading-broad-street'), fact.placeId(PLACE_ID)]);
     const alias = score({ url: 'https://example.com/shops/reading' }, [google]);
     assert.equal(alias.identity.confidence, 60, 'the site is confirmed; the page is neither confirmed nor contradicted');
+    const wordsWithin = score({ url: 'https://example.com/shops/example-books-reading-broad-street' }, [
+      record('google-places-api', [fact.name('Example Books'), fact.website('https://example.com/shops/reading'), fact.placeId(PLACE_ID)]),
+    ]);
+    assert.equal(wordsWithin.identity.confidence, 60, 'every word of /reading is in the other segment: an alias, not a contradiction');
     const elsewhere = score({ url: 'https://example.com/shops/wokingham' }, [google]);
     assert.equal(elsewhere.identity.confidence, 0);
     const siteRead = record('web-fetch', [fact.name('Example Books')], { scope: 'brand' });
