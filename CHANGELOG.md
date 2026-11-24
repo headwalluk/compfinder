@@ -74,6 +74,7 @@ All notable changes to this project are documented here. The format follows
   last path segment has all its words in the other's. A place with no website takes the brand of
   a found site that shares its name, so a co-listed place shows the listing that site supports.
   A phrase repeated straight after itself in a name is collapsed.
+- An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.
 - A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's

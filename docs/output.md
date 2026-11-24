@@ -92,7 +92,7 @@ And these per field:
 |---|---|---|
 | `name` | The business or branch name, with HTML character references (`&amp;`) decoded | |
 | `website` | The most specific URL known (a branch page beats the home page), without its fragment or tracking parameters (`utm_*`, `gclid`, `fbclid` and similar) | `domain`: the host without `www.` |
-| `address` | `lines`, `town`, `county`, `postcode`, `country_code`, `formatted`, `lat`, `lon` (any may be `null`) | `normalised_by`: `google-places-api` when the address shown is Google's normalised form |
+| `address` | `lines`, `town`, `county`, `postcode`, `country_code`, `formatted`, `lat`, `lon` (any part may be `null`). `formatted` is always a one-line address: Google's normalised form when `normalised_by` says so, else the parts joined with commas | `normalised_by`: `google-places-api` when the address shown is Google's normalised form |
 | `phone` | E.164, such as `+441184960000` | `display`: the national format |
 | `email` | A role address, such as `info@` or `reading@` | `kind`: always `role`. Possibly personal addresses are never returned, only counted in `warnings` |
 | `logo` | `source_url`, `kind` (`logo`, `social-image` or `icon`), `path` once downloaded, `mime`, `width`, `height`, `converted_from` (`svg` when an SVG was converted to PNG) | |

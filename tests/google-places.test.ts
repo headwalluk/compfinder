@@ -5,7 +5,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import { checkProviders, runLookup } from '../src/lookup/engine.js';
 import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
-import type { TransportRequest } from '../src/net/transport.js';
+import type { Transport, TransportRequest } from '../src/net/transport.js';
 import { nameFromDomain, pathHint, searchPlan, searchText } from '../src/providers/google-places-api/index.js';
 import { builtInProviders } from '../src/providers/registry.js';
 import { fixtureTransport, type FixtureResponse, type FixtureRoute, type FixtureTransport } from './helpers/fixture-transport.js';
@@ -183,6 +183,28 @@ describe('google-places-api', () => {
     const { result } = await find({ url: 'https://example.com/' }, routes);
     assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.status, 'blocked');
     assert.equal(result.fields.place_id.value, 'ChIJexampleReading001', 'the namesake on another site is dropped');
+  });
+
+  test('a branch page that times out is unread: Google\'s place under an alias URL isn\'t contradicted', async () => {
+    const PAGE = 'https://example.com/offices/example-chiswick-estate-agents';
+    const fixtures = fixtureTransport({
+      'https://example.com/robots.txt': { body: 'User-agent: *\nAllow: /\n', headers: { 'content-type': 'text/plain' } },
+      [SEARCH_URL]: { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places: [
+        { id: 'ChIJexampleChiswick01', displayName: { text: 'Example Chiswick Estate Agents' }, websiteUri: 'https://example.com/offices/chiswick' },
+      ] }) },
+    });
+    // The branch page never answers: the request is abandoned when its timeout fires, as with a slow site.
+    const transport: Transport = {
+      send: (request) => (request.url.href === PAGE
+        ? new Promise((unusedResolve, reject) => request.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+        : fixtures.send(request)),
+    };
+    const config = testConfig({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: API_KEY }, fileText: '[timeouts]\nrequest_ms = 1000\nlookup_ms = 5000\n' });
+    const outcome = await runLookup({ query: makeQuery({ url: PAGE }), providers: builtInProviders(config), config, logger: quietLogger, transport, isDownloadSkipped: true });
+    const result = buildResult(outcome, { isExplain: false });
+    assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.status, 'timeout');
+    assert.equal(result.fields.place_id.value, 'ChIJexampleChiswick01');
+    assert.equal(result.identity.confidence, 60, 'one source, the site confirmed; the page neither confirmed nor contradicted');
   });
 
   test('a permanently closed place is reported in warnings', async () => {

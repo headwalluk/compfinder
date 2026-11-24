@@ -6,7 +6,7 @@ import type { RuleId } from '../scoring/rules.js';
 import { fieldItems } from '../scoring/evidence.js';
 import type { LookupOutcome, ProviderReport } from './engine.js';
 import { FIELD_NAMES, type FieldName } from './fields.js';
-import type { FieldValues, SourceName } from './types.js';
+import type { AddressValue, FieldValues, SourceName } from './types.js';
 
 /** The output contract's version (semver): docs/output.md. */
 export const SCHEMA_VERSION = '1.0';
@@ -59,6 +59,10 @@ function shapeValue(field: FieldName, value: unknown): { value: unknown; extras:
   let shaped: { value: unknown; extras: Record<string, unknown> };
   if (value === null) {
     shaped = { value: field === 'socials' ? [] : null, extras: {} };
+  } else if (field === 'address') {
+    // formatted is Google's normalised line when there is one; otherwise it's built from the parts, so it's never missing.
+    const address = value as AddressValue;
+    shaped = { value: { ...address, formatted: addressLine(address) }, extras: {} };
   } else if (field === 'website') {
     const website = value as FieldValues['website'];
     shaped = { value: website.url, extras: { domain: website.domain } };
@@ -92,6 +96,11 @@ function emptyExtras(field: FieldName): Record<string, unknown> {
     address: { normalised_by: null },
   };
   return extras[field] ?? {};
+}
+
+/** An address as one line: Google's normalised form when there is one, else its parts joined. */
+export function addressLine(address: AddressValue): string {
+  return address.formatted ?? [...address.lines, address.town, address.county, address.postcode].filter((part) => part !== null && part !== '').join(', ');
 }
 
 /** Turns one scored field into its output form. */
@@ -141,7 +150,7 @@ function summariseCandidate(assessment: CandidateAssessment, confidence: number)
   const address = fieldItems(records, 'address')[0]?.value;
   return {
     name: fieldItems(records, 'name')[0]?.value ?? null,
-    address: address === undefined ? null : address.formatted ?? [...address.lines, address.town, address.postcode].filter((part) => part !== null && part !== '').join(', '),
+    address: address === undefined ? null : addressLine(address),
     place_id: fieldItems(records, 'place_id')[0]?.value ?? null,
     website: fieldItems(records, 'website')[0]?.value.url ?? null,
     confidence,
