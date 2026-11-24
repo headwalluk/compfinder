@@ -14,6 +14,9 @@ import { ExitCode } from '../exit-codes.js';
 import { csvHeader, csvRow, UTF8_BOM } from '../output/csv.js';
 import { renderLookupText, renderPlanText } from '../output/text.js';
 
+/** File errors that mean the batch input can't be read: a usage problem, not a crash. */
+const UNREADABLE_INPUT_CODES: ReadonlySet<string> = new Set(['ENOENT', 'EISDIR', 'EACCES', 'EPERM']);
+
 /** Flags that become the query, mapped to its keys. */
 const QUERY_FLAGS: ReadonlyArray<[string, keyof QueryInput]> = [
   ['url', 'url'], ['address', 'address'], ['postcode', 'postcode'], ['phone', 'phone'], ['place-id', 'place_id'],
@@ -113,7 +116,7 @@ async function findBatch({ args, config, output, logger, colour, write }: Parame
       logger.info(`Batch: ${summary.lines} lines, ${summary.errors} with errors, ${calls} metered calls.`);
       result = { exitCode: ExitCode.success, data: { ...summary }, text: '', isStreamed: true };
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'EISDIR') {
+      if (!UNREADABLE_INPUT_CODES.has((error as NodeJS.ErrnoException).code ?? '')) {
         throw error;
       }
       const problem = `Can't read the input file ${inputPath}: ${(error as Error).message}`;

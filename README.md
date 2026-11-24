@@ -13,8 +13,8 @@ needs no key. Google Places and Brave Search each add detail and confidence once
 an API key. compfinder is deterministic: it makes no LLM calls, and the same provider responses
 always give the same answer.
 
-**Status:** early development, before 1.0. Every provider is built; the API providers are still
-being checked against the live services.
+**Status:** release candidate for 1.0. `web-fetch`, Google Places and Brave Search have all been
+checked against the live services.
 
 ```sh
 npm install -g @headwall/compfinder
@@ -23,7 +23,8 @@ compfinder find --url example.com --output=json      # for scripts and agents
 compfinder config init        # writes ~/.config/compfinder/config.toml, for API keys
 ```
 
-It works as a library too, returning the same result as `--output=json`:
+It works as a library too, returning the same result as `--output=json` (without the CLI's
+`ok` and `exitCode` envelope):
 
 ```ts
 import { createFinder } from '@headwall/compfinder';
@@ -43,6 +44,8 @@ For people running compfinder:
 - [Security](docs/security.md): network behaviour, refused addresses, untrusted content, personal data
 
 For scripts and agents reading the output:
+
+- [Using compfinder from an AI agent](docs/agents.md): input, batches, budgets, and reading results
 
 - [Output](docs/output.md): the JSON result and its schema
 - [Confidence](docs/confidence.md): what the scores mean

@@ -2,8 +2,8 @@
 
 Everything the `compfinder` command does can be called from your own Node code: a lead-cleaning
 script, a queue worker, or an HTTP API. The library returns the same result object that
-`compfinder find --output=json` prints, so [output.md](output.md) and
-[confidence.md](confidence.md) describe it field by field.
+`compfinder find --output=json` prints, without the CLI's `ok` and `exitCode` envelope, so
+[output.md](output.md) and [confidence.md](confidence.md) describe it field by field.
 
 compfinder is ESM only and needs Node 22 or later.
 
@@ -60,7 +60,8 @@ const finder = createFinder({
 });
 ```
 
-A variable that is `undefined` is ignored, so you can pass optional keys straight through.
+A variable that is `undefined` is ignored, so you can pass optional keys straight through. A
+misspelt `COMPFINDER_*` name is still an error, even when its value is `undefined`.
 
 **Like the command.** `createFinder({ fromEnvironment: true })` reads the config file and the
 `COMPFINDER_*` environment variables exactly as `compfinder` does, which suits a script running
@@ -85,9 +86,8 @@ try {
 ## Lookup options
 
 `find(query, options)` takes the query keys a batch line takes (`name`, `url`, `address`,
-`postcode`, `phone`, `place_id`, `country`; all strings, listed in `QUERY_INPUT_KEYS`) and these
-options, each matching a
-`find` flag:
+`postcode`, `phone`, `place_id`, `country`; all strings, listed in `QUERY_INPUT_KEYS`; `null`
+counts as absent) and these options, each matching a `find` flag:
 
 | Option | Flag | What it does |
 |---|---|---|
@@ -97,12 +97,13 @@ options, each matching a
 | `explain` | `--explain` | Include every piece of evidence in each field, agreeing or not |
 | `noCache` | `--no-cache` | Neither read nor write the response cache |
 | `noDownload` | `--no-download` | Report logo URLs without downloading the images |
-| `budget` | `--max-metered-calls-total` | A shared budget, from `createBudget(n)`, capping metered calls across many lookups |
+| `budget` | `--max-metered-calls-total` | A shared budget, from `createBudget(n)`, capping metered calls across many lookups. The `budgets.metered_calls_per_batch` setting applies to the CLI's batches only, so the library has no batch limit unless you pass one. `budgets.metered_calls_per_lookup` still applies to each lookup |
 | `signal` | | An `AbortSignal`. Providers still running when it fires are reported with status `timeout` |
 
 `finder.plan(query, options)` works out which providers would run and the most metered calls
-the lookup could make, without calling anything (`--dry-run`). `finder.checkProviders()` makes
-one cheap call per configured provider to prove its key (`compfinder providers check`).
+the lookup could make, without calling anything (`--dry-run`). `finder.checkProviders(only?)` makes
+one cheap call per configured provider, or per provider in `only`, to prove its key
+(`compfinder providers check`).
 
 ## Errors
 
@@ -254,8 +255,9 @@ Points to watch in a server:
 
 - **Pass `noDownload: true`** unless you want logo images on the server's disk. Without it,
   logos are saved under `cache_dir` and `fields.logo.value.path` is a local file path.
-- **Set `cache_dir`** to somewhere the service can write. In-code settings don't look at
-  `XDG_CACHE_HOME`, so the default is `~/.cache/compfinder` for the user the service runs as.
+- **Set `cache_dir`** to somewhere the service can write. In-code settings don't read the
+  environment, so unless you pass `cache_dir` (or `XDG_CACHE_HOME` in `variables`), the default
+  is `~/.cache/compfinder` for the user the service runs as.
 - **Keep the finder's `config` private.** It holds the API keys. The result never does:
   provider error details are redacted before they reach it.
 - **Requests reach the network on your behalf.** `web-fetch` fetches whatever URL is in the
@@ -265,7 +267,9 @@ Points to watch in a server:
 
 ## Logging
 
-By default the library writes warnings and errors to stderr, at the configured `log_level`.
+By default the library writes its log lines to stderr at the configured `log_level`, which is
+`info` unless you set it: that includes progress notes such as a provider stopping at the budget.
+Set `log_level = "warn"` in `toml` for warnings and errors only.
 Pass `logger` to send them somewhere else. It needs `error`, `warn`, `info`, `debug` (each taking
 a message and an optional details object) and `child(tag)`, which returns a logger for one part
 of the lookup. To send them to your application's own logger:

@@ -38,5 +38,7 @@ export interface Command {
   maxArguments?: number;
   /** Output formats the command supports. */
   outputs: readonly OutputFormat[];
+  /** True when a config file named by --config or COMPFINDER_CONFIG may not exist yet (config init, config path). */
+  isMissingConfigAllowed?: boolean;
   run(context: CommandContext): Promise<CommandResult>;
 }

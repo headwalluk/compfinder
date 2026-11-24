@@ -9,20 +9,25 @@ When `web-fetch` reads a business's site, it:
 
 - sends an honest User-Agent naming the tool, its version and this project's URL
   (`compfinder/<version> (+https://github.com/headwalluk/compfinder)`), and nothing about you;
-- reads `robots.txt` first and honours it. A `robots.txt` that answers 4xx allows everything,
-  and one that answers 5xx means the whole site is treated as disallowed, as RFC 9309 says.
+- reads `robots.txt` first and honours it. A `robots.txt` that answers 404 (or another 4xx)
+  allows everything. One that answers 401, 403, 429 or 5xx means the whole site is treated as
+  disallowed, and the lookup reports `web-fetch` as `blocked`, following RFC 9309.
   `web_fetch.honour_robots = false` turns this off, at your own responsibility;
 - reads only a few pages per lookup (`web_fetch.max_pages`, default 5): the page given, then
-  same-site contact, home, branches and about pages. It never follows links off the site, and
-  never crawls;
-- makes one request at a time, with a timeout per request (`timeouts.request_ms`) and per lookup
-  (`timeouts.lookup_ms`);
+  same-site contact, home, branches and about pages. It never crawls. The only way it leaves
+  the site is when the page given redirects to another domain: that domain is then read as the
+  business's site (with its own `robots.txt`), and a warning says so. Later pages must stay on
+  it;
+- makes one request at a time within a lookup, with a timeout per request
+  (`timeouts.request_ms`) and per lookup (`timeouts.lookup_ms`). A batch with `--concurrency`
+  above 1 runs several lookups at once, and lookups don't wait for each other, even on the same
+  site: keep concurrency low for a list of branches on one site;
 - stops at bot protection. A 401, 403 or 429, a CDN's protected 503, or a challenge page
   (Cloudflare's "Just a moment…", Imperva, DataDome) is reported as `blocked`. There's no retry
   and no workaround.
 
-`--output=text` with `COMPFINDER_LOG_LEVEL=debug` logs every request: method, URL, status, size
-and time taken.
+`COMPFINDER_LOG_LEVEL=debug` logs every request to stderr, whatever the output format: method,
+URL, status, size and time taken.
 
 ## Refused addresses
 
@@ -36,12 +41,13 @@ So that compfinder can't be used to reach into the network it runs on (SSRF), it
 - an IP address given directly, checked before any connection.
 
 A refused address is reported as `blocked`. `--allow-private-addresses` (or
-`net.allow_private_addresses = true`) turns the guard off, for testing against a local server
-only.
+`net.allow_private_addresses = true`) turns the guard off, and lifts the 80 and 443 port limit
+too, for testing against a local server only.
 
 Every response has a size cap, and the cap applies to the **decompressed** bytes as they arrive,
 so a compressed "bomb" is cut off: 2 MiB for a page, 512 KiB for `robots.txt`, 64 KiB for a web
-app manifest, 5 MiB for an image. Redirects are followed at most five times.
+app manifest, 1 MiB for an API's JSON answer, 5 MiB for an image. An SVG logo over 1 MiB isn't
+rendered. Redirects are followed at most five times.
 
 ## Untrusted content
 

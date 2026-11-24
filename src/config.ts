@@ -619,7 +619,7 @@ export function loadConfig(inputs: ConfigInputs): Config {
 }
 
 /** Reads the real environment and config file, then loads the Config. The only process.env read. */
-export function loadConfigFromEnvironment(overrides: ConfigOverrides): Config {
+export function loadConfigFromEnvironment(overrides: ConfigOverrides, options: { isMissingFileAllowed?: boolean } = {}): Config {
   const variables = { ...process.env };
   const workingDirectory = process.cwd();
   const homeDirectory = variables.HOME ?? homedir();
@@ -635,7 +635,10 @@ export function loadConfigFromEnvironment(overrides: ConfigOverrides): Config {
     }
     fileText = undefined; // No config file; defaults apply.
   }
-  return loadConfig({ variables, configPath, isConfigPathExplicit, fileText, fileMode, overrides, workingDirectory, homeDirectory });
+  return loadConfig({
+    variables, configPath, isConfigPathExplicit: isConfigPathExplicit && options.isMissingFileAllowed !== true,
+    fileText, fileMode, overrides, workingDirectory, homeDirectory,
+  });
 }
 
 /** Names the settings source in problems when settings were passed in code rather than read from a file. */

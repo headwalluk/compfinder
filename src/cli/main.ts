@@ -78,7 +78,7 @@ function configOverrides(args: ParsedArgs): ConfigOverrides {
 async function runCommand(command: Command, args: ParsedArgs, output: OutputFormat): Promise<CommandResult> {
   let result: CommandResult;
   try {
-    const config = loadConfigFromEnvironment(configOverrides(args));
+    const config = loadConfigFromEnvironment(configOverrides(args), { isMissingFileAllowed: command.isMissingConfigAllowed === true });
     const logger = createLogger({ level: config.logLevel, tag: CLI_NAME, stderrOnly: true });
     for (const warning of config.warnings) {
       logger.warn(warning);

@@ -10,6 +10,9 @@
 
 ## For scripts and agents reading the output
 
+- [Using compfinder from an AI agent](agents.md): preparing input, running a batch within a
+  budget, and deciding what to do with each result
+
 - [Output](output.md): the JSON result, every field, provider statuses, error codes, versioning
 - [Confidence](confidence.md): what the numbers mean, and every rule that produces them
 

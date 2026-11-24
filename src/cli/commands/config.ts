@@ -13,6 +13,7 @@ const COLUMN_GAP = 2;
 
 export const configPathCommand: Command = {
   path: ['config', 'path'],
+  isMissingConfigAllowed: true,
   summary: 'Show which config file is used, and whether it exists.',
   usage: 'compfinder config path [--config=PATH] [--output=text|json]',
   flags: [],
@@ -57,6 +58,7 @@ export const configShowCommand: Command = {
 
 export const configInitCommand: Command = {
   path: ['config', 'init'],
+  isMissingConfigAllowed: true,
   summary: 'Write a commented config file to the config path. Never overwrites an existing file.',
   usage: 'compfinder config init [--config=PATH] [--output=text|json]',
   flags: [],

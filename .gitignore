@@ -13,3 +13,6 @@ coverage/
 
 # Live responses recorded for calibration; never committed (docs/development.md).
 recordings/
+
+# npm pack output.
+*.tgz

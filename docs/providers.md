@@ -3,14 +3,11 @@
 This page is for people running compfinder: what each provider does, what it needs, and what
 it costs. `compfinder providers list` shows which are configured.
 
-| Provider | Needs | Metered | Status in this version |
-|---|---|---|---|
-| `web-fetch` | nothing | no | available |
-| `google-places-api` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes | available |
-| `brave-search-api` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes | available |
-
-A declared provider that isn't available yet shows as `skipped: not available in this
-version` in a lookup's `providers` list.
+| Provider | Needs | Metered |
+|---|---|---|
+| `web-fetch` | nothing | no |
+| `google-places-api` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes |
+| `brave-search-api` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes |
 
 ## How providers run
 
@@ -22,7 +19,7 @@ Providers run in stages, so a later one can use what an earlier one found:
 
 A provider waiting for something a later stage finds gets one more chance at the end. For
 example, with no search provider, Google may supply the website, and `web-fetch` then reads it.
-Free providers run before metered ones. A metered provider is skipped when every field it could
+Within a stage, free providers run before metered ones. A metered provider is skipped when every field it could
 supply is already at confidence 100 (`skip_settled`), or when the lookup's metered-call budget
 is used up (`budgets.metered_calls_per_lookup`).
 
@@ -36,7 +33,8 @@ Reads the business's own pages. It needs no key, and it's free.
 **What it reads**, starting from the URL given (or the website another provider found):
 
 - `robots.txt`, and honours it ([security.md](security.md));
-- the page itself, then up to four more pages on the same site. The link scores (highest first)
+- the page itself, then up to `web_fetch.max_pages - 1` more pages on the same site (four, by
+  default). The link scores (highest first)
   are: the page's canonical URL (40), contact pages (30), the home page (25), branch or office
   listings (20), about pages (10). Ties are broken by URL. It stops early once it finds a
   LocalBusiness matching the query's postcode or phone.
@@ -46,8 +44,8 @@ Reads the business's own pages. It needs no key, and it's free.
 | From | Gives |
 |---|---|
 | schema.org `Organization`, `LocalBusiness` and their subtypes, in JSON-LD (including `@graph`) and microdata | name, address (with `geo`), phone, email, website, logo, `sameAs` social profiles, and a Google Maps `?cid=` link in `hasMap` or `sameAs`. These are structured evidence |
-| Open Graph and Twitter tags | `og:site_name`, `og:image` and `twitter:image` as social images |
-| `<link rel="icon">`, `apple-touch-icon` and the web app manifest | icons |
+| Open Graph and Twitter tags | the site's name from `og:site_name` (loose evidence), and `og:image` and `twitter:image` as social images |
+| `<link rel="icon">`, `apple-touch-icon`, and the web app manifest when the site has no schema.org logo | icons |
 | `tel:` and `mailto:` links, social links | phone, role email and social profiles. These are loose evidence |
 | The page text | a postcode, when the page has exactly one |
 
@@ -76,8 +74,8 @@ metered by Google.
 - **Otherwise**: one Text Search call, for the best name known plus the best location: the
   query's postcode, else the postcode or town another provider found, else the query's address.
   With no name and location, it searches by phone. With neither, it waits for an earlier stage,
-  and is skipped if nothing turns up. It asks for at most 5 candidates, in the lookup's
-  country.
+  and is skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
+  country as `regionCode`, which favours places there without excluding others.
 - **Fields read** (the field mask decides Google's billing tier): `id`, `displayName`,
   `formattedAddress`, `addressComponents`, `location`, `nationalPhoneNumber`,
   `internationalPhoneNumber`, `websiteUri`, `googleMapsUri`, `businessStatus`. Phone and website
@@ -111,8 +109,8 @@ only while no website is known.
 ## Logos
 
 After the providers run, compfinder downloads the best logo candidate: a schema.org logo first,
-then large icons (192 px or more, or `apple-touch-icon`), then social images, then favicons, and
-within each kind the widest first ([confidence.md](confidence.md)). It identifies the image by its
+then large icons (192 px or more, or `apple-touch-icon`), then social images and favicons, which
+rank equally, and within each rank the widest first ([confidence.md](confidence.md)). It identifies the image by its
 bytes, not by the server's Content-Type or the URL's extension. It accepts PNG, JPEG, GIF, WebP,
 ICO and SVG, and reads the pixel size from the image's header. An SVG is rendered to PNG,
 scaled so its longest side is at most 1200 px, with no external resources and no system fonts.

@@ -5,7 +5,7 @@ compfinder <command> [options]
 ```
 
 Every invocation starts with a command. Anything else, such as a business name on its own, is
-an unknown command and exits 2.
+an unknown command and exits 2. `compfinder` with nothing after it prints the help and exits 0.
 
 ## Commands
 
@@ -79,9 +79,9 @@ options (`--fields`, `--providers`, `--no-download`, …) apply to every line.
 | `--dry-run` | Plan every line without making a call, then report the most metered calls the batch could make, for estimating a bill |
 
 Results stream out as each lookup finishes: one JSON line, one CSV row (after a single header
-row), or one text block headed by the line's `id`. A line that can't be looked up gets an error
-in place of a result ([output.md](output.md)), and the batch carries on. A batch exits 0 unless
-its input can't be read. A summary (lines, lines with errors, metered calls) goes to stderr at
+row), or one text block headed by `[id]` (or `[line N]` when the line has no id). A line that can't be looked up gets an error
+in place of a result ([output.md](output.md)), and the batch carries on. A batch exits 0 once it has run, whatever its lines held. It exits 2 when an option is wrong or
+the input file can't be read. A summary (lines, lines with errors, metered calls) goes to stderr at
 `info`.
 
 ## Options for every command
@@ -111,7 +111,8 @@ These override the matching setting for one run (see [configuration.md](configur
 stdout carries only the result. Logs, warnings and errors go to stderr, so JSON output can always
 be piped.
 
-With `--output=json`, every command prints exactly one line:
+With `--output=json`, every command prints exactly one line (except `find --input`, which prints
+one line per lookup, described in [output.md](output.md#batch-lines)):
 
 ```json
 {"ok":true,"exitCode":0, ...}

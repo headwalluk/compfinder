@@ -90,6 +90,18 @@ describe('compfinder CLI', () => {
     assert.doesNotMatch(result.stdout + result.stderr, new RegExp(TEST_API_KEY));
   });
 
+  test('config init and config path work with a --config file that doesn\'t exist yet', () => {
+    const home = makeTemporaryHome();
+    const configPath = path.join(home, 'elsewhere', 'compfinder.toml');
+    const where = run(['config', 'path', `--config=${configPath}`], { HOME: home });
+    assert.match(where.stdout + where.stderr, /not created yet/);
+    const init = run(['config', 'init', `--config=${configPath}`], { HOME: home });
+    assert.equal(init.exitCode, 0, init.stderr);
+    assert.equal(statSync(configPath).mode & PERMISSION_BITS, OWNER_ONLY_MODE);
+    const show = run(['config', 'show', `--config=${path.join(home, 'missing.toml')}`], { HOME: home });
+    assert.equal(show.exitCode, 3, 'other commands still insist a named file exists');
+  });
+
   test('config init writes an owner-only file once, then refuses with exit 4', () => {
     const first = run(['config', 'init']);
     assert.equal(first.exitCode, 0);

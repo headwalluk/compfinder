@@ -17,7 +17,7 @@ an origin, and values from the same origin count once:
 |---|---|
 | Any page on the business's own site | the site |
 | `google-places-api` | Google's business listing |
-| A search result's title or URL | the site the result points at |
+| A search result's URL | the site the result points at |
 | Your own query | never independent |
 
 So two pages of the same site are one source, and a search result that repeats the site's own

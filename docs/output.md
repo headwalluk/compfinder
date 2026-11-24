@@ -35,9 +35,9 @@ reading:
     "socials": {"value":[{"network":"facebook","url":"https://www.facebook.com/exampleestates","confidence":60}],"confidence":60,"sources":["web-fetch"],"rules":["field.single-structured"],"reasons":["one source only (web-fetch)"],"conflicts":[]}
   },
   "providers": [
-    {"name":"web-fetch","status":"ok","reason":null,"detail":null,"calls":1,"metered":false},
-    {"name":"google-places-api","status":"ok","reason":null,"detail":null,"calls":1,"metered":true},
-    {"name":"brave-search-api","status":"not_configured","reason":"set COMPFINDER_BRAVE_SEARCH_API_KEY","detail":null,"calls":0,"metered":true}
+    {"name":"web-fetch","status":"ok","reason":null,"detail":null,"calls":1,"cached_calls":0,"metered":false},
+    {"name":"google-places-api","status":"ok","reason":null,"detail":null,"calls":1,"cached_calls":0,"metered":true},
+    {"name":"brave-search-api","status":"not_configured","reason":"set COMPFINDER_BRAVE_SEARCH_API_KEY","detail":null,"calls":0,"cached_calls":0,"metered":true}
   ],
   "warnings": [],
   "error": null
@@ -65,6 +65,11 @@ reading:
 | `confidence` | 0–100: how sure the tool is which business this is |
 | `rules`, `reasons` | The rule IDs that produced the score ([confidence.md](confidence.md)), and the same in words |
 | `candidates` | Empty when one business matches. When several match equally (two branches of one chain), each is listed with `name`, `address`, `place_id`, `website` and its share of the `confidence`. The fields then come from the first, capped at its confidence |
+| `considered` | With `--explain` only: every candidate that was weighed, each with the same summary plus a `status` (`leader`, `beaten` or `rejected`) and `keys`, saying which of your query's values it `confirmed` or `contradicted` |
+
+With `--explain`, each field also has `evidence`: every piece behind it, agreeing or not, each
+with `source`, `value`, `quality` (`structured` or `loose`), `agreed`, and a `reference` of
+`url`, `record_id` and `detail` saying where it was found.
 
 The tool never silently picks one of several equally likely candidates.
 
@@ -107,18 +112,18 @@ Each entry has `name`, `status`, `reason`, `detail`, `calls`, `cached_calls` and
 | `status` | Means |
 |---|---|
 | `ok` | Called and answered, possibly with nothing found |
-| `skipped` | Not needed, or not possible: `reason` says why (`excluded`, `disabled in config`, `fields not requested`, `fields already settled`, `over budget`, `no website known`, `website already known`, `not available in this version`) |
+| `skipped` | Not needed, or not possible: `reason` says why (`excluded`, `disabled in config`, `fields not requested`, `fields already settled`, `over budget`, `no website known`, `website already known`, `no name to search for`, `no place ID, and no name with a location (or a phone) to search with`, `not available in this version`). A provider stopped by the budget before its first call is `skipped`, with `detail` `stopped at the metered call budget`; one stopped after some calls is `ok` with that `detail` |
 | `not_configured` | Its API key isn't set; `reason` says which variable to set |
 | `auth_failed` | Its credentials were rejected |
 | `quota_exceeded` | Its quota or rate limit was hit |
-| `blocked` | The site refused compfinder (a 403 or 429, bot protection, `robots.txt`, or a private address). There's no retry |
+| `blocked` | The site refused compfinder (a 401, 403 or 429, a CDN's protected 503, bot protection, `robots.txt`, or a private address). There's no retry |
 | `unreadable` | The page had no usable content, probably because it builds its content with JavaScript |
 | `unreachable` | Network trouble: the host couldn't be reached |
-| `timeout` | The lookup's time ran out |
+| `timeout` | A request took longer than `timeouts.request_ms`, or the lookup's time (`timeouts.lookup_ms`) ran out |
 | `bad_response` | The provider answered with something unparseable |
 | `internal_error` | A bug in compfinder's code for that provider. It's logged with its stack |
 
-`calls` counts every request the provider made over the network, including the logo download,
+`calls` counts every request the provider made over the network, each redirect hop included, and the logo download,
 which is counted against the provider that found the logo. `cached_calls` counts the requests
 answered from the response cache, which cost nothing. `metered` says whether its calls cost
 money.
@@ -128,10 +133,15 @@ money.
 With `find --input --output=json`, each output line is one of:
 
 - a result: the object above, with the line's `id` and `ok` (true when `error` is null) at the
-  front;
+  front. There's no `exitCode`: that belongs to a whole command;
 - an error, when the line itself couldn't be looked up:
   `{"id": …, "ok": false, "error": {"code", "message", "detail"}, "problems": […]}`;
 - with `--dry-run`, a plan: `{"id": …, "ok": true, "dry_run": true, "providers": […], "max_metered_calls": n}`.
+  Each entry in `providers` has `name`, `stage`, `status` (`would_run`, `skipped` or
+  `not_configured`), `reason`, `metered` and `maxCalls` (the most metered calls it could make).
+
+The `id` is the input line's `id` as a string, or `null` when the line had none, or had one that
+wasn't a string or a number.
 
 Lines come out in input order, whatever `--concurrency` is.
 

@@ -157,6 +157,14 @@ describe('HTTP client', () => {
     await rejectsWith(guarded.request({ url: 'file:///etc/passwd', kind: 'html' }), 'refused_url');
   });
 
+  test('a host name that resolves to a private address is refused at connect time, as refused_address', async () => {
+    const guarded = createHttpClient({
+      transport: LIVE_TRANSPORT, userAgent: 'test', requestTimeoutMs: 1000, allowPrivateAddresses: false,
+      meter: new CallMeter(false, []), signal: new AbortController().signal,
+    });
+    await rejectsWith(guarded.request({ url: 'http://localhost/', kind: 'html' }), 'refused_address');
+  });
+
   test('a metered client stops when the budget is used up', async () => {
     const meter = new CallMeter(true, [new CallBudget(1)]);
     await client(meter).request({ url: `${baseUrl}/page`, kind: 'html' });

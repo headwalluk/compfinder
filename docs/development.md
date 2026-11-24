@@ -46,7 +46,8 @@ always give the same output. `buildResult` turns the final score into the schema
 ## Providers
 
 A provider (`src/providers/contract.ts`) has a declaration (stage, metered, the fields it
-supplies, its credential variable), and `readiness`, `maxCalls` and `run` methods.
+supplies, its credential variable), and `readiness`, `maxCalls` and `run` methods, plus an
+optional `check` that `providers check` calls to prove a key cheaply.
 
 - `run` returns **records**: everything it found, each with an `origin` (the independence key),
   a `scope` (`brand` or `location`) and a `role`. It never decides which record is right; that's

@@ -31,7 +31,7 @@
 # Flag: --max-metered-calls.
 # metered_calls_per_lookup = 5
 
-# Most metered provider calls a whole batch (find --input) may make. 0 means no limit.
+# Most metered provider calls a whole batch (find --input) may make, 0 to 1000000. 0 means no limit.
 # Flag: --max-metered-calls-total.
 # metered_calls_per_batch = 0
 

@@ -4,7 +4,7 @@ import { createBrotliDecompress, createGunzip, createInflate, type Gunzip } from
 import type { CallMeter } from '../lookup/budget.js';
 import type { Logger } from '../logger.js';
 import type { ProviderCache } from '../cache/store.js';
-import { isAddressAllowed } from './address-guard.js';
+import { BLOCKED_ADDRESS_CODE, isAddressAllowed } from './address-guard.js';
 import { redact } from './redact.js';
 import type { Transport } from './transport.js';
 
@@ -188,7 +188,8 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
         try {
           sent = await options.transport.send({ url, method, headers, body, signal, allowPrivateAddresses: options.allowPrivateAddresses });
         } catch (error) {
-          const failure: HttpFailure = signal.aborted ? 'timeout' : 'network';
+          const isBlocked = (error as NodeJS.ErrnoException).code === BLOCKED_ADDRESS_CODE;
+          const failure: HttpFailure = isBlocked ? 'refused_address' : signal.aborted ? 'timeout' : 'network';
           throw new HttpError(failure, url.href, `${url.href}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
         }
         const location = sent.headers.location;
