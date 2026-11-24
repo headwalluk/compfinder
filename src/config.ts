@@ -112,7 +112,7 @@ export interface Config {
   budgets: { meteredCallsPerLookup: number; meteredCallsPerBatch: number };
   timeouts: { requestMs: number; lookupMs: number };
   webFetch: { maxPages: number; honourRobots: boolean; unreadableTextChars: number };
-  discover: { runAll: boolean; directoryHosts: string[] };
+  discover: { directoryHosts: string[] };
   net: { allowPrivateAddresses: boolean };
   /** Full provider order per field: configured providers first, then the defaults. */
   priority: Record<FieldName, ProviderName[]>;
@@ -184,7 +184,6 @@ export function settingSpecs(defaultCacheDirectory: string): SettingSpec[] {
       key: 'web_fetch.unreadable_text_chars', kind: 'integer', defaultValue: DEFAULT_UNREADABLE_TEXT_CHARS,
       minimum: 0, maximum: MAX_UNREADABLE_TEXT_CHARS,
     },
-    { key: 'discover.run_all', kind: 'boolean', defaultValue: false },
     { key: 'discover.directory_hosts', kind: 'hostList', defaultValue: DEFAULT_DIRECTORY_HOSTS },
     { key: 'net.allow_private_addresses', kind: 'boolean', defaultValue: false, flag: 'allow-private-addresses' },
   ];
@@ -587,7 +586,7 @@ export function loadConfig(inputs: ConfigInputs): Config {
       honourRobots: flag('web_fetch.honour_robots'),
       unreadableTextChars: integer('web_fetch.unreadable_text_chars'),
     },
-    discover: { runAll: flag('discover.run_all'), directoryHosts: list('discover.directory_hosts') },
+    discover: { directoryHosts: list('discover.directory_hosts') },
     net: { allowPrivateAddresses: flag('net.allow_private_addresses') },
     priority,
     providers,

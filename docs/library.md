@@ -50,7 +50,7 @@ const finder = createFinder({
     [budgets]
     metered_calls_per_lookup = 3
 
-    [providers.apollo-io]
+    [providers.brave-search-api]
     enabled = false
   `,
   variables: {

@@ -99,8 +99,7 @@ describe('compfinder find', () => {
     assert.equal(result.exitCode, 0, result.stderr);
     const output = JSON.parse(result.stdout) as { providers: Array<{ name: string; status: string }>; max_metered_calls: number };
     assert.deepEqual(output.providers.map((provider) => `${provider.name}: ${provider.status}`), [
-      'searchapi-io: not_configured', 'brave-search-api: not_configured', 'web-fetch: would_run',
-      'google-places-api: not_configured', 'apollo-io: not_configured',
+      'brave-search-api: not_configured', 'web-fetch: would_run', 'google-places-api: not_configured',
     ]);
     assert.equal(output.max_metered_calls, 0);
   });

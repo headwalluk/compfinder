@@ -54,9 +54,6 @@
 # unreadable_text_chars = 200
 
 [discover]
-# Run every configured search provider, rather than stopping at the first that finds a website.
-# run_all = false
-
 # Hosts whose pages are directory listings, never taken as a business's own website.
 # directory_hosts = [
 #   "yell.com", "thomsonlocal.com", "scoot.co.uk", "cylex-uk.co.uk", "checkatrade.com", "trustpilot.com",
@@ -76,14 +73,14 @@
 # Which provider's value is shown when sources disagree and nothing else settles it, and which
 # providers are called first under a budget. Priority never changes a confidence score.
 # Providers you list come first, in your order; the rest follow in the default order shown.
-# name = ["web-fetch", "google-places-api", "apollo-io", "searchapi-io"]
-# website = ["web-fetch", "google-places-api", "searchapi-io", "brave-search-api", "apollo-io"]
-# address = ["google-places-api", "web-fetch", "searchapi-io", "apollo-io"]
-# phone = ["web-fetch", "google-places-api", "searchapi-io", "apollo-io"]
+# name = ["web-fetch", "google-places-api"]
+# website = ["web-fetch", "google-places-api", "brave-search-api"]
+# address = ["google-places-api", "web-fetch"]
+# phone = ["web-fetch", "google-places-api"]
 # email = ["web-fetch"]
 # logo = ["web-fetch"]
 # place_id = ["google-places-api"]
-# socials = ["web-fetch", "apollo-io"]
+# socials = ["web-fetch"]
 
 # ---- Providers ----
 # A provider with an API key is configured once the key is set. `enabled = false` switches a
@@ -99,20 +96,8 @@
 # api_key = ""
 # enabled = true
 
-[providers.searchapi-io]
-# SearchAPI.io Google results. Metered.
-# Env: COMPFINDER_SEARCHAPI_IO_API_KEY.
-# api_key = ""
-# enabled = true
-
 [providers.brave-search-api]
 # Brave Search API web results. Metered.
 # Env: COMPFINDER_BRAVE_SEARCH_API_KEY.
-# api_key = ""
-# enabled = true
-
-[providers.apollo-io]
-# Apollo.io organisation enrichment. Metered. Organisations only, never people.
-# Env: COMPFINDER_APOLLO_API_KEY.
 # api_key = ""
 # enabled = true

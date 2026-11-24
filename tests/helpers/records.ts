@@ -70,8 +70,6 @@ export function record(
   const defaultOrigins: Partial<Record<SourceName, string>> = {
     'web-fetch': 'site:example.com',
     'google-places-api': 'google-business-profile',
-    'searchapi-io': 'google-business-profile',
-    'apollo-io': 'apollo',
   };
   return {
     source,

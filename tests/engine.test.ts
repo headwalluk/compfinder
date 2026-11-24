@@ -10,9 +10,7 @@ import { needsWebsite, onlyWithoutWebsite, quietLogger, stubProvider } from './h
 
 const ALL_KEYS = {
   COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key',
-  COMPFINDER_SEARCHAPI_IO_API_KEY: 'test-key',
   COMPFINDER_BRAVE_SEARCH_API_KEY: 'test-key',
-  COMPFINDER_APOLLO_API_KEY: 'test-key',
 };
 const PHONE = '0118 496 0000';
 
@@ -46,10 +44,9 @@ describe('runLookup', () => {
       return provider;
     };
     const outcome = await lookup([
-      tracked('apollo-io'), tracked('google-places-api', [googleRecord]), tracked('web-fetch', [siteRecord]),
-      tracked('brave-search-api'), tracked('searchapi-io'),
+      tracked('google-places-api', [googleRecord]), tracked('web-fetch', [siteRecord]), tracked('brave-search-api'),
     ], { query: makeQuery({ name: 'Example Estates' }) });
-    assert.deepEqual(order, ['searchapi-io', 'brave-search-api', 'web-fetch', 'google-places-api', 'apollo-io']);
+    assert.deepEqual(order, ['brave-search-api', 'web-fetch', 'google-places-api']);
     assert.equal(outcome.score.fields.phone.confidence, 100);
   });
 
@@ -73,16 +70,16 @@ describe('runLookup', () => {
   });
 
   test('a search provider never runs once the website is known', async () => {
-    const search = stubProvider('searchapi-io', { readiness: onlyWithoutWebsite });
+    const search = stubProvider('brave-search-api', { readiness: onlyWithoutWebsite });
     const outcome = await lookup([search]);
     assert.equal(search.runs.length, 0);
-    assert.equal(reportFor(outcome.reports, 'searchapi-io')?.reason, 'website already known');
+    assert.equal(reportFor(outcome.reports, 'brave-search-api')?.reason, 'website already known');
   });
 
   test('providers that can\'t run are reported: excluded, disabled, not configured, not wanted, not available', async () => {
-    const outcome = await lookup([stubProvider('web-fetch'), stubProvider('google-places-api'), stubProvider('searchapi-io')], {
-      variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key', COMPFINDER_SEARCHAPI_IO_API_KEY: 'test-key' },
-      fileText: '[providers.searchapi-io]\nenabled = false\n',
+    const outcome = await lookup([stubProvider('web-fetch'), stubProvider('google-places-api')], {
+      variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key', COMPFINDER_BRAVE_SEARCH_API_KEY: 'test-key' },
+      fileText: '[providers.brave-search-api]\nenabled = false\n',
       exclude: ['web-fetch'],
       fields: ['place_id', 'name'],
     });
@@ -90,31 +87,34 @@ describe('runLookup', () => {
     assert.deepEqual(reasons, {
       'web-fetch': 'skipped: excluded',
       'google-places-api': 'ok: ',
-      'searchapi-io': 'skipped: disabled in config',
-      'brave-search-api': 'not_configured: set COMPFINDER_BRAVE_SEARCH_API_KEY',
-      'apollo-io': 'not_configured: set COMPFINDER_APOLLO_API_KEY',
+      'brave-search-api': 'skipped: disabled in config',
     });
+    const unconfigured = await lookup([stubProvider('web-fetch')], { variables: {} });
+    assert.equal(reportFor(unconfigured.reports, 'brave-search-api')?.status, 'not_configured');
+    assert.equal(reportFor(unconfigured.reports, 'brave-search-api')?.reason, 'set COMPFINDER_BRAVE_SEARCH_API_KEY');
     const unwanted = await lookup([stubProvider('google-places-api')], { fields: ['logo'] });
     assert.equal(reportFor(unwanted.reports, 'google-places-api')?.reason, 'fields not requested');
-    assert.equal(reportFor(unwanted.reports, 'apollo-io')?.reason, 'fields not requested');
+    assert.equal(reportFor(unwanted.reports, 'brave-search-api')?.reason, 'fields not requested');
     assert.equal(reportFor(unwanted.reports, 'web-fetch')?.reason, 'not available in this version');
   });
 
   test('a metered provider is skipped when every field it could supply is already settled', async () => {
-    const apollo = stubProvider('apollo-io');
-    const outcome = await lookup([stubProvider('web-fetch', { records: [siteRecord] }), stubProvider('google-places-api', { records: [googleRecord] }), apollo], {
+    const google = stubProvider('google-places-api', { records: [googleRecord] });
+    const outcome = await lookup([stubProvider('web-fetch', { records: [siteRecord] }), google], {
       fields: ['phone'],
+      query: makeQuery({ url: 'https://example.com/', phone: PHONE }),
     });
-    assert.equal(apollo.runs.length, 0);
-    assert.equal(reportFor(outcome.reports, 'apollo-io')?.reason, 'fields already settled');
+    assert.equal(google.runs.length, 0, 'the site confirms the query\'s phone: 100 before Google\'s stage');
+    assert.equal(reportFor(outcome.reports, 'google-places-api')?.reason, 'fields already settled');
   });
 
   test('a metered provider is skipped when the lookup\'s budget is used up', async () => {
-    const outcome = await lookup([stubProvider('google-places-api'), stubProvider('apollo-io')], {
+    const outcome = await lookup([stubProvider('brave-search-api'), stubProvider('google-places-api')], {
       fileText: '[budgets]\nmetered_calls_per_lookup = 1\n',
+      query: makeQuery({ name: 'Example Estates', postcode: 'RG1 1AA' }),
     });
-    assert.equal(reportFor(outcome.reports, 'google-places-api')?.calls, 1);
-    assert.equal(reportFor(outcome.reports, 'apollo-io')?.reason, 'over budget');
+    assert.equal(reportFor(outcome.reports, 'brave-search-api')?.calls, 1);
+    assert.equal(reportFor(outcome.reports, 'google-places-api')?.reason, 'over budget');
   });
 
   test('a provider that hits the budget mid-run stops there, keeping the calls it made', async () => {
@@ -136,12 +136,12 @@ describe('runLookup', () => {
     const outcome = await lookup([
       stubProvider('web-fetch', { error: new ProviderError('blocked', 'HTTP 403 from example.com') }),
       stubProvider('google-places-api', { error: new TypeError('Cannot read properties of undefined') }),
-      stubProvider('apollo-io', { records: [record('apollo-io', [fact.name('Example Estates')], { scope: 'brand' })] }),
+      stubProvider('brave-search-api', { records: [record('brave-search-api', [fact.name('Example Estates')], { scope: 'brand' })] }),
     ]);
     assert.equal(reportFor(outcome.reports, 'web-fetch')?.status, 'blocked');
     assert.equal(reportFor(outcome.reports, 'web-fetch')?.detail, 'HTTP 403 from example.com');
     assert.equal(reportFor(outcome.reports, 'google-places-api')?.status, 'internal_error');
-    assert.equal(reportFor(outcome.reports, 'apollo-io')?.status, 'ok');
+    assert.equal(reportFor(outcome.reports, 'brave-search-api')?.status, 'ok');
     assert.equal(outcome.score.fields.name.value, 'Example Estates');
   });
 });

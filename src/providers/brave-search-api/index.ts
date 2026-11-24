@@ -25,7 +25,7 @@ function searchUrl(query: string, countryCode: string, results: number): string 
 export function createBraveSearchProvider(options: SearchOptions): Provider {
   return {
     declaration: PROVIDER_DECLARATIONS['brave-search-api'],
-    readiness: (knowledge) => searchReadiness(knowledge, options.isRunAll),
+    readiness: (knowledge) => searchReadiness(knowledge),
     maxCalls: () => 1,
     async run(knowledge: Knowledge, context: ProviderContext): Promise<SourceRecord[]> {
       const response = await apiRequest(() => context.http.request({

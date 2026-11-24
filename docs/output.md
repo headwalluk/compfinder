@@ -37,9 +37,7 @@ reading:
   "providers": [
     {"name":"web-fetch","status":"ok","reason":null,"detail":null,"calls":1,"metered":false},
     {"name":"google-places-api","status":"ok","reason":null,"detail":null,"calls":1,"metered":true},
-    {"name":"searchapi-io","status":"not_configured","reason":"set COMPFINDER_SEARCHAPI_IO_API_KEY","detail":null,"calls":0,"metered":true},
-    {"name":"brave-search-api","status":"not_configured","reason":"set COMPFINDER_BRAVE_SEARCH_API_KEY","detail":null,"calls":0,"metered":true},
-    {"name":"apollo-io","status":"not_configured","reason":"set COMPFINDER_APOLLO_API_KEY","detail":null,"calls":0,"metered":true}
+    {"name":"brave-search-api","status":"not_configured","reason":"set COMPFINDER_BRAVE_SEARCH_API_KEY","detail":null,"calls":0,"metered":true}
   ],
   "warnings": [],
   "error": null

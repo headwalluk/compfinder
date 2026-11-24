@@ -1,11 +1,11 @@
 import type { FieldName } from '../lookup/fields.js';
 
 /** Built-in providers, in the order they are listed. */
-export const PROVIDER_NAMES = ['web-fetch', 'google-places-api', 'searchapi-io', 'brave-search-api', 'apollo-io'] as const;
+export const PROVIDER_NAMES = ['web-fetch', 'google-places-api', 'brave-search-api'] as const;
 
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
-export const PROVIDER_STAGES = ['discover', 'site', 'place', 'enrich'] as const;
+export const PROVIDER_STAGES = ['discover', 'site', 'place'] as const;
 
 export type ProviderStage = (typeof PROVIDER_STAGES)[number];
 
@@ -41,15 +41,6 @@ export const PROVIDER_DECLARATIONS: Readonly<Record<ProviderName, ProviderDeclar
     inputs: ['place_id', 'name', 'postcode', 'address', 'phone'],
     supplies: ['name', 'website', 'address', 'phone', 'place_id'],
   },
-  'searchapi-io': {
-    name: 'searchapi-io',
-    summary: 'SearchAPI.io Google results: the likely website, branch pages and the business panel.',
-    stage: 'discover',
-    metered: true,
-    credentialVariable: 'COMPFINDER_SEARCHAPI_IO_API_KEY',
-    inputs: ['name', 'postcode', 'address'],
-    supplies: ['name', 'website', 'address', 'phone'],
-  },
   'brave-search-api': {
     name: 'brave-search-api',
     summary: 'Brave Search API web results: the likely website and branch pages.',
@@ -59,27 +50,18 @@ export const PROVIDER_DECLARATIONS: Readonly<Record<ProviderName, ProviderDeclar
     inputs: ['name', 'postcode', 'address'],
     supplies: ['website'],
   },
-  'apollo-io': {
-    name: 'apollo-io',
-    summary: 'Apollo.io organisation enrichment by domain. Organisations only, never people.',
-    stage: 'enrich',
-    metered: true,
-    credentialVariable: 'COMPFINDER_APOLLO_API_KEY',
-    inputs: ['website'],
-    supplies: ['name', 'website', 'address', 'phone', 'socials'],
-  },
 };
 
 /** Default order in which providers win a field when nothing else settles it; first wins. */
 export const DEFAULT_FIELD_PRIORITY: Readonly<Record<FieldName, readonly ProviderName[]>> = {
-  name: ['web-fetch', 'google-places-api', 'apollo-io', 'searchapi-io'],
-  website: ['web-fetch', 'google-places-api', 'searchapi-io', 'brave-search-api', 'apollo-io'],
-  address: ['google-places-api', 'web-fetch', 'searchapi-io', 'apollo-io'],
-  phone: ['web-fetch', 'google-places-api', 'searchapi-io', 'apollo-io'],
+  name: ['web-fetch', 'google-places-api'],
+  website: ['web-fetch', 'google-places-api', 'brave-search-api'],
+  address: ['google-places-api', 'web-fetch'],
+  phone: ['web-fetch', 'google-places-api'],
   email: ['web-fetch'],
   logo: ['web-fetch'],
   place_id: ['google-places-api'],
-  socials: ['web-fetch', 'apollo-io'],
+  socials: ['web-fetch'],
 };
 
 /** Narrows a string to a ProviderName. */

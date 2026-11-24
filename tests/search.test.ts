@@ -10,10 +10,9 @@ import { fixtureTransport, type FixtureResponse, type FixtureRoute, type Fixture
 import { makeQuery, testConfig } from './helpers/records.js';
 import { quietLogger } from './helpers/stub-providers.js';
 
-const SEARCHAPI_KEY = 'test-searchapi-key';
 const BRAVE_KEY = 'test-brave-key';
-const SEARCHAPI_URL = 'https://www.searchapi.io/api/v1/search?engine=google&q=Example+Estates+RG1+1AA&gl=uk&hl=en&num=10';
 const BRAVE_URL = 'https://api.search.brave.com/res/v1/web/search?q=Example+Estates+RG1+1AA&country=GB&count=10';
+const KEYS = { COMPFINDER_BRAVE_SEARCH_API_KEY: BRAVE_KEY };
 
 const SITE: Record<string, FixtureRoute> = {
   'https://example.com/robots.txt': { body: 'User-agent: *\nAllow: /\n', headers: { 'content-type': 'text/plain' } },
@@ -28,10 +27,10 @@ function json(file: string, status = 200): FixtureResponse {
   return { status, file: `search/${file}`, headers: { 'content-type': 'application/json' } };
 }
 
-/** Runs a lookup with the given search keys set and routes. */
-async function find(input: QueryInput, routes: Record<string, FixtureRoute>, variables: Record<string, string>, fileText?: string): Promise<{ result: LookupResult; transport: FixtureTransport }> {
+/** Runs a lookup with the Brave key set, against the given routes. */
+async function find(input: QueryInput, routes: Record<string, FixtureRoute>): Promise<{ result: LookupResult; transport: FixtureTransport }> {
   const transport = fixtureTransport(routes);
-  const config = testConfig({ variables, ...(fileText === undefined ? {} : { fileText }) });
+  const config = testConfig({ variables: KEYS });
   const outcome = await runLookup({ query: makeQuery(input), providers: builtInProviders(config), config, logger: quietLogger, transport, isDownloadSkipped: true });
   return { result: buildResult(outcome, { isExplain: false }), transport };
 }
@@ -42,74 +41,49 @@ function statusOf(result: LookupResult, name: string): string {
   return `${report?.status ?? 'missing'}${report?.reason === null || report?.reason === undefined ? '' : `: ${report.reason}`}`;
 }
 
-describe('search providers', () => {
-  test('5. no website: SearchAPI.io finds the site past the directories, and web-fetch reads it', async () => {
+describe('brave-search-api', () => {
+  test('5. no website: Brave finds the site past the directories, and web-fetch reads it', async () => {
     const seen: TransportRequest[] = [];
     const { result, transport } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, {
       ...SITE,
-      [SEARCHAPI_URL]: (request) => {
-        seen.push(request);
-        return json('searchapi-reading.json');
-      },
-    }, { COMPFINDER_SEARCHAPI_IO_API_KEY: SEARCHAPI_KEY });
-    assert.deepEqual(transport.unmatched, []);
-    assert.equal(transport.requests[0], `GET ${SEARCHAPI_URL}`);
-    assert.equal(seen[0]?.headers.authorization, `Bearer ${SEARCHAPI_KEY}`);
-    assert.ok(!seen[0]?.url.href.includes(SEARCHAPI_KEY));
-    assert.equal(statusOf(result, 'web-fetch'), 'ok');
-    assert.equal(result.fields.website.value, 'https://example.com/branches/reading/');
-    assert.equal(result.fields.phone.confidence, 100, 'the site and Google\'s business panel agree');
-    assert.deepEqual(result.fields.phone.sources, ['web-fetch', 'searchapi-io']);
-  });
-
-  test('once one search provider finds the site, the other doesn\'t run, unless discover.run_all is on', async () => {
-    const routes = { ...SITE, [SEARCHAPI_URL]: json('searchapi-reading.json'), [BRAVE_URL]: json('brave-reading.json') };
-    const keys = { COMPFINDER_SEARCHAPI_IO_API_KEY: SEARCHAPI_KEY, COMPFINDER_BRAVE_SEARCH_API_KEY: BRAVE_KEY };
-    const { result, transport } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, routes, keys);
-    assert.equal(statusOf(result, 'brave-search-api'), 'skipped: website already known');
-    assert.ok(!transport.requests.includes(`GET ${BRAVE_URL}`));
-    const runAll = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, routes, keys, '[discover]\nrun_all = true\n');
-    assert.equal(statusOf(runAll.result, 'brave-search-api'), 'skipped: fields already settled', 'run_all, but the website is already at 100');
-    const runAllUnsettled = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, routes, keys, 'skip_settled = false\n[discover]\nrun_all = true\n');
-    assert.equal(statusOf(runAllUnsettled.result, 'brave-search-api'), 'ok');
-  });
-
-  test('when the first finds only directories, the second gets its turn', async () => {
-    const seen: TransportRequest[] = [];
-    const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, {
-      ...SITE,
-      [SEARCHAPI_URL]: json('searchapi-directories-only.json'),
       [BRAVE_URL]: (request) => {
         seen.push(request);
         return json('brave-reading.json');
       },
-    }, { COMPFINDER_SEARCHAPI_IO_API_KEY: SEARCHAPI_KEY, COMPFINDER_BRAVE_SEARCH_API_KEY: BRAVE_KEY });
-    assert.equal(seen[0]?.headers['x-subscription-token'], BRAVE_KEY);
-    assert.equal(statusOf(result, 'searchapi-io'), 'ok');
-    assert.equal(statusOf(result, 'brave-search-api'), 'ok');
+    });
+    assert.deepEqual(transport.unmatched, []);
+    assert.equal(transport.requests[0], `GET ${BRAVE_URL}`);
+    assert.equal(seen[0]?.headers['x-subscription-token'], BRAVE_KEY, 'the key goes in a header');
+    assert.ok(!seen[0]?.url.href.includes(BRAVE_KEY), 'never in the URL');
+    assert.equal(statusOf(result, 'web-fetch'), 'ok');
     assert.equal(result.fields.website.value, 'https://example.com/branches/reading/');
+    assert.equal(result.fields.phone.value, '+441184960000');
   });
 
   test('a search hit on the site doesn\'t confirm the site: they share an origin', async () => {
-    const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, {
-      ...SITE, [BRAVE_URL]: json('brave-reading.json'),
-    }, { COMPFINDER_BRAVE_SEARCH_API_KEY: BRAVE_KEY });
-    assert.equal(result.fields.website.value, 'https://example.com/branches/reading/');
+    const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, { ...SITE, [BRAVE_URL]: json('brave-reading.json') });
     assert.ok(result.fields.website.confidence < 100, 'Brave and web-fetch are both the site: one source');
     assert.ok(!result.fields.website.rules.includes('field.independent-agreement'));
   });
 
-  test('with a website already given, search providers never run', async () => {
-    const { result, transport } = await find({ url: 'https://example.com/branches/reading/' }, SITE, { COMPFINDER_SEARCHAPI_IO_API_KEY: SEARCHAPI_KEY });
-    assert.equal(statusOf(result, 'searchapi-io'), 'skipped: website already known');
-    assert.ok(!transport.requests.some((request) => request.includes('searchapi.io')));
+  test('results that are all directories give no website, so web-fetch has nothing to read', async () => {
+    const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, { [BRAVE_URL]: json('brave-directories-only.json') });
+    assert.equal(statusOf(result, 'brave-search-api'), 'ok');
+    assert.equal(result.fields.website.value, null);
+    assert.equal(statusOf(result, 'web-fetch'), 'skipped: no website known');
+  });
+
+  test('with a website already given, Brave never runs', async () => {
+    const { result, transport } = await find({ url: 'https://example.com/branches/reading/' }, SITE);
+    assert.equal(statusOf(result, 'brave-search-api'), 'skipped: website already known');
+    assert.ok(!transport.requests.some((request) => request.includes('search.brave.com')));
   });
 
   test('a rejected key is auth_failed, and the lookup carries on', async () => {
     const { result } = await find({ name: 'Example Estates', postcode: 'RG1 1AA' }, {
-      [SEARCHAPI_URL]: { status: 401, body: '{"error":"Invalid API key"}' },
-    }, { COMPFINDER_SEARCHAPI_IO_API_KEY: SEARCHAPI_KEY });
-    assert.equal(statusOf(result, 'searchapi-io'), 'auth_failed');
+      [BRAVE_URL]: { status: 401, body: '{"type":"ErrorResponse","error":{"code":"SUBSCRIPTION_TOKEN_INVALID"}}' },
+    });
+    assert.equal(statusOf(result, 'brave-search-api'), 'auth_failed');
     assert.equal(statusOf(result, 'web-fetch'), 'skipped: no website known');
   });
 

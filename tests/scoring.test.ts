@@ -174,19 +174,19 @@ describe('field rules', () => {
     expectRules(result.fields.place_id.rules, ['field.single-structured', 'field.identity-record']);
   });
 
-  test('field.conflict: Apollo disagrees with the site and Google, so the score is 2 of 3 sources', () => {
-    const apollo = record('apollo-io', [fact.phone(OTHER_PHONE), fact.website('https://example.com/')], { scope: 'brand', role: 'head-office' });
-    const result = score({ url: 'https://example.com/' }, [siteBranch, googleBranch, apollo]);
+  test('field.conflict: a third origin disagrees with the site and Google, so the score is 2 of 3 sources', () => {
+    const otherSource = record('web-fetch', [fact.phone(OTHER_PHONE), fact.website('https://example.com/')], { scope: 'brand', origin: 'another-directory' });
+    const result = score({ url: 'https://example.com/' }, [siteBranch, googleBranch, otherSource]);
     assert.equal(result.fields.phone.value?.e164, PHONE_E164);
     assert.equal(result.fields.phone.confidence, 66);
     expectRules(result.fields.phone.rules, ['field.independent-agreement', 'field.conflict']);
-    assert.deepEqual(result.fields.phone.conflicts.map((conflict) => [conflict.value.e164, conflict.sources]), [['+441184960999', ['apollo-io']]]);
+    assert.deepEqual(result.fields.phone.conflicts.map((conflict) => [conflict.value.e164, conflict.sources]), [['+441184960999', ['web-fetch']]]);
   });
 
   test('field.head-office: a branch was asked for, but only a head-office record gives the phone', () => {
     const google = record('google-places-api', [fact.name('Example Estates Reading'), fact.address({ postcode: POSTCODE }), fact.website('https://example.com/')]);
-    const apollo = record('apollo-io', [fact.phone(OTHER_PHONE), fact.website('https://example.com/')], { scope: 'brand', role: 'head-office' });
-    const result = score({ name: 'Example Estates', postcode: POSTCODE }, [google, apollo]);
+    const headOffice = record('web-fetch', [fact.phone(OTHER_PHONE), fact.website('https://example.com/')], { scope: 'brand', role: 'head-office' });
+    const result = score({ name: 'Example Estates', postcode: POSTCODE }, [google, headOffice]);
     assert.equal(result.fields.phone.confidence, 30);
     expectRules(result.fields.phone.rules, ['field.single-structured', 'field.head-office']);
   });

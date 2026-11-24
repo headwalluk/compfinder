@@ -9,8 +9,8 @@ House style: the headwall-node-ts skill.
 A deterministic, read-only command-line tool. Given a few facts about a business (a name, a
 web address, a postcode), it returns the business's website, address, phone, email, logo, socials
 and Google place ID. Every value comes with its sources and a confidence score. Evidence
-comes from built-in providers: `web-fetch` (no key needed), `google-places-api`, `searchapi-io`,
-`brave-search-api` and `apollo-io`. The tool makes no LLM calls. It's published as
+comes from built-in providers: `web-fetch` (no key needed), `google-places-api` and
+`brave-search-api`. The tool makes no LLM calls. It's published as
 `@headwall/compfinder` under the MIT licence, and the command is `compfinder`.
 
 It's also a library: `src/index.ts` is the public API (`createFinder`), documented in

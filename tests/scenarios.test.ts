@@ -11,7 +11,7 @@ import { needsWebsite, quietLogger, stubProvider } from './helpers/stub-provider
 
 const SCHEMA = JSON.parse(readFileSync(new URL('../schema/result-1.0.json', import.meta.url), 'utf8')) as object;
 const validate = new Ajv2020({ allErrors: true }).compile(SCHEMA);
-const KEYS = { COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key', COMPFINDER_APOLLO_API_KEY: 'test-key' };
+const KEYS = { COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key' };
 
 /** Runs a lookup through the engine and builds its result, checking it against the published schema. */
 async function find(input: QueryInput, providers: Provider[], isExplain = false): Promise<LookupResult> {

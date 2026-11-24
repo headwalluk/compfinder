@@ -66,7 +66,6 @@ An API key that's set but empty is an error too. Remove the key to leave a provi
 | `web_fetch.max_pages` | `5` | | | Most pages read from a business's site per lookup, 1 to 20 |
 | `web_fetch.honour_robots` | `true` | | | Honour the site's `robots.txt` |
 | `web_fetch.unreadable_text_chars` | `200` | | | A page with less visible text than this and no structured data is reported as unreadable |
-| `discover.run_all` | `false` | | | Run every search provider, rather than stopping at the first that finds a website |
 | `discover.directory_hosts` | directories, social networks and property portals | | | Hosts never taken as a business's own website. See the template for the full list |
 | `net.allow_private_addresses` | `false` | | `--allow-private-addresses` | Let requests reach private, loopback and link-local addresses. For testing only |
 | `priority.<field>` | see below | | | Provider order for a field |
@@ -82,14 +81,14 @@ provider that can't supply the field is an error.
 
 | Field | Default order |
 |---|---|
-| `name` | web-fetch, google-places-api, apollo-io, searchapi-io |
-| `website` | web-fetch, google-places-api, searchapi-io, brave-search-api, apollo-io |
-| `address` | google-places-api, web-fetch, searchapi-io, apollo-io |
-| `phone` | web-fetch, google-places-api, searchapi-io, apollo-io |
+| `name` | web-fetch, google-places-api |
+| `website` | web-fetch, google-places-api, brave-search-api |
+| `address` | google-places-api, web-fetch |
+| `phone` | web-fetch, google-places-api |
 | `email` | web-fetch |
 | `logo` | web-fetch |
 | `place_id` | google-places-api |
-| `socials` | web-fetch, apollo-io |
+| `socials` | web-fetch |
 
 ## Providers
 
@@ -101,9 +100,7 @@ provider off without removing its key.
 |---|---|---|---|
 | `web-fetch` | none needed | | no |
 | `google-places-api` | `providers.google-places-api.api_key` | `COMPFINDER_GOOGLE_PLACES_API_KEY` | yes |
-| `searchapi-io` | `providers.searchapi-io.api_key` | `COMPFINDER_SEARCHAPI_IO_API_KEY` | yes |
 | `brave-search-api` | `providers.brave-search-api.api_key` | `COMPFINDER_BRAVE_SEARCH_API_KEY` | yes |
-| `apollo-io` | `providers.apollo-io.api_key` | `COMPFINDER_APOLLO_API_KEY` | yes |
 
 Every provider also has `providers.<name>.enabled`, which defaults to `true`.
 
@@ -111,7 +108,7 @@ Every provider also has `providers.<name>.enabled`, which defaults to `true`.
 [providers.google-places-api]
 api_key = "…"
 
-[providers.apollo-io]
+[providers.brave-search-api]
 enabled = false
 ```
 

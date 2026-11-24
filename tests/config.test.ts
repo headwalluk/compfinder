@@ -90,7 +90,7 @@ describe('loadConfig', () => {
     assert.equal(config.budgets.meteredCallsPerLookup, 5);
     assert.equal(config.providers['web-fetch'].enabled, true);
     assert.equal(config.providers['google-places-api'].apiKey, null);
-    assert.deepEqual(config.priority.address, ['google-places-api', 'web-fetch', 'searchapi-io', 'apollo-io']);
+    assert.deepEqual(config.priority.address, ['google-places-api', 'web-fetch']);
     assert.deepEqual(config.warnings, []);
   });
 
@@ -160,20 +160,20 @@ describe('loadConfig', () => {
 
   test('an API key that is set but empty is a problem, not a silent fallback', () => {
     const problems = problemsFor({
-      variables: { COMPFINDER_APOLLO_API_KEY: '' },
-      fileText: '[providers.searchapi-io]\napi_key = "  "\n',
+      variables: { COMPFINDER_BRAVE_SEARCH_API_KEY: '' },
+      fileText: '[providers.google-places-api]\napi_key = "  "\n',
     });
     assert.equal(problems.length, 2);
-    assert.match(problems.join('\n'), /COMPFINDER_APOLLO_API_KEY is set but empty/);
-    assert.match(problems.join('\n'), /providers\.searchapi-io\.api_key is set but empty/);
+    assert.match(problems.join('\n'), /COMPFINDER_BRAVE_SEARCH_API_KEY is set but empty/);
+    assert.match(problems.join('\n'), /providers\.google-places-api\.api_key is set but empty/);
   });
 
   test('a priority list puts the chosen providers first, and rejects providers that cannot supply the field', () => {
     const config = loadConfig(inputs({ fileText: '[priority]\naddress = ["web-fetch"]\n' }));
-    assert.deepEqual(config.priority.address, ['web-fetch', 'google-places-api', 'searchapi-io', 'apollo-io']);
-    const problems = problemsFor({ fileText: '[priority]\nlogo = ["apollo-io", "web-fetch", "web-fetch", "nobody"]\n' });
+    assert.deepEqual(config.priority.address, ['web-fetch', 'google-places-api']);
+    const problems = problemsFor({ fileText: '[priority]\nlogo = ["brave-search-api", "web-fetch", "web-fetch", "nobody"]\n' });
     assert.equal(problems.length, 3);
-    assert.match(problems.join('\n'), /lists apollo-io, which can't supply logo/);
+    assert.match(problems.join('\n'), /lists brave-search-api, which can't supply logo/);
     assert.match(problems.join('\n'), /lists web-fetch more than once/);
     assert.match(problems.join('\n'), /must list provider names .*; got "nobody"/);
   });
@@ -185,7 +185,7 @@ describe('loadConfig', () => {
 
   test('a config file holding an API key that others can read gives a warning, not a failure', () => {
     const config = loadConfig(inputs({
-      fileText: `[providers.apollo-io]\napi_key = "${TEST_API_KEY}"\n`,
+      fileText: `[providers.brave-search-api]\napi_key = "${TEST_API_KEY}"\n`,
       fileMode: WORLD_READABLE_MODE,
     }));
     assert.equal(config.warnings.length, 1);

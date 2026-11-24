@@ -17,9 +17,7 @@ an origin, and values from the same origin count once:
 |---|---|
 | Any page on the business's own site | the site |
 | `google-places-api` | Google's business listing |
-| `searchapi-io`'s business panel | Google's business listing (it's Google's data too) |
 | A search result's title or URL | the site the result points at |
-| `apollo-io` | Apollo |
 | Your own query | never independent |
 
 So two pages of the same site are one source, and a search result that repeats the site's own
@@ -78,7 +76,7 @@ Then, in this order:
 | Rule | Effect |
 |---|---|
 | `field.identity-record` | For `place_id` only: a place ID from a record the identity rests on is as sure as the identity. It names that very record |
-| `field.conflict` | Sources disagree: the score becomes ⌊score × winning sources ÷ all disagreeing sources⌋, and the other values are listed in `conflicts`. For example, the site and Google agree on a phone and Apollo gives another: ⌊100 × 2 ÷ 3⌋ = 66 |
+| `field.conflict` | Sources disagree: the score becomes ⌊score × winning sources ÷ all disagreeing sources⌋, and the other values are listed in `conflicts`. For example, the site and Google agree on a phone and a third, independent source gives another: ⌊100 × 2 ÷ 3⌋ = 66 |
 | `field.head-office` | Capped at 30 when you asked about a branch, but the only source for an address, phone or email is a head-office record |
 | `field.identity-cap` | A value about one place (name, address, phone, email, place ID, branch page) is capped at the identity's confidence |
 | `field.brand-cap` | A value about the whole brand (logo, socials, the website's home page) is capped at the brand's confidence. When tied candidates are branches of one chain on one site, the brand isn't in doubt, so its logo keeps full confidence |

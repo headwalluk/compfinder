@@ -9,9 +9,9 @@ from and a confidence score, so you, or a script or an AI agent calling the tool
 what's good enough to use.
 
 It gathers evidence from built-in providers. `web-fetch` reads the business's own pages and
-needs no key. Google Places, SearchAPI.io, Brave Search and Apollo.io each add detail and
-confidence once you give them an API key. compfinder is deterministic: it makes no LLM calls,
-and the same provider responses always give the same answer.
+needs no key. Google Places and Brave Search each add detail and confidence once you give them
+an API key. compfinder is deterministic: it makes no LLM calls, and the same provider responses
+always give the same answer.
 
 **Status:** early development, before 1.0. Every provider is built; the API providers are still
 being checked against the live services.

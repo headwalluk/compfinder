@@ -190,7 +190,7 @@ describe('providers check', () => {
       transport: fixtureTransport({ [SEARCH_URL]: recordingRoute('search-empty.json', seen) }),
     });
     assert.deepEqual(reports.map((report) => `${report.name}: ${report.status}`), [
-      'web-fetch: ok', 'google-places-api: ok', 'searchapi-io: not_configured', 'brave-search-api: not_configured', 'apollo-io: not_configured',
+      'web-fetch: ok', 'google-places-api: ok', 'brave-search-api: not_configured',
     ]);
     assert.equal(seen.length, 1);
     assert.equal(seen[0]?.headers['x-goog-fieldmask'], 'places.id');

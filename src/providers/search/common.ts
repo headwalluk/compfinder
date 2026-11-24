@@ -16,13 +16,11 @@ export interface SearchHit {
 /** Search providers' behaviour from config. */
 export interface SearchOptions {
   directoryHosts: readonly string[];
-  /** discover.run_all: run even when another search provider has already found a website. */
-  isRunAll: boolean;
 }
 
-/** A search provider runs only while no website is known (unless run_all), and needs a name to search for. */
-export function searchReadiness(knowledge: Knowledge, isRunAll: boolean): Readiness {
-  const isWebsiteKnown = knowledge.query.website !== null || (!isRunAll && knowledge.fields.website !== undefined);
+/** A search provider runs only while no website is known, and needs a name to search for. */
+export function searchReadiness(knowledge: Knowledge): Readiness {
+  const isWebsiteKnown = knowledge.query.website !== null || knowledge.fields.website !== undefined;
   let readiness: Readiness;
   if (isWebsiteKnown) {
     readiness = { state: 'never', reason: 'website already known' };

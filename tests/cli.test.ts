@@ -83,9 +83,9 @@ describe('compfinder CLI', () => {
     const output = jsonOutput(result.stdout);
     assert.equal(output.ok, true);
     const providers = output.providers as Array<{ name: string; status: string; metered: boolean }>;
-    assert.deepEqual(providers.map((provider) => provider.name), ['web-fetch', 'google-places-api', 'searchapi-io', 'brave-search-api', 'apollo-io']);
+    assert.deepEqual(providers.map((provider) => provider.name), ['web-fetch', 'google-places-api', 'brave-search-api']);
     assert.equal(providers.find((provider) => provider.name === 'google-places-api')?.status, 'configured');
-    assert.equal(providers.find((provider) => provider.name === 'apollo-io')?.status, 'not-configured');
+    assert.equal(providers.find((provider) => provider.name === 'brave-search-api')?.status, 'not-configured');
     assert.equal(providers.find((provider) => provider.name === 'web-fetch')?.metered, false);
     assert.doesNotMatch(result.stdout + result.stderr, new RegExp(TEST_API_KEY));
   });
@@ -102,12 +102,12 @@ describe('compfinder CLI', () => {
   });
 
   test('config show reports each setting\'s source, and API keys only as set or unset', () => {
-    const result = run(['config', 'show', '--output=json', '--country=fr'], { COMPFINDER_APOLLO_API_KEY: TEST_API_KEY });
+    const result = run(['config', 'show', '--output=json', '--country=fr'], { COMPFINDER_BRAVE_SEARCH_API_KEY: TEST_API_KEY });
     assert.equal(result.exitCode, 0);
     const settings = jsonOutput(result.stdout).settings as Array<{ key: string; value: unknown; source: string }>;
     assert.deepEqual(settings.find((setting) => setting.key === 'country'), { key: 'country', value: 'FR', source: 'flag', env: 'COMPFINDER_COUNTRY' });
-    assert.equal(settings.find((setting) => setting.key === 'providers.apollo-io.api_key')?.value, 'set');
-    assert.equal(settings.find((setting) => setting.key === 'providers.searchapi-io.api_key')?.value, 'unset');
+    assert.equal(settings.find((setting) => setting.key === 'providers.brave-search-api.api_key')?.value, 'set');
+    assert.equal(settings.find((setting) => setting.key === 'providers.google-places-api.api_key')?.value, 'unset');
     assert.doesNotMatch(result.stdout, new RegExp(TEST_API_KEY));
   });
 });
