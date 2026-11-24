@@ -53,6 +53,10 @@ Reads the business's own pages. It needs no key, and it's free.
 subdomains (`staging.example.com`) aren't followed. Relative links resolve against the page's
 `<base href>` when it has one.
 
+Organisations written inline under `department`, `parentOrganization`, `subOrganization`,
+`member` or `memberOf` are other organisations (a Sales department, a parent company), and
+aren't read as this business. One those properties point to by `@id` is read where it's defined.
+
 A LocalBusiness on an inner page is a **branch**. An Organization's own address, on a site that
 also lists branches, is the **head office**. The same business repeated on every page counts
 once.
@@ -82,12 +86,19 @@ Google Places API (New). It needs a Google Cloud API key with the Places API (Ne
 metered by Google.
 
 - **With a place ID** (`--place-id`): one Place Details call.
-- **Otherwise**: one Text Search call, for the best name known plus the best location: the
-  query's own postcode, else the query's own address, else the postcode or town another provider
-  found. The query's location comes first, so a branch page another provider happened to find
-  can't narrow a town-wide query to that one branch.
-  With no name and location, it searches by phone. With neither, it waits for an earlier stage,
-  and is skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
+- **Otherwise**: one Text Search call. What it searches for, in order:
+  1. the best name known with the query's own postcode or address;
+  2. the query's phone, when it has a phone but no postcode or address;
+  3. the best name with a postcode or town another provider found;
+  4. a phone another provider found;
+  5. the best name with a hint from the URL's path (`/bookshops/reading` gives `reading`).
+
+  The query's own values come first, so a branch page another provider happened to find can't
+  narrow a town-wide query to that one branch. When no name is known at all (the site is blocked,
+  and the row gave only a URL), the domain stands in for the name (`waterstones.com` gives
+  `waterstones`), and **only places whose website is on that site are kept**, so a namesake
+  elsewhere is never taken. With nothing to search for, it waits for an earlier stage, and is
+  skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
   country as `regionCode`, which favours places there without excluding others.
 - **Fields read** (the field mask decides Google's billing tier): `id`, `displayName`,
   `formattedAddress`, `addressComponents`, `location`, `nationalPhoneNumber`,

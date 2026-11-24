@@ -81,6 +81,23 @@ describe('web-fetch on sites without location markup', () => {
   });
 });
 
+describe('schema.org organisations that aren\'t the business', () => {
+  test('departments and parent companies written inline are other organisations, not names for this one', async () => {
+    const markup = JSON.stringify({
+      '@context': 'https://schema.org', '@type': 'RealEstateAgent', name: 'Example Estates Reading', telephone: '0118 496 0000',
+      address: { '@type': 'PostalAddress', streetAddress: '1 Broad Street', addressLocality: 'Reading', postalCode: 'RG1 1AA' },
+      department: [{ '@type': 'Organization', name: 'Sales' }, { '@type': 'Organization', name: 'Lettings' }],
+      parentOrganization: { '@type': 'Corporation', name: 'Example Holdings PLC' },
+    });
+    const { result } = await find({ url: 'https://example.com/reading/' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/reading/': page('Reading', '', `<script type="application/ld+json">${markup}</script>`),
+    });
+    assert.equal(result.fields.name.value, 'Example Estates Reading');
+    assert.deepEqual(result.fields.name.conflicts, [], 'no Sales, Lettings or Example Holdings PLC');
+  });
+});
+
 describe('cleaning values', () => {
   test('HTML character references in text are decoded', () => {
     assert.equal(decodeEntities('Hunters Estate Agents &amp; Letting Agents'), 'Hunters Estate Agents & Letting Agents');

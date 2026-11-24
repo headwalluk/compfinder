@@ -149,7 +149,7 @@ Some fields are usually lower by nature: Google never gives emails, so an email 
 | `identity.independent-agreement` | The site and Google describe the same place | Trust the identity |
 | `identity.single-structured` | Only one source (usually the site) | Fine for most uses; Google would confirm it |
 | `identity.name-mismatch` | The website you gave is confirmed, but the name isn't, even allowing for typos. Capped at 40 | Often a trading name, a rebrand or a parent company. Compare your name with `fields.name.value` and decide |
-| `identity.tie` | Several places match equally, for example two branches when you gave no location | Look at `identity.candidates`, then re-run with a postcode, phone or branch URL |
+| `identity.tie` | Several places match equally, for example two branches when you gave no location | Look at `identity.candidates`, then re-run with a postcode, phone or branch URL. A tie from a place search lists at most five, and its reason says there may be more |
 | `identity.head-office` | You gave a chain's home page and no location | The result is the head office, scored as usual (60 from the site alone, 100 when Google agrees). For a branch, give its page or postcode |
 | `identity.none` | Nothing matched, or everything found contradicted your row | Check the input. A wrong URL or a stale phone is the usual cause |
 
@@ -177,7 +177,7 @@ For a list of branches that share one website:
 | `error.code: input.no_query` | Nothing to look up | The row has no usable name, URL, phone or place ID |
 | `error.code: lookup.no_provider` | No configured provider can work from this row, for example a name with no location and no Brave key | Add data to the row, or configure the missing provider |
 | `error.code: lookup.all_failed` | Every provider that ran failed | Look at `providers[].status` and `detail` |
-| `web-fetch` status `blocked` | The site refused automated requests (Cloudflare and similar) | Nothing to fix on the site. Google can still give a result, but only if the row has a name (with a location or phone) to search with: a URL-only row on a blocked site fails, so send the name too |
+| `web-fetch` status `blocked` | The site refused automated requests (Cloudflare and similar) | Nothing to fix on the site. Google can still give a result: with only a URL, it searches the domain's name and keeps only places on that site, which works for a branch page but often gives a tie for a chain's home page. Sending the name and a location too gives the best result |
 | `web-fetch` status `unreadable` | The site builds its pages with JavaScript, so there's nothing to read | As above |
 | `skipped`, reason `over budget` | The batch's metered budget ran out | Re-run those lines with a new budget |
 | `auth_failed`, `quota_exceeded` | A key was rejected, or a provider's quota was used up | Stop and report it: every later line will hit it too |

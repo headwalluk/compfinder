@@ -3,8 +3,8 @@ import { ProviderError } from '../../lookup/errors.js';
 import { countryRules } from '../../normalise/country/index.js';
 import { mapsCid } from '../../normalise/maps.js';
 import { normalisePhone } from '../../normalise/phone.js';
-import { sanitiseText } from '../../normalise/text.js';
-import { normaliseUrl } from '../../normalise/url.js';
+import { decodeEscapes, sanitiseText } from '../../normalise/text.js';
+import { isSameSite, normaliseUrl } from '../../normalise/url.js';
 import { apiRequest } from '../api-errors.js';
 import type { Knowledge, Provider, ProviderContext, Readiness } from '../contract.js';
 import { PROVIDER_DECLARATIONS } from '../declarations.js';
@@ -96,22 +96,66 @@ export function placeRecord(place: Place, countryCode: string, detail: string): 
   return record;
 }
 
+/** Public suffixes removed from a domain to leave the business's own part (example.co.uk -> example). */
+const PUBLIC_SUFFIXES = ['co.uk', 'org.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'com.au', 'co.nz', 'com', 'net', 'org', 'uk', 'io', 'co', 'biz', 'info', 'us', 'ie', 'eu'];
+/** A URL path's last segment longer than this isn't a usable place hint. */
+const MAX_PATH_HINT_CHARS = 60;
+
+/** What Google is asked: the text, and when the name came from the domain, the site its places must be on. */
+export interface SearchPlan {
+  text: string;
+  /** Set when no name was known: only places whose website is on this site are kept. */
+  siteDomain: string | null;
+}
+
+/** The business's own part of a domain, as words: keenans-estateagents.co.uk -> "keenans estateagents". */
+export function nameFromDomain(domain: string): string {
+  const suffix = PUBLIC_SUFFIXES.find((candidate) => domain.endsWith(`.${candidate}`));
+  const withoutSuffix = suffix === undefined ? domain : domain.slice(0, -suffix.length - 1);
+  return (withoutSuffix.split('.').pop() ?? withoutSuffix).replace(/[-_]+/g, ' ');
+}
+
+/** The last segment of a URL's path, as words (/bookshops/reading -> "reading"); null for a site root or a non-word segment. */
+export function pathHint(url: string): string | null {
+  const segment = new URL(url).pathname.split('/').filter((part) => part !== '').pop() ?? '';
+  const words = decodeEscapes(segment).replace(/\.[a-z0-9]{1,5}$/i, '').replace(/[-_+]+/g, ' ').trim();
+  return /\p{L}/u.test(words) && words.length <= MAX_PATH_HINT_CHARS ? words : null;
+}
+
 /**
- * The text to search for: the best name known, plus a location. The query's own postcode or address comes first, so a
- * lead another provider followed (one branch's page) can't narrow a town-wide query to that branch.
+ * What to search for (docs/providers.md). The query's own keys come first, so a lead another provider followed (one
+ * branch's page) can't narrow a town-wide query to that branch: its postcode or address with the best name known; else
+ * its phone; else a location or phone another provider found; else a hint from the URL's path. With no name known at
+ * all (a blocked site, a URL-only row), the domain stands in for the name, and only places on that site are kept.
  */
-export function searchText(knowledge: Knowledge): string | null {
-  const name = knowledge.query.name ?? knowledge.fields.name ?? null;
-  const address = knowledge.fields.address;
-  const location = knowledge.query.postcode ?? knowledge.query.address ?? address?.postcode ?? address?.town ?? null;
-  const phone = knowledge.query.phone?.display ?? knowledge.fields.phone?.display ?? null;
+export function searchPlan(knowledge: Knowledge): SearchPlan | null {
+  const { query, fields } = knowledge;
+  const queryLocation = query.postcode ?? query.address;
+  const queryPhone = query.phone?.display ?? null;
+  const knownName = query.name ?? fields.name ?? null;
+  const siteDomain = knownName === null && query.website !== null ? query.website.domain : null;
+  const name = knownName ?? (siteDomain === null ? null : nameFromDomain(siteDomain));
+  const location = queryLocation ?? fields.address?.postcode ?? fields.address?.town ?? null;
+  const phone = queryPhone ?? fields.phone?.display ?? null;
+  const hint = query.website === null ? null : pathHint(query.website.url);
   let text: string | null = null;
-  if (name !== null && location !== null) {
+  if (queryLocation === null && queryPhone !== null) {
+    text = queryPhone;
+  } else if (name !== null && location !== null) {
     text = `${name}, ${location}`;
   } else if (phone !== null) {
     text = phone;
+  } else if (name !== null && hint !== null) {
+    text = `${name}, ${hint}`;
+  } else if (siteDomain !== null && name !== null) {
+    text = name;
   }
-  return text;
+  return text === null ? null : { text, siteDomain };
+}
+
+/** The text a search would send, or null when there's nothing to search with. */
+export function searchText(knowledge: Knowledge): string | null {
+  return searchPlan(knowledge)?.text ?? null;
 }
 
 /** The API key, which the engine only gives a configured provider. */
@@ -146,15 +190,22 @@ export function createGooglePlacesProvider(): Provider {
         }), API_NAME) as Place;
         places = [place];
       } else {
-        detail = 'Google Places Text Search';
+        const plan = searchPlan(knowledge);
+        const siteDomain = plan?.siteDomain ?? null;
+        detail = siteDomain === null ? 'Google Places Text Search' : `Google Places Text Search for ${siteDomain}`;
         const response = await apiRequest(() => context.http.request({
           url: `${API_BASE}/places:searchText`,
           kind: 'json',
           method: 'POST',
           headers: { [KEY_HEADER]: key, [FIELD_MASK_HEADER]: PLACE_FIELDS.map((field) => `places.${field}`).join(',') },
-          json: { textQuery: searchText(knowledge), regionCode: countryCode.toLowerCase(), pageSize: SEARCH_PAGE_SIZE },
+          json: { textQuery: plan?.text, regionCode: countryCode.toLowerCase(), pageSize: SEARCH_PAGE_SIZE },
         }), API_NAME) as { places?: Place[] };
-        places = Array.isArray(response.places) ? response.places : [];
+        const found = Array.isArray(response.places) ? response.places : [];
+        // A search on the domain's name finds namesakes too: keep only places whose website is on that site.
+        places = siteDomain === null ? found : found.filter((place) => {
+          const website = place.websiteUri === undefined ? null : normaliseUrl(place.websiteUri);
+          return website !== null && isSameSite(website.domain, siteDomain);
+        });
       }
       const records: SourceRecord[] = [];
       for (const place of places) {

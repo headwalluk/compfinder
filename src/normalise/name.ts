@@ -4,6 +4,10 @@ const LEGAL_SUFFIXES = new Set(['ltd', 'limited', 'plc', 'llp', 'inc', 'llc', 'g
 const JOINED_SUFFIXES = new Set(['co', 'company']);
 const PUNCTUATION = /[^\p{L}\p{N}\s]/gu;
 const WHITESPACE_RUN = /\s+/g;
+/** Connecting words that don't tell two names apart ("Agents in Reading", "Reading Agents"). */
+const CONNECTING_WORDS = new Set(['and', 'in', 'at', 'of', 'the', 'for']);
+/** Words at least this long lose a plain plural "s" before comparing ("Lettings" and "Letting"). */
+const MIN_PLURAL_WORD_LENGTH = 4;
 /** Words shorter than this must match exactly when comparing a typed name. */
 const MIN_TYPO_WORD_LENGTH = 5;
 
@@ -26,7 +30,13 @@ export function comparableName(name: string): string {
       tokens.pop();
     }
   }
-  return tokens.join(' ');
+  const words = tokens.filter((token) => !CONNECTING_WORDS.has(token));
+  return (words.length > 0 ? words : tokens).map(singular).join(' ');
+}
+
+/** A word without a plain plural "s" (agents -> agent), leaving "ss" and short words alone. */
+function singular(word: string): string {
+  return word.length >= MIN_PLURAL_WORD_LENGTH && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word;
 }
 
 /** The words of a comparable name. */
@@ -35,12 +45,13 @@ export function nameTokens(name: string): string[] {
   return comparable === '' ? [] : comparable.split(' ');
 }
 
-/** Equal after normalising; compatible when one name's words are all in the other; else incompatible. */
+/** Equal when the same words remain after normalising, in any order; compatible when one name's words are all in the other; else incompatible. */
 export function compareNames(first: string, second: string): NameRelation {
   const firstTokens = new Set(nameTokens(first));
   const secondTokens = new Set(nameTokens(second));
   let relation: NameRelation;
-  if (comparableName(first) === comparableName(second)) {
+  const isSameWords = firstTokens.size === secondTokens.size && [...firstTokens].every((token) => secondTokens.has(token));
+  if (comparableName(first) === comparableName(second) || (firstTokens.size > 0 && isSameWords)) {
     relation = 'equal';
   } else if (firstTokens.size > 0 && secondTokens.size > 0
     && ([...firstTokens].every((token) => secondTokens.has(token)) || [...secondTokens].every((token) => firstTokens.has(token)))) {

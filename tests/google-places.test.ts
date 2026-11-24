@@ -6,7 +6,7 @@ import { checkProviders, runLookup } from '../src/lookup/engine.js';
 import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
 import type { TransportRequest } from '../src/net/transport.js';
-import { searchText } from '../src/providers/google-places-api/index.js';
+import { nameFromDomain, pathHint, searchPlan, searchText } from '../src/providers/google-places-api/index.js';
 import { builtInProviders } from '../src/providers/registry.js';
 import { fixtureTransport, type FixtureResponse, type FixtureRoute, type FixtureTransport } from './helpers/fixture-transport.js';
 import { makeQuery, testConfig } from './helpers/records.js';
@@ -150,6 +150,32 @@ describe('google-places-api', () => {
       fields: { address: { lines: [], town: 'Bracknell', county: null, postcode: 'RG12 9SE', country_code: 'GB', formatted: null, lat: null, lon: null } },
     } as unknown as Parameters<typeof searchText>[0];
     assert.equal(searchText(knowledge), 'Kwik Fit, Bracknell');
+  });
+
+  test('search plans: the query\'s phone before a found location; a page\'s phone before a URL hint', () => {
+    const knowledge = (input: QueryInput, fields: Record<string, unknown> = {}) => ({ query: makeQuery(input), fields } as unknown as Parameters<typeof searchText>[0]);
+    const foundAddress = { lines: [], town: 'Accrington', county: null, postcode: 'BB5 1HF', country_code: 'GB', formatted: null, lat: null, lon: null };
+    assert.equal(searchText(knowledge({ name: 'Keenans', phone: '0161 793 9622' }, { address: foundAddress })), '0161 793 9622');
+    const burnley = knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans', phone: { e164: '+441282469023', display: '01282 469023' } });
+    assert.equal(searchText(burnley), '01282 469023');
+    assert.equal(searchText(knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans' })), 'Keenans, burnley');
+  });
+
+  test('with no name known, the domain stands in for it, and only places on that site are kept', async () => {
+    assert.deepEqual(searchPlan({ query: makeQuery({ url: 'https://www.example-books.co.uk/shops/reading' }), fields: {} } as unknown as Parameters<typeof searchText>[0]),
+      { text: 'example books, reading', siteDomain: 'example-books.co.uk' });
+    assert.equal(nameFromDomain('keenans-estateagents.co.uk'), 'keenans estateagents');
+    assert.equal(pathHint('https://example.com/'), null);
+    const routes: Record<string, FixtureRoute> = {
+      'https://example.com/robots.txt': { status: 403, body: '' },
+      [SEARCH_URL]: { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places: [
+        { id: 'ChIJnamesakeElsewhere01', displayName: { text: 'Example Estates' }, websiteUri: 'https://not-example.org/' },
+        { id: 'ChIJexampleReading001', displayName: { text: 'Example Estates Reading' }, websiteUri: 'https://example.com/' },
+      ] }) },
+    };
+    const { result } = await find({ url: 'https://example.com/' }, routes);
+    assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.status, 'blocked');
+    assert.equal(result.fields.place_id.value, 'ChIJexampleReading001', 'the namesake on another site is dropped');
   });
 
   test('a permanently closed place is reported in warnings', async () => {

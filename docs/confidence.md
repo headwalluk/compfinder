@@ -29,8 +29,19 @@ business owner may edit both.
 First, compfinder works out which real business (and which branch) the evidence is about. It
 links records that share a place ID, a Google Maps listing (the `cid` in a Maps link, such as
 the site's schema.org `hasMap` and Google's own link for the place), a phone number, a postcode
-(with compatible names) or the same branch page, and each linked group is a **candidate**. Candidates are matched against your
-query. A candidate the query contradicts is dropped, unless one of your query's pinning values
+(with compatible names) or the same branch page, and each linked group is a **candidate**.
+
+Linking keeps places apart that are different:
+
+- Records with **different place IDs** are different places, and never join one candidate, even
+  when they share a phone (a chain's switchboard) or a postcode (several listings in one
+  building).
+- Keys have a strength: a place ID or a Maps listing names one place, a phone number or a branch
+  page nearly so, and a postcode only a building. A record without a place ID joins the place it
+  shares its **strongest** key with. When that key fits several places, it joins the one with
+  the same name, or, with no such name (a head office known only by its postcode), none of them.
+
+Candidates are matched against your query. A candidate the query contradicts is dropped, unless one of your query's pinning values
 (place ID, phone, postcode, branch page) is confirmed. In that case the other mismatches are
 treated as stale data and shown as field conflicts.
 
@@ -43,6 +54,16 @@ that name (or the other way round), allowing one typo (a wrong, missing, extra o
 in each word of five letters or more. So `Headwlal Hosting` still matches `Headwall Hosting`, and
 the source's spelling wins the name field, with yours shown as a conflict. Names from two sources
 are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` stay apart.
+
+All name comparisons ignore case, punctuation, word order, legal suffixes, connecting words
+(`and`, `in`, `at`, `of`, `the`, `for`) and plain plurals. So `Martin & Co Estate Agents & Letting
+Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name.
+
+When candidates match the query equally, the best match ranks first only inside one building:
+of several listings at one postcode, the one named exactly as your query beats one with extra
+words (a brewery over its tap room). Branches at different postcodes tie, because there the
+missing piece is where, not what. A tie's reason says when the candidates came from a place
+search, which returns only its best few matches, so the list may not be complete.
 
 | Rule | Score | Applies when |
 |---|---|---|

@@ -40,6 +40,55 @@ const googleBranch = record('google-places-api', [
   fact.placeId(PLACE_ID),
 ]);
 
+describe('linking records into places', () => {
+  const googlePlace = (placeId: string, name: string, phone: string, postcode: string, subject: string) => record('google-places-api', [
+    fact.name(name), fact.phone(phone), fact.address({ lines: ['66 Grosvenor St'], postcode }), fact.placeId(placeId),
+  ], { subject });
+
+  test('two places with different place IDs never merge, even sharing a phone and a building', () => {
+    const cityOfBooks = googlePlace(PLACE_ID, 'Powell\'s City of Books', PHONE, POSTCODE, 'city');
+    const airport = googlePlace(OTHER_PLACE_ID, 'Powell\'s Books at PDX', PHONE, POSTCODE, 'pdx');
+    const result = score({ name: 'Powell\'s Books', address: 'Reading' }, [cityOfBooks, airport]);
+    assert.equal(result.identity.leaders.length, 2, 'two places, so a tie, not one hybrid');
+    assert.deepEqual(result.identity.leaders.map((leader) => leader.candidate.records.length), [1, 1]);
+  });
+
+  test('a record whose strongest key fits several places joins none of them', () => {
+    const headOffice = record('web-fetch', [fact.address({ lines: ['66 Grosvenor St'], postcode: POSTCODE })]);
+    const mayfair = googlePlace(PLACE_ID, 'Example Estates Mayfair', PHONE, POSTCODE, 'mayfair');
+    const lettings = googlePlace(OTHER_PLACE_ID, 'Example Estates Lettings', OTHER_PHONE, POSTCODE, 'lettings');
+    const result = score({ url: 'https://example.com/' }, [headOffice, mayfair, lettings]);
+    const sizes = [...result.identity.leaders, ...result.identity.others].map((assessment) => assessment.candidate.records.length);
+    assert.deepEqual(sizes.sort(), [1, 1, 1]);
+  });
+
+  test('the strongest shared key decides: a shared phone beats a shared building', () => {
+    const site = record('web-fetch', [fact.name('Example Brewery'), fact.phone(PHONE), fact.address({ lines: [], postcode: POSTCODE })]);
+    const brewery = googlePlace(PLACE_ID, 'Example Brewery Ltd', PHONE, POSTCODE, 'brewery');
+    const shop = googlePlace(OTHER_PLACE_ID, 'Example Brewery Shop', OTHER_PHONE, POSTCODE, 'shop');
+    const result = score({ name: 'Example Brewery' }, [site, brewery, shop]);
+    assert.equal(result.identity.confidence, 100);
+    assert.deepEqual(result.identity.leaders[0]?.candidate.records.map((entry) => entry.subject), ['web-fetch-test', 'brewery']);
+  });
+
+  test('when the strongest key fits several places, the one with the same name is joined, and wins in its building', () => {
+    const site = record('web-fetch', [fact.name('Example Brewery'), fact.phone(PHONE)]);
+    const brewery = googlePlace(PLACE_ID, 'Example Brewery Ltd', PHONE, POSTCODE, 'brewery');
+    const tap = googlePlace(OTHER_PLACE_ID, 'Example Brewery Tap', PHONE, POSTCODE, 'tap');
+    const result = score({ name: 'Example Brewery' }, [site, brewery, tap]);
+    assert.equal(result.identity.confidence, 100, 'the brewery, not a tie with its tap room');
+    assert.equal(result.fields.place_id.value, PLACE_ID);
+  });
+
+  test('branches at different postcodes still tie when the query can\'t tell them apart', () => {
+    const reading = googlePlace(PLACE_ID, 'Example Estates', PHONE, POSTCODE, 'reading');
+    const wokingham = googlePlace(OTHER_PLACE_ID, 'Example Estates Wokingham', OTHER_PHONE, OTHER_POSTCODE, 'wokingham');
+    const result = score({ name: 'Example Estates', address: 'Berkshire' }, [reading, wokingham]);
+    assert.equal(result.identity.leaders.length, 2, 'the exact name only decides within one building');
+    assert.match(result.identity.reasons.join(' '), /there may be more/);
+  });
+});
+
 describe('identity rules', () => {
   test('identity.input-confirmed: a structured source confirms the query\'s postcode', () => {
     const result = score({ name: 'Example Estates', postcode: POSTCODE }, [googleBranch]);

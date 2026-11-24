@@ -73,8 +73,14 @@ describe('web addresses', () => {
 
 describe('business names', () => {
   test('compare without case, punctuation, & or legal suffixes', () => {
-    assert.equal(comparableName('Example & Sons Ltd.'), 'example and sons');
+    assert.equal(comparableName('Example & Sons Ltd.'), 'example son', 'connecting words and plain plurals go too');
     assert.equal(compareNames('EXAMPLE ESTATES LIMITED', 'Example Estates'), 'equal');
+  });
+
+  test('word order, connecting words and plain plurals don\'t make names differ', () => {
+    assert.equal(compareNames('Martin & Co Estate Agents & Letting Agents in Reading', 'Martin & Co Reading Lettings & Estate Agents'), 'equal');
+    assert.equal(compareNames('The Hexagon', 'Hexagon'), 'equal');
+    assert.equal(compareNames('Example Estates Reading', 'Example Estates Wokingham'), 'incompatible');
   });
 
   test('Co, Company and & Co are legal suffixes too', () => {

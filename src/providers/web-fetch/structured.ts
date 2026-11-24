@@ -10,6 +10,10 @@ const SCHEMA_ORG_PREFIX = /^(?:https?:\/\/)?(?:www\.)?schema\.org\//i;
 const JSON_LD_TYPE = 'application/ld+json';
 /** Deepest nesting followed in JSON-LD, so a hostile document can't recurse forever. */
 const MAX_JSON_LD_DEPTH = 12;
+/** Properties whose inline value is another organisation (a department, a parent company), not this business. */
+const OTHER_ORGANIZATION_PROPERTIES: ReadonlySet<string> = new Set([
+  'department', 'parentOrganization', 'subOrganization', 'member', 'memberOf',
+]);
 /** Most business blocks taken from one page. */
 const MAX_BLOCKS_PER_PAGE = 50;
 
@@ -73,7 +77,10 @@ export function jsonLdBlocks(page: ParsedPage): { blocks: BusinessBlock[]; badSc
         pending.push(...next.value.map((value) => ({ value, depth: next.depth + 1 })));
       } else if (isObject(next.value) && next.depth < MAX_JSON_LD_DEPTH) {
         nodes.push(next.value);
-        pending.push(...Object.values(next.value).map((value) => ({ value, depth: next.depth + 1 })));
+        // An organisation written inline under department or parentOrganization is someone else; one referenced by @id is
+        // still read from where it's defined (often the site's own brand, in @graph).
+        const children = Object.entries(next.value).filter(([key]) => !OTHER_ORGANIZATION_PROPERTIES.has(key)).map(([, value]) => value);
+        pending.push(...children.map((value) => ({ value, depth: next.depth + 1 })));
       }
     }
   }

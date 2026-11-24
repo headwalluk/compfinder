@@ -59,6 +59,13 @@ All notable changes to this project are documented here. The format follows
 - `web-fetch` reads only the start page's own host, honours `<base href>`, and decodes HTML
   character references in text. Tracking parameters are removed from URLs.
 - `compfinder --version`. The batch summary's error count includes lookups that failed.
+- Places with different place IDs are never merged into one, and a record joins only the place it
+  shares its strongest key with, so listings that share a building or a switchboard stay apart
+  and a tie's fields always describe one place.
+- Google searches by the query's phone when it has no postcode or address, and, when no name is
+  known (a blocked site, a URL-only row), by the domain's name, keeping only places on that site.
+- Names compare equal regardless of word order, connecting words and plain plurals. Departments
+  and parent companies in schema.org markup aren't read as the business.
 - A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's
   listing for the same place, so they agree even when their phone or address differs.
 

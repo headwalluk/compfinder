@@ -170,8 +170,13 @@ function chooseValue<Field extends FieldName>(field: Field, group: ValueGroup<Fi
       pagePath((second.value as FieldValues['website']).url).length - pagePath((first.value as FieldValues['website']).url).length
     ))[0];
   } else {
+    // Names that compare equal can still be spelt differently ("Estate Agents Estate Agents"): show the spelling most give.
+    const spellingCount = (item: FieldItem<Field>): number => (field === 'name'
+      ? pool.filter((other) => String(other.value).toLowerCase() === String(item.value).toLowerCase()).length
+      : 0);
     chosen = [...pool].sort((first, second) => (
-      priorityRank(field, first.record.source, context) - priorityRank(field, second.record.source, context)
+      spellingCount(second) - spellingCount(first)
+      || priorityRank(field, first.record.source, context) - priorityRank(field, second.record.source, context)
     ))[0];
   }
   return chosen ?? null;

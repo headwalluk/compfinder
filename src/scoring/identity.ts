@@ -1,5 +1,5 @@
 import type { Query, SourceRecord } from '../lookup/types.js';
-import { compareQueryName } from '../normalise/name.js';
+import { compareNames, compareQueryName } from '../normalise/name.js';
 import { isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
 import type { Candidate } from './link.js';
@@ -38,6 +38,10 @@ export interface CandidateAssessment {
   isPreferredHeadOffice: boolean;
   /** True when the query's site is confirmed and its name is the only contradiction (identity.name-mismatch). */
   isNameMismatch: boolean;
+  /** True when one of the candidate's names equals the query's, not just contains it. */
+  isNameExact: boolean;
+  /** The candidate's postcodes, to tell listings in one building from branches elsewhere. */
+  postcodes: Set<string>;
 }
 
 export interface IdentityResult {
@@ -176,12 +180,14 @@ function assessCandidate(candidate: Candidate, query: Query): CandidateAssessmen
     baseReason,
     isPreferredHeadOffice: isWholeBusinessQuery && candidate.records.some((record) => record.role === 'head-office'),
     isNameMismatch,
+    isNameExact: query.name !== null && fieldItems(candidate.records, 'name').some((item) => compareNames(item.value, query.name ?? '') === 'equal'),
+    postcodes: new Set(fieldItems(candidate.records, 'address').map((item) => item.value.postcode).filter((postcode) => postcode !== null)),
   };
 }
 
 /**
  * Ranks how well two candidates match the query: a confirmed place ID, a matching name, the head office for a
- * whole-business query, most confirmed keys, fewest contradictions. 0 is a tie. How many sources back a candidate
+ * whole-business query, most confirmed keys, fewest contradictions, then (in one building only) the exact name. 0 is a tie. How many sources back a candidate
  * isn't a match to the query, so it never breaks a tie (docs/confidence.md: identity.tie).
  */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
@@ -193,7 +199,13 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
     || Number(first.isNameMismatch) - Number(second.isNameMismatch)
     || Number(second.isPreferredHeadOffice) - Number(first.isPreferredHeadOffice)
     || count(second, 'confirmed') - count(first, 'confirmed')
-    || count(first, 'contradicted') - count(second, 'contradicted');
+    || count(first, 'contradicted') - count(second, 'contradicted')
+    || (isSameBuilding(first, second) ? Number(second.isNameExact) - Number(first.isNameExact) : 0);
+}
+
+/** True when two candidates share a postcode: listings in one building, which only their names tell apart. */
+function isSameBuilding(first: CandidateAssessment, second: CandidateAssessment): boolean {
+  return [...first.postcodes].some((postcode) => second.postcodes.has(postcode));
 }
 
 /** Names a rejected candidate and the query values it contradicts, for reasons. */
@@ -239,7 +251,9 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
     if (leaders.length > 1) {
       confidence = Math.floor(first.baseScore / leaders.length);
       rules.push('identity.tie');
-      reasons.push(`${leaders.length} candidates match equally; each is listed`);
+      const isFromSearch = leaders.some((leader) => leader.candidate.records.some((record) => record.source === 'google-places-api'));
+      // A search returns only its best few places, so a tie built from one may not list every match.
+      reasons.push(`${leaders.length} candidates match equally; each is listed${isFromSearch ? ' (a place search returns only its best few matches, so there may be more)' : ''}`);
     }
     const leaderSites = new Set(leaders.flatMap((leader) => fieldItems(leader.candidate.records, 'website').map((item) => item.value.domain)));
     brandConfidence = leaderSites.size === 1 ? first.baseScore : confidence;
