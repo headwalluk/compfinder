@@ -80,6 +80,37 @@ describe('linking records into places', () => {
     assert.equal(result.fields.place_id.value, PLACE_ID);
   });
 
+  test('one ZIP code isn\'t one building: branches with different building numbers still tie', () => {
+    const market = record('google-places-api', [fact.name('Example Chowder'), fact.address({ lines: ['1530 Post Alley'], postcode: '98101' }), fact.placeId(PLACE_ID)], { subject: 'market' });
+    const mall = record('google-places-api', [fact.name('Example Chowder - Pacific Place'), fact.address({ lines: ['600 Pine St'], postcode: '98101' }), fact.placeId(OTHER_PLACE_ID)], { subject: 'mall' });
+    const result = score({ name: 'Example Chowder', address: 'Seattle' }, [market, mall]);
+    assert.equal(result.identity.leaders.length, 2, 'the exact name doesn\'t win across buildings');
+  });
+
+  test('a thin duplicate listing (same name, same building, only a postcode) is co-listed with the full one', () => {
+    const full = record('google-places-api', [fact.name('Example Restaurant'), fact.phone(PHONE), fact.address({ lines: ['High St'], postcode: POSTCODE }), fact.placeId(PLACE_ID)], { subject: 'full' });
+    const thin = record('google-places-api', [fact.name('Example Restaurant'), fact.address({ lines: [], postcode: POSTCODE }), fact.placeId(OTHER_PLACE_ID)], { subject: 'thin' });
+    const result = score({ name: 'Example Restaurant' }, [full, thin]);
+    assert.ok(result.identity.rules.includes('identity.co-listed'));
+    assert.equal(result.identity.confidence, 60);
+  });
+
+  test('a home page whose only match is one of its branch pages on Google is the chain, not that branch', () => {
+    const brand = record('web-fetch', [fact.name('Example Gyms'), fact.website('https://example.com/')], { scope: 'brand' });
+    const leeds = record('google-places-api', [fact.name('Example Gyms Leeds'), fact.website('https://example.com/gyms/leeds/'), fact.placeId(PLACE_ID)]);
+    const result = score({ url: 'https://example.com/' }, [brand, leeds]);
+    assert.ok(result.identity.rules.includes('identity.chain'));
+    assert.equal(result.fields.name.value, 'Example Gyms');
+    assert.equal(result.fields.website.value?.url, 'https://example.com/', 'a chain\'s website is the home page asked about');
+  });
+
+  test('when the query\'s site redirected to another domain, places on that domain are on the query\'s site', () => {
+    const site = record('web-fetch', [fact.name('Example Vets North Oxford'), fact.website('https://example-group.com/practices/north-oxford/')], { origin: 'site:example-group.com' });
+    const redirected = { ...site, redirectedFrom: 'example.co.uk' };
+    const result = score({ url: 'https://www.example.co.uk/practices/north-oxford/' }, [redirected]);
+    assert.ok(result.identity.rules.includes('identity.input-confirmed'), JSON.stringify(result.identity.reasons));
+  });
+
   test('branches at different postcodes still tie when the query can\'t tell them apart', () => {
     const reading = googlePlace(PLACE_ID, 'Example Estates', PHONE, POSTCODE, 'reading');
     const wokingham = googlePlace(OTHER_PLACE_ID, 'Example Estates Wokingham', OTHER_PHONE, OTHER_POSTCODE, 'wokingham');
@@ -186,7 +217,7 @@ describe('identity rules', () => {
     assert.ok(result.fields.name.confidence > result.identity.confidence, 'brand fields keep the brand\'s confidence');
   });
 
-  test('an unread branch page isn\'t contradicted by an alias of it, but a clearly different page still is', () => {
+  test('a branch page isn\'t contradicted by an alias URL for it, but a clearly different page is', () => {
     const google = record('google-places-api', [fact.name('Example Books'), fact.website('https://example.com/shops/reading-broad-street'), fact.placeId(PLACE_ID)]);
     const alias = score({ url: 'https://example.com/shops/reading' }, [google]);
     assert.equal(alias.identity.confidence, 60, 'the site is confirmed; the page is neither confirmed nor contradicted');
@@ -198,7 +229,7 @@ describe('identity rules', () => {
     assert.equal(elsewhere.identity.confidence, 0);
     const siteRead = record('web-fetch', [fact.name('Example Books')], { scope: 'brand' });
     const read = score({ url: 'https://example.com/shops/reading' }, [google, siteRead]);
-    assert.ok(read.identity.rejected.length > 0, 'once the page was read, a different page is a contradiction');
+    assert.equal(read.identity.rejected.length, 0, 'read or not, an alias URL (an old scheme, a longer slug) is no contradiction');
   });
 
   test('identity.head-office: a chain\'s home page with no location is the head office', () => {

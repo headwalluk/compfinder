@@ -54,6 +54,12 @@ function numberFrom(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+/** A line with a postcode (in any case or spacing) taken out, and the commas around it tidied. */
+function withoutPostcode(line: string, postcode: string): string {
+  const pattern = new RegExp(postcode.replace(/\s+/g, '').split('').join('\\s*'), 'gi');
+  return line.replace(pattern, '').replace(/\s*,\s*(,\s*)+/g, ', ').replace(/^[\s,]+|[\s,]+$/g, '');
+}
+
 /** A PostalAddress object or address string, as an AddressValue; null when it has nothing usable. */
 export function addressFrom(value: unknown, geo: unknown, countryCode: string): AddressValue | null {
   const rules = countryRules(countryCode);
@@ -69,10 +75,12 @@ export function addressFrom(value: unknown, geo: unknown, countryCode: string): 
     const countryName = typeof countryField === 'object' && countryField !== null ? (countryField as Record<string, unknown>).name : countryField;
     const country = firstText(countryName, 'town');
     const geoFields = typeof geo === 'object' && geo !== null ? geo as Record<string, unknown> : {};
+    // A street line that already ends in the postcode would repeat it when the address is written out.
+    const streetLines = postcode === null ? lines : lines.map((line) => withoutPostcode(line, postcode)).filter((line) => line !== '');
     const town = firstText(fields.addressLocality, 'town');
     const county = firstText(fields.addressRegion, 'town');
     address = {
-      lines,
+      lines: streetLines,
       town,
       county,
       postcode,
@@ -81,7 +89,7 @@ export function addressFrom(value: unknown, geo: unknown, countryCode: string): 
       lat: numberFrom(geoFields.latitude),
       lon: numberFrom(geoFields.longitude),
     };
-    if (lines.length === 0 && town === null && postcode === null) {
+    if (streetLines.length === 0 && town === null && postcode === null) {
       address = null;
     }
   }

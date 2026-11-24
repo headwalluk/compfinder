@@ -1,6 +1,6 @@
 import type { Evidence, RecordRole, SourceRecord, WebsiteValue } from '../../lookup/types.js';
 import { ProviderError } from '../../lookup/errors.js';
-import { comparableName } from '../../normalise/name.js';
+import { comparableName, nameTokens } from '../../normalise/name.js';
 import { isSameSite, isSiteRoot, normaliseUrl, siteHost } from '../../normalise/url.js';
 import { decodeBody } from '../../net/charset.js';
 import { HttpError, type HttpResponse } from '../../net/http-client.js';
@@ -62,7 +62,8 @@ async function loadRobots(origin: string, context: ProviderContext): Promise<Rob
   let response: HttpResponse;
   try {
     response = await context.http.request({
-      url, kind: 'robots', cacheTtlSeconds: ROBOTS_CACHE_TTL_SECONDS, canFollowRedirect: (from, to) => isSameSite(from.hostname, to.hostname),
+      // RFC 9309 follows robots.txt redirects, to any host: a rebranded site often sends its old domain's to the new one.
+      url, kind: 'robots', cacheTtlSeconds: ROBOTS_CACHE_TTL_SECONDS, canFollowRedirect: () => true,
     });
   } catch (error) {
     if (!(error instanceof HttpError)) {
@@ -133,6 +134,28 @@ function placeKeys(evidence: readonly Evidence[]): { phones: Set<string>; postco
     }
   }
   return { phones, postcodes };
+}
+
+/** The site's own name, from its Organization markup or og:site_name: the one with fewest words ("Notcutts" over "Notcutts Garden Centres"). */
+function shortestBrandName(brand: readonly Evidence[]): string | null {
+  const names = brand.flatMap((item) => (item.field === 'name' ? [item.value] : [])).filter((name) => nameTokens(name).length > 0);
+  return [...names].sort((first, second) => nameTokens(first).length - nameTokens(second).length || first.localeCompare(second))[0] ?? null;
+}
+
+/**
+ * A branch's name with the brand in front when the name is only a place ("Oxford", every word of it in the branch's
+ * own address): "Notcutts Oxford". A name with any word of its own ("York Vets for Pets") is left as it is.
+ */
+function withBrand(item: Evidence, brandName: string, placeWords: ReadonlySet<string>): Evidence {
+  const words = item.field === 'name' ? nameTokens(item.value) : [];
+  const isOnlyPlace = words.length > 0 && words.every((word) => placeWords.has(word)) && !nameTokens(brandName).some((word) => words.includes(word));
+  return isOnlyPlace && item.field === 'name' ? { ...item, value: `${brandName} ${item.value}` } : item;
+}
+
+/** The words of a record's addresses: its lines, town and county. */
+function addressWords(evidence: readonly Evidence[]): Set<string> {
+  const parts = evidence.flatMap((item) => (item.field === 'address' ? [...item.value.lines, item.value.town ?? '', item.value.county ?? ''] : []));
+  return new Set(parts.flatMap((part) => nameTokens(part)));
 }
 
 /** True when loose evidence lists several places (a branch directory, a footer of numbers) rather than one (docs/providers.md). */
@@ -265,7 +288,8 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
 
       const start = await fetchPage(website.url, true, website.domain, context) as ParsedPage;
       const site = siteHost(new URL(start.url).hostname);
-      if (!isSameSite(site, website.domain)) {
+      const redirectedFrom = isSameSite(site, website.domain) ? null : website.domain;
+      if (redirectedFrom !== null) {
         context.warn(`${website.domain} redirected to ${site}; read ${site} as the business's site.`);
       }
       const results = [readPage(start, countryCode, options.unreadableTextChars, withheld)];
@@ -291,10 +315,14 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
 
       const origin = `${SITE_ORIGIN_PREFIX}${site}`;
       const totalLocalBusinesses = distinctLocalBusinesses(readable);
+      // The brand's name may sit in an Organization that also carries the head office's address.
+      const organisationNames = readable.flatMap((result) => result.locations.filter((location) => !location.isLocalBusiness).flatMap((location) => location.evidence));
+      const brandName = shortestBrandName(readable.flatMap((result) => [...result.brand, ...result.loose.brand, ...organisationNames]));
       const records: SourceRecord[] = [];
       for (const result of readable) {
         result.locations.forEach((location, index) => {
-          const evidence = [...location.evidence];
+          const placeWords = addressWords(location.evidence);
+          const evidence = brandName === null ? [...location.evidence] : location.evidence.map((item) => withBrand(item, brandName, placeWords));
           if (result.locations.length === 1) {
             // Loose facts only fill gaps: a footer's registered-office postcode must not join a branch's record.
             const structuredFields = new Set(location.evidence.map((item) => item.field));
@@ -361,7 +389,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       if (withheld.personalProfiles > 0) {
         context.warn(`${withheld.personalProfiles} personal social profile(s) seen on ${site}, not returned.`);
       }
-      return records;
+      return redirectedFrom === null ? records : records.map((record) => ({ ...record, redirectedFrom }));
     },
   };
 }

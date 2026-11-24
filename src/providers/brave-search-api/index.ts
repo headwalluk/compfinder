@@ -15,9 +15,17 @@ interface BraveResponse {
   web?: { results?: Array<{ url?: string; title?: string }> };
 }
 
+/** The countries Brave's country parameter accepts (its 422 answer lists them); any other is sent as ALL. */
+const BRAVE_COUNTRIES: ReadonlySet<string> = new Set([
+  'AR', 'AU', 'AT', 'BE', 'BR', 'CA', 'CL', 'DK', 'FI', 'FR', 'DE', 'GR', 'HK', 'IN', 'ID', 'IT', 'JP', 'KR', 'MY', 'MX',
+  'NL', 'NZ', 'NO', 'CN', 'PL', 'PT', 'PH', 'RU', 'SA', 'ZA', 'ES', 'SE', 'CH', 'TW', 'TR', 'GB', 'US',
+]);
+const ALL_COUNTRIES = 'ALL';
+
 /** Builds the search URL. The key goes in the X-Subscription-Token header, never here. */
-function searchUrl(query: string, countryCode: string, results: number): string {
-  const parameters = new URLSearchParams({ q: query, country: countryCode.toUpperCase(), count: String(results) });
+export function searchUrl(query: string, countryCode: string, results: number): string {
+  const country = BRAVE_COUNTRIES.has(countryCode.toUpperCase()) ? countryCode.toUpperCase() : ALL_COUNTRIES;
+  const parameters = new URLSearchParams({ q: query, country, count: String(results) });
   return `${SEARCH_URL}?${parameters.toString()}`;
 }
 

@@ -163,7 +163,11 @@ function chooseValue<Field extends FieldName>(field: Field, group: ValueGroup<Fi
   const sourced = group.items.filter((item) => item.record.source !== QUERY_SOURCE);
   const pool = sourced.length > 0 ? sourced : group.items;
   let chosen: FieldItem<Field> | undefined;
-  if (field === 'website') {
+  const queryItem = group.items.find((item) => item.record.source === QUERY_SOURCE);
+  if (field === 'website' && context.identity.rules.includes('identity.chain') && queryItem !== undefined) {
+    // A chain's website is the home page asked about, not one of its pages.
+    chosen = queryItem;
+  } else if (field === 'website') {
     const trusted = group.items.filter((item) => item.record.source === QUERY_SOURCE || item.quality === 'structured');
     const choices = trusted.length > 0 ? trusted : group.items;
     chosen = [...choices].sort((first, second) => (

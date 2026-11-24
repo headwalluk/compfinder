@@ -57,6 +57,11 @@ Organisations written inline under `department`, `parentOrganization`, `subOrgan
 `member` or `memberOf` are other organisations (a Sales department, a parent company), and
 aren't read as this business. One those properties point to by `@id` is read where it's defined.
 
+A branch whose markup names it only by its place (a garden centre called "Oxford", every word of
+the name in its own address) takes the site's brand name in front: "Notcutts Garden Centres
+Oxford". A postcode written at the end of a street line isn't repeated. Cloudflare's own links
+(`/cdn-cgi/`) are never read.
+
 A LocalBusiness on an inner page is a **branch**. An Organization's own address, on a site that
 also lists branches, is the **head office**. The same business repeated on every page counts
 once.
@@ -130,6 +135,8 @@ only while no website is known.
   never confirms that site: confirmation has to come from somewhere independent, such as
   Google's listing.
 - It reads Brave's web results only. The key goes in the `X-Subscription-Token` header.
+- The lookup's country is sent as Brave's `country`. Brave accepts only some countries (Ireland
+  isn't one); any other is sent as `ALL`, and the location in the search text does the work.
 - Its responses aren't cached until Brave's terms on storing results have been checked.
 - `providers check` makes one small search, which costs one query.
 

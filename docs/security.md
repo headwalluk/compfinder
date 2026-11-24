@@ -11,7 +11,9 @@ When `web-fetch` reads a business's site, it:
   (`compfinder/<version> (+https://github.com/headwalluk/compfinder)`), and nothing about you;
 - reads `robots.txt` first and honours it. A `robots.txt` that answers 404 (or another 4xx)
   allows everything. One that answers 401, 403, 429 or 5xx means the whole site is treated as
-  disallowed, and the lookup reports `web-fetch` as `blocked`, following RFC 9309.
+  disallowed, and the lookup reports `web-fetch` as `blocked`, following RFC 9309. A `robots.txt`
+  that redirects is followed, to another host if need be (an old domain sending everything to a
+  new one), up to five redirects, each checked against the refused addresses below.
   `web_fetch.honour_robots = false` turns this off, at your own responsibility;
 - reads only a few pages per lookup (`web_fetch.max_pages`, default 5): the page given, then
   contact, home, branches and about pages on the same host (not other subdomains). It never crawls. The only way it leaves

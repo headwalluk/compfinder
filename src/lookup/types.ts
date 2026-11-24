@@ -99,6 +99,8 @@ export interface SourceRecord {
   evidence: Evidence[];
   /** Google Maps listing CIDs the record names (a ?cid= link). They link records only; never output. */
   mapsCids?: string[];
+  /** For a site read after the query's site redirected to it: the domain it redirected from. */
+  redirectedFrom?: string;
 }
 
 /** The caller's inputs, normalised. Any may be null. */
@@ -111,4 +113,6 @@ export interface Query {
   phone: PhoneValue | null;
   placeId: string | null;
   country: string;
+  /** How the input was read, when it needed reading (country UK read as GB): passed on as warnings. */
+  notes?: string[];
 }

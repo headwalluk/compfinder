@@ -160,6 +160,8 @@ describe('untrusted text', () => {
 describe('queries', () => {
   test('country must be a real two-letter code; UK means GB, and case doesn\'t matter', () => {
     assert.equal(normaliseQuery({ name: 'Example', country: 'UK' }, 'US').query.country, 'GB');
+    assert.deepEqual(normaliseQuery({ name: 'Example', country: 'UK' }, 'US').query.notes, ['country "UK" was read as GB, its ISO code.']);
+    assert.equal(normaliseQuery({ name: 'Example', country: 'gb' }, 'US').query.notes, undefined, 'a change of case needs no note');
     assert.equal(normaliseQuery({ name: 'Example', country: 'gb' }, 'US').query.country, 'GB');
     assert.equal(normaliseQuery({ name: 'Example', country: 'ie' }, 'GB').query.country, 'IE');
     assert.match(normaliseQuery({ name: 'Example', country: 'XX' }, 'GB').problems.join(' '), /two-letter country code/);

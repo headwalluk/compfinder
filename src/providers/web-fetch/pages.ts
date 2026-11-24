@@ -11,6 +11,8 @@ const CANONICAL_SCORE = 40;
 const SITE_ROOT_SCORE = 25;
 /** Paths that are files, not pages. */
 const ASSET_PATH = /\.(?:pdf|jpe?g|png|gif|webp|svg|ico|css|js|json|xml|zip|docx?|xlsx?|mp4|mp3)$/i;
+/** Cloudflare's own paths (email obfuscation, challenges): never a business's page. */
+const CDN_PATH = /^\/cdn-cgi\//i;
 
 /** Status codes that mean "you're refused": no retry, no workaround. */
 export const REFUSING_STATUSES = new Set([401, 403, 429]);
@@ -45,7 +47,7 @@ export function selectPages(start: ParsedPage, site: string, limit: number): str
   const startPath = pagePath(start.url);
   const add = (url: string, score: number): void => {
     const isEligible = URL.canParse(url) && ['http:', 'https:'].includes(new URL(url).protocol)
-      && siteHost(new URL(url).hostname) === site && !ASSET_PATH.test(new URL(url).pathname) && pagePath(url) !== startPath;
+      && siteHost(new URL(url).hostname) === site && !ASSET_PATH.test(new URL(url).pathname) && !CDN_PATH.test(new URL(url).pathname) && pagePath(url) !== startPath;
     if (isEligible && score > (scores.get(url) ?? 0)) {
       scores.set(url, score);
     }

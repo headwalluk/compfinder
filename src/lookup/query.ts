@@ -56,8 +56,12 @@ export function normaliseQuery(input: QueryInput, defaultCountry: string): { que
   const countryInput = present(input.country);
   let country = defaultCountry;
   const countryCode = countryInput === null ? null : normaliseCountryCode(countryInput);
+  const notes: string[] = [];
   if (countryCode !== null) {
     country = countryCode;
+    if (countryInput !== null && countryInput.trim().toUpperCase() !== countryCode) {
+      notes.push(`country "${countryInput}" was read as ${countryCode}, its ISO code.`);
+    }
   } else if (countryInput !== null) {
     problems.push(`country must be a two-letter country code such as GB; got "${countryInput}".`);
   }
@@ -96,7 +100,7 @@ export function normaliseQuery(input: QueryInput, defaultCountry: string): { que
     problems.push(`place_id "${placeIdInput}" doesn't look like a Google place ID.`);
   }
 
-  const query: Query = { name, website, address, postcode, phone, placeId, country };
+  const query: Query = { name, website, address, postcode, phone, placeId, country, ...(notes.length > 0 ? { notes } : {}) };
   if (problems.length === 0 && Object.values({ name, website, address, postcode, phone, placeId }).every((value) => value === null)) {
     problems.push('Give at least one of: a name, url, address, postcode, phone or place_id.');
   }

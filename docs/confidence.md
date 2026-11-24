@@ -41,12 +41,14 @@ Linking keeps places apart that are different:
   shares its **strongest** key with. When that key fits several places, it joins the one with
   the same name, or, with no such name (a head office known only by its postcode), none of them.
 
-Candidates are matched against your query. A branch page in your query that compfinder couldn't
-read, for whatever reason (the site blocked it, timed out, or served nothing readable), isn't
-contradicted by a different URL for what may be the same page. Only a clearly different page
-contradicts it: one where neither URL's last segment has all its words in the other's
-(`/shops/wokingham` against `/shops/reading`). An alias (`/offices/chiswick` against
-`/offices/dexters-chiswick-estate-agents`) is neither confirmed nor contradicted. A candidate the query contradicts is dropped, unless one of your query's pinning values
+Candidates are matched against your query. A branch page in your query isn't contradicted by a
+different URL for what may be the same page: a longer slug, or an old URL scheme that redirects
+(`/healthandfitness/york` against `/health-club/york`). Only a clearly different page contradicts
+it, one where neither URL's last segment has all its words in the other's (`/shops/wokingham`
+against `/shops/reading`). An alias (`/offices/chiswick` against
+`/offices/dexters-chiswick-estate-agents`) is neither confirmed nor contradicted. When your query's
+site redirects to another domain (an old brand's domain to the new one's), places on the new
+domain count as on your query's site, with the same path. A candidate the query contradicts is dropped, unless one of your query's pinning values
 (place ID, phone, postcode, branch page) is confirmed. In that case the other mismatches are
 treated as stale data and shown as field conflicts.
 
@@ -65,9 +67,12 @@ All name comparisons ignore case, punctuation, word order, legal suffixes, conne
 Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name.
 
 When candidates match the query equally, the best match ranks first only inside one building:
-of several listings at one postcode, the one named exactly as your query beats one with extra
-words (a brewery over its tap room). Branches at different postcodes tie, because there the
-missing piece is where, not what. A tie's reason says when the candidates came from a place
+of several listings at one address (the same postcode and building number), the one named exactly
+as your query beats one with extra words (a brewery over its tap room). A postcode alone isn't a
+building everywhere: a US ZIP code covers a district, so two branches in one ZIP with different
+building numbers still tie. Branches at different addresses tie, because there the missing piece
+is where, not what. Listings in one building that share a phone, or that have the same name (a
+thin duplicate listing with only a postcode), are one place: `identity.co-listed`. A tie's reason says when the candidates came from a place
 search, which returns only its best few matches, so the list may not be complete.
 
 | Rule | Score | Applies when |
@@ -80,7 +85,7 @@ search, which returns only its best few matches, so the list may not be complete
 | `identity.tie` | ÷ n | *n* candidates match your query equally: each gets ⌊score ÷ n⌋ and all are listed in `candidates`. How many sources back a candidate never breaks a tie: two sources agreeing that a branch exists doesn't make it the branch you meant. The best-sourced candidate is listed first, and supplies the fields |
 | `identity.name-mismatch` | ≤ 40 | Your query's site is confirmed but its name isn't, even allowing for typos. The business is kept rather than dropped, its identity (and so every field) is capped at 40, and a warning gives both names |
 | `identity.co-listed` | — | The tied candidates share one address and one phone: one place listed several times (sales and lettings, say). It isn't a tie: the score isn't divided. The listing shown is the one with the most support: a website found for the business (by a search, say) whose name matches that listing's |
-| `identity.chain` | — | A chain's home page with no location given matches several of its places (a tie). The identity is the chain: the fields come from the brand's own records (name, website, logo, socials) at the brand's confidence, place fields (address, phone, place ID) are left empty, the places are listed in `candidates`, and a warning says so. `identity.confidence` is still the tie's divided score, because it measures which place, and no one place is meant |
+| `identity.chain` | — | A chain's home page with no location given matches several of its places (a tie), or only Google listings whose websites are branch pages on its site, which nothing the site says joins. The identity is the chain: the fields come from the brand's own records (name, website, logo, socials) at the brand's confidence, place fields (address, phone, place ID) are left empty, the places are listed in `candidates`, and a warning says so. `identity.confidence` is still the tie's divided score, because it measures which place, and no one place is meant |
 | `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
 
 ## Fields

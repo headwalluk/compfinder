@@ -254,7 +254,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
     records,
     reports: PROVIDER_NAMES.map((name) => reports.get(name)).filter((report) => report !== undefined),
     score,
-    warnings: [...score.warnings, ...warnings],
+    warnings: [...(request.query.notes ?? []), ...score.warnings, ...warnings],
   };
 }
 

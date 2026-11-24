@@ -70,6 +70,33 @@ describe('web-fetch on sites without location markup', () => {
     assert.ok(transport.requests.includes('GET https://example.com/contact/'), 'www. and the bare host are the same host');
   });
 
+  test('robots.txt that redirects to another host is followed, and the site it leads to is read', async () => {
+    const { result } = await find({ url: 'https://example.co.uk/' }, {
+      'https://example.co.uk/robots.txt': { status: 301, headers: { location: 'https://example-group.com/robots.txt' } },
+      'https://example-group.com/robots.txt': ROBOTS,
+      'https://example.co.uk/': { status: 301, headers: { location: 'https://example-group.com/' } },
+      'https://example-group.com/': page('Example Group', '<a href="tel:0118 496 0123">Call</a> <a href="/cdn-cgi/l/email-protection">email</a>'),
+    });
+    assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.status, 'ok');
+    assert.equal(result.fields.phone.value, '+441184960123');
+    assert.ok(result.warnings.some((warning) => warning.includes('redirected to example-group.com')));
+  });
+
+  test('a branch named only by its town takes the brand\'s name; a postcode in the street line isn\'t repeated', async () => {
+    const markup = JSON.stringify([
+      { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Gardens', address: { '@type': 'PostalAddress', streetAddress: '1 Head St', postalCode: 'IP12 4AF' } },
+      { '@context': 'https://schema.org', '@type': 'GardenStore', name: 'Oxford', telephone: '01865 343454',
+        address: { '@type': 'PostalAddress', streetAddress: 'Nuneham Courtenay, Oxford, OX44 9PY', postalCode: 'OX44 9PY' } },
+    ]);
+    const { result, transport } = await find({ url: 'https://example.com/centres/oxford' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/centres/oxford': page('Oxford', '<a href="/cdn-cgi/l/email-protection">email</a>', `<script type="application/ld+json">${markup}</script>`),
+    });
+    assert.equal(result.fields.name.value, 'Example Gardens Oxford');
+    assert.equal((result.fields.address.value as { formatted: string }).formatted, 'Nuneham Courtenay, Oxford, OX44 9PY');
+    assert.ok(!transport.requests.some((request) => request.includes('/cdn-cgi/')), 'Cloudflare\'s own links are never read');
+  });
+
   test('relative links resolve against <base href>, as a browser resolves them', async () => {
     const { transport } = await find({ url: 'https://example.com/contact/solicitors-wokingham' }, {
       'https://example.com/robots.txt': ROBOTS,

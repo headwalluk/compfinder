@@ -74,7 +74,15 @@ All notable changes to this project are documented here. The format follows
   last path segment has all its words in the other's. A place with no website takes the brand of
   a found site that shares its name, so a co-listed place shows the listing that site supports.
   A phrase repeated straight after itself in a name is collapsed.
-- A `country` (in a query or the config) must be a real ISO 3166-1 code; `UK` is read as `GB`.
+- A `country` (in a query or the config) must be a real ISO 3166-1 code; `UK` is read as `GB`,
+  with a warning.
+- "One building" means the same postcode and building number, so branches sharing a US ZIP code
+  tie; same-named listings in one building are co-listed. An alias URL (an old scheme, a longer
+  slug) never contradicts a branch page, and when the query's site redirects to another domain,
+  places on that domain count as on the query's site.
+- `robots.txt` redirects are followed to another host. A branch named only by its place takes the
+  brand's name. Brave gets `country=ALL` for countries it doesn't support. A home page whose only
+  match is a branch's Google listing is `identity.chain`, and a chain's website is the home page.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

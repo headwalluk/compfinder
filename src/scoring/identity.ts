@@ -2,6 +2,7 @@ import type { Query, SourceRecord } from '../lookup/types.js';
 import { compareNames, compareQueryName } from '../normalise/name.js';
 import { isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
+import { addressesEqual } from './match.js';
 import type { Candidate } from './link.js';
 import { ruleScore, type RuleId } from './rules.js';
 
@@ -80,7 +81,7 @@ function isRelatedPath(first: string, second: string): boolean {
 }
 
 /** Compares one query key with a candidate's values. */
-function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[], isSiteRead: boolean): KeyMatch {
+function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[]): KeyMatch {
   let state: KeyState = 'silent';
   let isStructured = false;
   let value: string | null = null;
@@ -126,10 +127,9 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
     for (const item of onSite.filter((candidate) => pagePath(candidate.value.url) === queryPath)) {
       confirm(query.website.url, item.quality === 'structured', item.record.source);
     }
-    // Unread, a page can't be told from an alias of it (/bookshops/reading, /bookshops/reading-broad-street): only a
-    // clearly different page contradicts.
-    const isContradiction = (url: string): boolean => isSiteRead || !isRelatedPath(pagePath(url), queryPath);
-    state = state === 'silent' && onSite.some((item) => isContradiction(item.value.url)) ? 'contradicted' : state;
+    // Another URL for the same branch (/bookshops/reading-broad-street, an old /healthandfitness/york that redirects)
+    // is neither: only a clearly different page contradicts.
+    state = state === 'silent' && onSite.some((item) => !isRelatedPath(pagePath(item.value.url), queryPath)) ? 'contradicted' : state;
   } else if (key === 'name' && query.name !== null) {
     const items = fieldItems(records, 'name');
     const queryName = query.name;
@@ -151,8 +151,8 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
 }
 
 /** Scores one candidate on its own (the identity base rules), before any tie. */
-function assessCandidate(candidate: Candidate, query: Query, isSiteRead: boolean): CandidateAssessment {
-  const keys = QUERY_KEYS.map((key) => matchKey(key, query, candidate.records, isSiteRead));
+function assessCandidate(candidate: Candidate, query: Query): CandidateAssessment {
+  const keys = QUERY_KEYS.map((key) => matchKey(key, query, candidate.records));
   const origins = [...new Set(candidate.records.map((record) => record.origin))];
   const hasStructured = candidate.records.some((record) => record.evidence.some((evidence) => evidence.quality === 'structured'));
   const pinned = keys.find((match) => PINNING_KEYS.has(match.key) && match.state === 'confirmed' && match.isStructured);
@@ -215,18 +215,50 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
     || (isSameBuilding(first, second) ? Number(second.isNameExact) - Number(first.isNameExact) : 0);
 }
 
-/** True when every candidate shares one postcode and one phone: one place listed several times (sales and lettings). */
+/**
+ * True when the candidates are one place listed several times: all in one building, and sharing a phone (a branch's
+ * sales and lettings listings) or all named alike (a thin duplicate listing with only a postcode).
+ */
 function isCoListed(assessments: readonly CandidateAssessment[]): boolean {
   const phonesOf = (assessment: CandidateAssessment): Set<string> => new Set(fieldItems(assessment.candidate.records, 'phone').map((item) => item.value.e164));
+  const namesOf = (assessment: CandidateAssessment): string[] => fieldItems(assessment.candidate.records, 'name').map((item) => item.value);
   const [first, ...rest] = assessments;
   const sharedPhones = first === undefined ? [] : [...phonesOf(first)].filter((phone) => rest.every((other) => phonesOf(other).has(phone)));
-  const sharedPostcodes = first === undefined ? [] : [...first.postcodes].filter((postcode) => rest.every((other) => other.postcodes.has(postcode)));
-  return sharedPhones.length > 0 && sharedPostcodes.length > 0;
+  const isNamedAlike = first !== undefined && rest.every((other) => namesOf(first).some((name) => namesOf(other).some((otherName) => compareNames(name, otherName) === 'equal')));
+  return first !== undefined && rest.every((other) => isSameBuilding(first, other)) && (sharedPhones.length > 0 || isNamedAlike);
 }
 
-/** True when two candidates share a postcode: listings in one building, which only their names tell apart. */
+/**
+ * True when two candidates share an address: the same postcode and building number. A postcode alone isn't a building
+ * everywhere (a US ZIP code covers a district), so a different building number keeps them apart.
+ */
 function isSameBuilding(first: CandidateAssessment, second: CandidateAssessment): boolean {
-  return [...first.postcodes].some((postcode) => second.postcodes.has(postcode));
+  const secondAddresses = fieldItems(second.candidate.records, 'address').map((item) => item.value);
+  return fieldItems(first.candidate.records, 'address').some((item) => item.value.postcode !== null
+    && secondAddresses.some((other) => addressesEqual(item.value, other)));
+}
+
+/** The query as the site answered it: when its site redirected to another domain, that domain, with the same path. */
+function queryAfterRedirect(candidates: readonly Candidate[], query: Query): Query {
+  const website = query.website;
+  const redirected = website === null ? undefined : candidates.flatMap((candidate) => [...candidate.records, ...candidate.brandRecords])
+    .find((record) => record.redirectedFrom !== undefined && isSameSite(record.redirectedFrom, website.domain));
+  const site = redirected === undefined ? null : recordSite(redirected);
+  let answered = query;
+  if (website !== null && site !== null) {
+    const url = new URL(website.url);
+    url.hostname = site;
+    answered = { ...query, website: { url: url.href, domain: site } };
+  }
+  return answered;
+}
+
+/** True when a candidate is only a listing with a branch page on the query's site, which nothing the site says joins: one of a chain's places. */
+function isBranchOnly(assessment: CandidateAssessment, query: Query): boolean {
+  const querySite = query.website?.domain ?? '';
+  const websites = fieldItems(assessment.candidate.records, 'website').map((item) => item.value);
+  const isFromSite = assessment.candidate.records.some((record) => record.source === 'web-fetch');
+  return !isFromSite && websites.length > 0 && websites.every((website) => isSameSite(website.domain, querySite) && !isSiteRoot(website.url));
 }
 
 /** Names a rejected candidate and the query values it contradicts, for reasons. */
@@ -252,12 +284,8 @@ export function queryHasLocation(query: Query): boolean {
 
 /** Resolves which candidate the lookup is about, and how sure the tool is (05: identity). */
 export function resolveIdentity(candidates: readonly Candidate[], query: Query): IdentityResult {
-  const querySite = query.website?.domain ?? null;
-  const isSiteRead = querySite !== null && candidates.some((candidate) => [...candidate.records, ...candidate.brandRecords].some((record) => {
-    const site = record.source === 'web-fetch' ? recordSite(record) : null;
-    return site !== null && isSameSite(site, querySite);
-  }));
-  const assessments = candidates.map((candidate) => assessCandidate(candidate, query, isSiteRead));
+  query = queryAfterRedirect(candidates, query);
+  const assessments = candidates.map((candidate) => assessCandidate(candidate, query));
   const consistent = assessments.filter((assessment) => assessment.isConsistent).sort(compareAssessments);
   const rejected = assessments.filter((assessment) => !assessment.isConsistent);
   const first = consistent[0];
@@ -298,7 +326,8 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
       reasons.push(`the query's site is confirmed, but its name isn't (the sources say ${siteName}); capped at ${cap}`);
       warnings.push(`The query's name "${query.name ?? ''}" doesn't match the site's name "${siteName}". Check that this is the business you meant.`);
     }
-    if (rules.includes('identity.tie') && !queryHasLocation(query) && query.website !== null && leaderSites.size === 1) {
+    const isWholeBusiness = !queryHasLocation(query) && query.website !== null;
+    if (isWholeBusiness && leaderSites.size === 1 && (rules.includes('identity.tie') || leaders.every((leader) => isBranchOnly(leader, query)))) {
       rules.push('identity.chain');
       reasons.push('a chain\'s home page with no location given: the identity is the chain, and these are some of its places');
       warnings.push('The query is a chain\'s home page with no location, and several of its places match. The brand\'s details (name, website, logo, socials) stand for the chain; the candidates are some of its places.');

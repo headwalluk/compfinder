@@ -5,6 +5,7 @@ import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
 import type { TransportRequest } from '../src/net/transport.js';
 import { builtInProviders } from '../src/providers/registry.js';
+import { searchUrl } from '../src/providers/brave-search-api/index.js';
 import { isDirectoryHost } from '../src/providers/search/common.js';
 import { fixtureTransport, type FixtureResponse, type FixtureRoute, type FixtureTransport } from './helpers/fixture-transport.js';
 import { makeQuery, testConfig } from './helpers/records.js';
@@ -85,6 +86,11 @@ describe('brave-search-api', () => {
     });
     assert.equal(statusOf(result, 'brave-search-api'), 'auth_failed');
     assert.equal(statusOf(result, 'web-fetch'), 'skipped: no website known');
+  });
+
+  test('a country Brave doesn\'t support is searched as ALL', () => {
+    assert.match(searchUrl('Bewley\'s, Dublin', 'IE', 10), /country=ALL/);
+    assert.match(searchUrl('Example', 'gb', 10), /country=GB/);
   });
 
   test('directory hosts match the host and its subdomains only', () => {
