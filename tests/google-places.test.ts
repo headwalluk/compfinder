@@ -161,6 +161,13 @@ describe('google-places-api', () => {
     assert.equal(searchText(knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans' })), 'Keenans, burnley');
   });
 
+  test('a home page with a name but no location searches the name alone, kept to the site; no name puts the path before a page\'s phone', () => {
+    const plan = (input: QueryInput, fields: Record<string, unknown>) => searchPlan({ query: makeQuery(input), fields } as unknown as Parameters<typeof searchText>[0]);
+    assert.deepEqual(plan({ url: 'https://example.com/' }, { name: 'Example Estates' }), { text: 'Example Estates', siteDomain: 'example.com' });
+    assert.deepEqual(plan({ url: 'https://www.example.co.uk/offices/estate-agents-in-wokingham/' }, { phone: { e164: '+441182178418', display: '0118 217 8418' } }),
+      { text: 'example, estate agents in wokingham', siteDomain: 'example.co.uk' });
+  });
+
   test('with no name known, the domain stands in for it, and only places on that site are kept', async () => {
     assert.deepEqual(searchPlan({ query: makeQuery({ url: 'https://www.example-books.co.uk/shops/reading' }), fields: {} } as unknown as Parameters<typeof searchText>[0]),
       { text: 'example books, reading', siteDomain: 'example-books.co.uk' });

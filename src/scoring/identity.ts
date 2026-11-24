@@ -70,8 +70,16 @@ export function listInWords(items: readonly string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`;
 }
 
+/** True when one page path's last segment begins with the other's (/shops/reading and /shops/reading-broad-street). */
+function isRelatedPath(first: string, second: string): boolean {
+  const lastSegment = (path: string): string => path.split('/').pop() ?? '';
+  const firstSegment = lastSegment(first);
+  const secondSegment = lastSegment(second);
+  return firstSegment !== '' && secondSegment !== '' && (firstSegment.startsWith(secondSegment) || secondSegment.startsWith(firstSegment));
+}
+
 /** Compares one query key with a candidate's values. */
-function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[]): KeyMatch {
+function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[], isSiteRead: boolean): KeyMatch {
   let state: KeyState = 'silent';
   let isStructured = false;
   let value: string | null = null;
@@ -117,7 +125,10 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[])
     for (const item of onSite.filter((candidate) => pagePath(candidate.value.url) === queryPath)) {
       confirm(query.website.url, item.quality === 'structured', item.record.source);
     }
-    state = state === 'silent' && onSite.length > 0 ? 'contradicted' : state;
+    // Unread, a page can't be told from an alias of it (/bookshops/reading, /bookshops/reading-broad-street): only a
+    // clearly different page contradicts.
+    const isContradiction = (url: string): boolean => isSiteRead || !isRelatedPath(pagePath(url), queryPath);
+    state = state === 'silent' && onSite.some((item) => isContradiction(item.value.url)) ? 'contradicted' : state;
   } else if (key === 'name' && query.name !== null) {
     const items = fieldItems(records, 'name');
     const queryName = query.name;
@@ -139,8 +150,8 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[])
 }
 
 /** Scores one candidate on its own (the identity base rules), before any tie. */
-function assessCandidate(candidate: Candidate, query: Query): CandidateAssessment {
-  const keys = QUERY_KEYS.map((key) => matchKey(key, query, candidate.records));
+function assessCandidate(candidate: Candidate, query: Query, isSiteRead: boolean): CandidateAssessment {
+  const keys = QUERY_KEYS.map((key) => matchKey(key, query, candidate.records, isSiteRead));
   const origins = [...new Set(candidate.records.map((record) => record.origin))];
   const hasStructured = candidate.records.some((record) => record.evidence.some((evidence) => evidence.quality === 'structured'));
   const pinned = keys.find((match) => PINNING_KEYS.has(match.key) && match.state === 'confirmed' && match.isStructured);
@@ -203,6 +214,15 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
     || (isSameBuilding(first, second) ? Number(second.isNameExact) - Number(first.isNameExact) : 0);
 }
 
+/** True when every candidate shares one postcode and one phone: one place listed several times (sales and lettings). */
+function isCoListed(assessments: readonly CandidateAssessment[]): boolean {
+  const phonesOf = (assessment: CandidateAssessment): Set<string> => new Set(fieldItems(assessment.candidate.records, 'phone').map((item) => item.value.e164));
+  const [first, ...rest] = assessments;
+  const sharedPhones = first === undefined ? [] : [...phonesOf(first)].filter((phone) => rest.every((other) => phonesOf(other).has(phone)));
+  const sharedPostcodes = first === undefined ? [] : [...first.postcodes].filter((postcode) => rest.every((other) => other.postcodes.has(postcode)));
+  return sharedPhones.length > 0 && sharedPostcodes.length > 0;
+}
+
 /** True when two candidates share a postcode: listings in one building, which only their names tell apart. */
 function isSameBuilding(first: CandidateAssessment, second: CandidateAssessment): boolean {
   return [...first.postcodes].some((postcode) => second.postcodes.has(postcode));
@@ -228,7 +248,12 @@ export function queryHasLocation(query: Query): boolean {
 
 /** Resolves which candidate the lookup is about, and how sure the tool is (05: identity). */
 export function resolveIdentity(candidates: readonly Candidate[], query: Query): IdentityResult {
-  const assessments = candidates.map((candidate) => assessCandidate(candidate, query));
+  const querySite = query.website?.domain ?? null;
+  const isSiteRead = querySite !== null && candidates.some((candidate) => [...candidate.records, ...candidate.brandRecords].some((record) => {
+    const site = record.source === 'web-fetch' ? recordSite(record) : null;
+    return site !== null && isSameSite(site, querySite);
+  }));
+  const assessments = candidates.map((candidate) => assessCandidate(candidate, query, isSiteRead));
   const consistent = assessments.filter((assessment) => assessment.isConsistent).sort(compareAssessments);
   const rejected = assessments.filter((assessment) => !assessment.isConsistent);
   const first = consistent[0];
@@ -248,7 +273,10 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
     rules.push(first.baseRule);
     reasons.push(first.baseReason);
     confidence = first.baseScore;
-    if (leaders.length > 1) {
+    if (leaders.length > 1 && isCoListed(leaders)) {
+      rules.push('identity.co-listed');
+      reasons.push(`${leaders.length} listings share this address and phone, so they're one place; the first is shown`);
+    } else if (leaders.length > 1) {
       confidence = Math.floor(first.baseScore / leaders.length);
       rules.push('identity.tie');
       const isFromSearch = leaders.some((leader) => leader.candidate.records.some((record) => record.source === 'google-places-api'));
@@ -265,6 +293,11 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
       rules.push('identity.name-mismatch');
       reasons.push(`the query's site is confirmed, but its name isn't (the sources say ${siteName}); capped at ${cap}`);
       warnings.push(`The query's name "${query.name ?? ''}" doesn't match the site's name "${siteName}". Check that this is the business you meant.`);
+    }
+    if (rules.includes('identity.tie') && !queryHasLocation(query) && query.website !== null && leaderSites.size === 1) {
+      rules.push('identity.chain');
+      reasons.push('a chain\'s home page with no location given: the identity is the chain, and these are some of its places');
+      warnings.push('The query is a chain\'s home page with no location, and several of its places match. The brand\'s details (name, website, logo, socials) stand for the chain; the candidates are some of its places.');
     }
     isHeadOffice = !queryHasLocation(query) && first.candidate.records.some((record) => record.role === 'head-office');
     if (isHeadOffice) {

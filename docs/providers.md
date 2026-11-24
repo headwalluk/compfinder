@@ -90,14 +90,17 @@ metered by Google.
   1. the best name known with the query's own postcode or address;
   2. the query's phone, when it has a phone but no postcode or address;
   3. the best name with a postcode or town another provider found;
-  4. a phone another provider found;
-  5. the best name with a hint from the URL's path (`/bookshops/reading` gives `reading`).
+  4. a phone a page showed;
+  5. the best name with a hint from the URL's path (`/bookshops/reading` gives `reading`);
+  6. for a home page with a name but no location or phone (a chain's home page), the name alone.
 
   The query's own values come first, so a branch page another provider happened to find can't
   narrow a town-wide query to that one branch. When no name is known at all (the site is blocked,
-  and the row gave only a URL), the domain stands in for the name (`waterstones.com` gives
-  `waterstones`), and **only places whose website is on that site are kept**, so a namesake
-  elsewhere is never taken. With nothing to search for, it waits for an earlier stage, and is
+  or has no name in its markup), the domain stands in for the name (`waterstones.com` gives
+  `waterstones`), and the URL's path comes before a phone the page showed, which may be a
+  call-tracking number Google doesn't know. A search on a domain-derived name, or on a name
+  alone, **keeps only places whose website is on the query's site**, so a namesake elsewhere is
+  never taken. With nothing to search for, it waits for an earlier stage, and is
   skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
   country as `regionCode`, which favours places there without excluding others.
 - **Fields read** (the field mask decides Google's billing tier): `id`, `displayName`,

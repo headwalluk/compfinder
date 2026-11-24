@@ -10,6 +10,8 @@ export const RULES = {
   'identity.none': { score: 0, summary: 'No candidate is consistent with the query' },
   'identity.tie': { score: null, summary: 'Several candidates are equally likely: the score is divided between them' },
   'identity.name-mismatch': { score: 40, summary: 'The query\'s site is confirmed but its name isn\'t: the business is kept, capped at this score' },
+  'identity.co-listed': { score: null, summary: 'The tied candidates share one address and phone: one place with several listings, not a tie' },
+  'identity.chain': { score: null, summary: 'A chain\'s home page with no location matches several of its places: the identity is the chain' },
   'identity.head-office': { score: null, summary: 'A chain\'s home page with no location: the identity is the head office' },
 
   'field.independent-agreement': { score: 100, summary: 'Two or more independent sources agree' },

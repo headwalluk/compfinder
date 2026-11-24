@@ -150,6 +150,8 @@ Some fields are usually lower by nature: Google never gives emails, so an email 
 | `identity.single-structured` | Only one source (usually the site) | Fine for most uses; Google would confirm it |
 | `identity.name-mismatch` | The website you gave is confirmed, but the name isn't, even allowing for typos. Capped at 40 | Often a trading name, a rebrand or a parent company. Compare your name with `fields.name.value` and decide |
 | `identity.tie` | Several places match equally, for example two branches when you gave no location | Look at `identity.candidates`, then re-run with a postcode, phone or branch URL. A tie from a place search lists at most five, and its reason says there may be more |
+| `identity.chain` | You gave a chain's home page, no location, and several of its places match | The row is the whole chain. Use the brand fields (name, website, logo, socials), which keep the site's confidence; address, phone and place ID are empty, and `identity.candidates` lists some of its places. `identity.confidence` is low because no one place is meant, not because the business is in doubt |
+| `identity.co-listed` | Several listings share one address and phone (a branch's sales and lettings listings) | Treat it as one place: it is. The first listing provides the fields |
 | `identity.head-office` | You gave a chain's home page and no location | The result is the head office, scored as usual (60 from the site alone, 100 when Google agrees). For a branch, give its page or postcode |
 | `identity.none` | Nothing matched, or everything found contradicted your row | Check the input. A wrong URL or a stale phone is the usual cause |
 

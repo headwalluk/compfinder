@@ -41,7 +41,10 @@ Linking keeps places apart that are different:
   shares its **strongest** key with. When that key fits several places, it joins the one with
   the same name, or, with no such name (a head office known only by its postcode), none of them.
 
-Candidates are matched against your query. A candidate the query contradicts is dropped, unless one of your query's pinning values
+Candidates are matched against your query. A branch page in your query that compfinder couldn't
+read (the site blocked it) isn't contradicted by a different URL for what may be the same page:
+only a clearly different page (`/shops/wokingham` against `/shops/reading`) contradicts it. An
+alias (`/shops/reading-broad-street`) is neither confirmed nor contradicted. A candidate the query contradicts is dropped, unless one of your query's pinning values
 (place ID, phone, postcode, branch page) is confirmed. In that case the other mismatches are
 treated as stale data and shown as field conflicts.
 
@@ -74,6 +77,8 @@ search, which returns only its best few matches, so the list may not be complete
 | `identity.none` | 0 | Nothing matches, or every candidate contradicts the query |
 | `identity.tie` | ÷ n | *n* candidates match your query equally: each gets ⌊score ÷ n⌋ and all are listed in `candidates`. How many sources back a candidate never breaks a tie: two sources agreeing that a branch exists doesn't make it the branch you meant. The best-sourced candidate is listed first, and supplies the fields |
 | `identity.name-mismatch` | ≤ 40 | Your query's site is confirmed but its name isn't, even allowing for typos. The business is kept rather than dropped, its identity (and so every field) is capped at 40, and a warning gives both names |
+| `identity.co-listed` | — | The tied candidates share one address and one phone: one place listed several times (sales and lettings, say). It isn't a tie: the score isn't divided, and the first listing provides the fields |
+| `identity.chain` | — | A chain's home page with no location given matches several of its places (a tie). The identity is the chain: the fields come from the brand's own records (name, website, logo, socials) at the brand's confidence, place fields (address, phone, place ID) are left empty, the places are listed in `candidates`, and a warning says so. `identity.confidence` is still the tie's divided score, because it measures which place, and no one place is meant |
 | `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
 
 ## Fields

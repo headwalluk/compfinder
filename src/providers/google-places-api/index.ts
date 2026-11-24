@@ -125,32 +125,38 @@ export function pathHint(url: string): string | null {
 /**
  * What to search for (docs/providers.md). The query's own keys come first, so a lead another provider followed (one
  * branch's page) can't narrow a town-wide query to that branch: its postcode or address with the best name known; else
- * its phone; else a location or phone another provider found; else a hint from the URL's path. With no name known at
- * all (a blocked site, a URL-only row), the domain stands in for the name, and only places on that site are kept.
+ * its phone; else a location another provider found; else a phone a page showed; else a hint from the URL's path.
+ * With no name known, the domain stands in for one, and the path comes before a page's phone (which may be a call-
+ * tracking number). A search on a domain-derived name, or on a name alone, keeps only places on the query's site.
  */
 export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const { query, fields } = knowledge;
   const queryLocation = query.postcode ?? query.address;
   const queryPhone = query.phone?.display ?? null;
   const knownName = query.name ?? fields.name ?? null;
-  const siteDomain = knownName === null && query.website !== null ? query.website.domain : null;
-  const name = knownName ?? (siteDomain === null ? null : nameFromDomain(siteDomain));
+  const isNameFromDomain = knownName === null && query.website !== null;
+  const name = knownName ?? (query.website === null ? null : nameFromDomain(query.website.domain));
   const location = queryLocation ?? fields.address?.postcode ?? fields.address?.town ?? null;
-  const phone = queryPhone ?? fields.phone?.display ?? null;
+  const foundPhone = fields.phone?.display ?? null;
   const hint = query.website === null ? null : pathHint(query.website.url);
   let text: string | null = null;
+  let isSiteOnly = isNameFromDomain;
   if (queryLocation === null && queryPhone !== null) {
     text = queryPhone;
   } else if (name !== null && location !== null) {
     text = `${name}, ${location}`;
-  } else if (phone !== null) {
-    text = phone;
+  } else if (foundPhone !== null && !isNameFromDomain) {
+    text = foundPhone;
   } else if (name !== null && hint !== null) {
     text = `${name}, ${hint}`;
-  } else if (siteDomain !== null && name !== null) {
+  } else if (foundPhone !== null) {
+    text = foundPhone;
+  } else if (name !== null && query.website !== null) {
+    // A name alone (a chain's home page with no location) finds its places anywhere: keep those on its own site.
     text = name;
+    isSiteOnly = true;
   }
-  return text === null ? null : { text, siteDomain };
+  return text === null ? null : { text, siteDomain: isSiteOnly ? query.website?.domain ?? null : null };
 }
 
 /** The text a search would send, or null when there's nothing to search with. */

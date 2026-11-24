@@ -22,7 +22,12 @@ export function scoreLookup(
 ): ScoreResult {
   const identity = resolveIdentity(linkCandidates(records, query), query);
   const leader = identity.leaders[0]?.candidate;
-  const fieldRecords = [queryRecord, ...(leader?.records ?? []), ...(leader?.brandRecords ?? [])];
+  // A chain's identity is the brand: its fields come from the brand's own records, not from one of its places.
+  const isChain = identity.rules.includes('identity.chain');
+  const brandRecords = [...new Set(identity.leaders.flatMap((assessment) => assessment.candidate.brandRecords))];
+  const fieldRecords = isChain
+    ? [queryRecord, ...brandRecords]
+    : [queryRecord, ...(leader?.records ?? []), ...(leader?.brandRecords ?? [])];
   const context: FieldContext = { query, priority, identity, isBranchQuery: queryHasLocation(query) };
   const website = scoreField('website', fieldRecords, context);
   const fields: FieldResults = {

@@ -261,7 +261,9 @@ export function scoreField<Field extends Exclude<FieldName, 'logo' | 'socials'>>
         applyCap(result, 'field.head-office', ruleScore('field.head-office'), 'head-office page, not the branch\'s');
       }
       const isBranchPage = field === 'website' && result.value !== null && !isSiteRoot((result.value as FieldValues['website']).url);
-      if (LOCATION_FIELDS.has(field) || isBranchPage) {
+      // A chain's identity is its brand: even its name and email belong to the brand, not to one place.
+      const isChain = context.identity.rules.includes('identity.chain');
+      if ((LOCATION_FIELDS.has(field) && !isChain) || isBranchPage) {
         applyCap(result, 'field.identity-cap', context.identity.confidence, `capped at the identity's confidence (${context.identity.confidence})`);
       } else {
         applyCap(result, 'field.brand-cap', context.identity.brandConfidence, `capped at the brand's confidence (${context.identity.brandConfidence})`);

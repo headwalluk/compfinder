@@ -64,6 +64,12 @@ All notable changes to this project are documented here. The format follows
   and a tie's fields always describe one place.
 - Google searches by the query's phone when it has no postcode or address, and, when no name is
   known (a blocked site, a URL-only row), by the domain's name, keeping only places on that site.
+- `identity.chain`: a chain's home page that matches several of its places is the chain, with
+  the brand's fields and no one place's address or phone. `identity.co-listed`: listings that
+  share one address and phone are one place, not a tie.
+- A home page with no location searches Google on the site's name, kept to the site; with no
+  name known, the URL's path comes before a page's phone. An unread branch page isn't
+  contradicted by an alias URL for it.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.
 - A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's

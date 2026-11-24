@@ -166,7 +166,7 @@ export function lookupError(reports: readonly ProviderReport[]): OutputError | n
 export function buildResult(outcome: LookupOutcome, options: { isExplain: boolean }): LookupResult {
   const { query, score } = outcome;
   const identity = score.identity;
-  const isTie = identity.leaders.length > 1;
+  const isTie = identity.rules.includes('identity.tie');
   const fields = {} as Record<FieldName, OutputField>;
   for (const field of FIELD_NAMES) {
     fields[field] = outputField(score.fields[field] as FieldResult<FieldName>, options.isExplain);
