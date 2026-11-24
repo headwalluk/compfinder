@@ -97,6 +97,12 @@ describe('identity rules', () => {
     assert.equal(result.identity.brandConfidence, 60, 'both leaders are on example.com, so the brand isn\'t in doubt');
   });
 
+  test('identity.none names each rejected candidate and what it contradicts', () => {
+    const result = score({ name: 'Other Agents' }, [googleBranch]);
+    assert.equal(result.identity.confidence, 0);
+    assert.deepEqual(result.identity.reasons, ['every candidate contradicts the query: Example Estates Reading (different name)']);
+  });
+
   test('identity.name-mismatch: the query\'s site is confirmed but its name isn\'t; kept, capped at 40', () => {
     const result = score({ name: 'Totally Different Agents', url: 'https://example.com/' }, [siteBranch]);
     assert.equal(result.identity.confidence, 40);

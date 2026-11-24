@@ -90,6 +90,12 @@ describe('compfinder CLI', () => {
     assert.doesNotMatch(result.stdout + result.stderr, new RegExp(TEST_API_KEY));
   });
 
+  test('--version is the same as the version command', () => {
+    const result = run(['--version']);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /^\d+\.\d+\.\d+/);
+  });
+
   test('config init and config path work with a --config file that doesn\'t exist yet', () => {
     const home = makeTemporaryHome();
     const configPath = path.join(home, 'elsewhere', 'compfinder.toml');

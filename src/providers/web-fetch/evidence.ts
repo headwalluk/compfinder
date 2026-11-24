@@ -149,7 +149,7 @@ export function blockEvidence(block: BusinessBlock, page: ParsedPage, countryCod
     addEmail(email, businessWords, 'structured', detail, page.url, block.isLocalBusiness || address !== null ? location : brand, withheld);
   }
   const blockUrl = firstText(properties.url, 'url');
-  const website = blockUrl === null ? null : normaliseUrl(resolveUrl(blockUrl, page.url) ?? blockUrl);
+  const website = blockUrl === null ? null : normaliseUrl(resolveUrl(blockUrl, page.baseUrl) ?? blockUrl);
   if (website !== null) {
     (block.isLocalBusiness ? location : brand).push({ field: 'website', value: website, quality: 'structured', reference });
   } else if (block.isLocalBusiness) {
@@ -185,7 +185,7 @@ export function metaEvidence(page: ParsedPage): { brand: Evidence[]; manifestUrl
   }
   for (const key of ['og:image', 'og:image:url', 'twitter:image']) {
     const image = page.meta.get(key);
-    const url = image === undefined ? null : resolveUrl(image, page.url);
+    const url = image === undefined ? null : resolveUrl(image, page.baseUrl);
     if (url !== null && normaliseUrl(url) !== null && !brand.some((entry) => entry.field === 'logo' && entry.value.source_url === url)) {
       const width = key.startsWith('og:') ? numberFrom(page.meta.get('og:image:width')) : null;
       brand.push({

@@ -6,6 +6,7 @@ import { checkProviders, runLookup } from '../src/lookup/engine.js';
 import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
 import type { TransportRequest } from '../src/net/transport.js';
+import { searchText } from '../src/providers/google-places-api/index.js';
 import { builtInProviders } from '../src/providers/registry.js';
 import { fixtureTransport, type FixtureResponse, type FixtureRoute, type FixtureTransport } from './helpers/fixture-transport.js';
 import { makeQuery, testConfig } from './helpers/records.js';
@@ -132,6 +133,23 @@ describe('google-places-api', () => {
     const tied = await find({ name: 'Example Estates', address: 'Berkshire' }, { [SEARCH_URL]: google('search-two-branches.json') });
     assert.equal(tied.result.identity.candidates.length, 2);
     assert.equal(tied.result.identity.confidence, 30);
+  });
+
+  test('2. a site read after Google\'s lead doesn\'t break a tie: both branches match the query equally', async () => {
+    const seen: TransportRequest[] = [];
+    const { result } = await find({ name: 'Example Estates', address: 'Berkshire' }, { ...SITE, [SEARCH_URL]: recordingRoute('search-two-branches.json', seen) });
+    assert.equal(JSON.parse(seen[0]?.body ?? '{}').textQuery, 'Example Estates, Berkshire', 'the query\'s own location is searched');
+    assert.ok(result.identity.rules.includes('identity.tie'), JSON.stringify(result.identity));
+    assert.deepEqual(result.identity.candidates.map((candidate) => candidate.name), ['Example Estates Wokingham', 'Example Estates Reading', 'Example Estates'],
+      'both branches, and the head office the site describes: "Berkshire" tells none of them apart');
+  });
+
+  test('the query\'s own address is searched before a postcode another provider found', () => {
+    const knowledge = {
+      query: makeQuery({ name: 'Kwik Fit', address: 'Bracknell' }),
+      fields: { address: { lines: [], town: 'Bracknell', county: null, postcode: 'RG12 9SE', country_code: 'GB', formatted: null, lat: null, lon: null } },
+    } as unknown as Parameters<typeof searchText>[0];
+    assert.equal(searchText(knowledge), 'Kwik Fit, Bracknell');
   });
 
   test('a permanently closed place is reported in warnings', async () => {

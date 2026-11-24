@@ -81,7 +81,7 @@ options (`--fields`, `--providers`, `--no-download`, …) apply to every line.
 Results stream out as each lookup finishes: one JSON line, one CSV row (after a single header
 row), or one text block headed by `[id]` (or `[line N]` when the line has no id). A line that can't be looked up gets an error
 in place of a result ([output.md](output.md)), and the batch carries on. A batch exits 0 once it has run, whatever its lines held. It exits 2 when an option is wrong or
-the input file can't be read. A summary (lines, lines with errors, metered calls) goes to stderr at
+the input file can't be read. A summary (lines, lines with errors (`ok: false`), metered calls) goes to stderr at
 `info`.
 
 ## Options for every command
@@ -134,7 +134,7 @@ Text output is for people, and may change in any release. Scripts and agents sho
 |---|---|---|
 | 0 | success | The command ran. For a lookup, finding nothing is still success |
 | 1 | failure | The command ran and failed. For a lookup, every provider that was tried failed (`lookup.all_failed`) |
-| 2 | usage | Unknown command, unknown or invalid option, or an unexpected argument |
+| 2 | usage | Unknown command, unknown or invalid option, an unexpected argument, or a batch input file that can't be read |
 | 3 | invalidConfig | Configuration problems, every one listed. Or no provider can serve the request (`lookup.no_provider`) |
 | 4 | refused | The command refused to act, for example `config init` when the file already exists |
 | 5 | notReady | Not used yet |

@@ -14,7 +14,7 @@ When `web-fetch` reads a business's site, it:
   disallowed, and the lookup reports `web-fetch` as `blocked`, following RFC 9309.
   `web_fetch.honour_robots = false` turns this off, at your own responsibility;
 - reads only a few pages per lookup (`web_fetch.max_pages`, default 5): the page given, then
-  same-site contact, home, branches and about pages. It never crawls. The only way it leaves
+  contact, home, branches and about pages on the same host (not other subdomains). It never crawls. The only way it leaves
   the site is when the page given redirects to another domain: that domain is then read as the
   business's site (with its own `robots.txt`), and a warning says so. Later pages must stay on
   it;

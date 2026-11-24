@@ -77,6 +77,12 @@ describe('business names', () => {
     assert.equal(compareNames('EXAMPLE ESTATES LIMITED', 'Example Estates'), 'equal');
   });
 
+  test('Co, Company and & Co are legal suffixes too', () => {
+    assert.equal(compareNames('Rebellion Beer Company', 'Rebellion Beer Co. Ltd.'), 'equal');
+    assert.equal(compareNames('Smith & Co', 'Smith'), 'equal');
+    assert.equal(comparableName('Co-op Funeralcare'), 'co op funeralcare', 'only at the end');
+  });
+
   test('are compatible when one\'s words are all in the other', () => {
     assert.equal(compareNames('Example Estates', 'Example Estates - Reading'), 'compatible');
     assert.equal(compareNames('Example Estates', 'Other Agents'), 'incompatible');

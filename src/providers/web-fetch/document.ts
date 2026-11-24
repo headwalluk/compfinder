@@ -14,6 +14,8 @@ export interface PageLink {
 
 export interface ParsedPage {
   url: string;
+  /** What relative references resolve against: the first <base href>, else the page's own URL. */
+  baseUrl: string;
   document: Document;
   title: string;
   visibleText: string;
@@ -70,16 +72,19 @@ export function parsePage(html: string, url: string): ParsedPage {
       meta.set(key, content);
     }
   }
+  const baseHref = byName('base').find((element) => element.attribs.href !== undefined)?.attribs.href;
+  const baseCandidate = baseHref === undefined ? null : resolveUrl(baseHref, url);
+  const baseUrl = baseCandidate !== null && /^https?:/i.test(baseCandidate) ? baseCandidate : url;
   const links: PageLink[] = [];
   for (const element of byName('a')) {
     const href = element.attribs.href;
-    const resolved = href === undefined ? null : (href.trim().match(/^(tel|mailto):/i) ? href.trim() : resolveUrl(href, url));
+    const resolved = href === undefined ? null : (href.trim().match(/^(tel|mailto):/i) ? href.trim() : resolveUrl(href, baseUrl));
     if (resolved !== null) {
       links.push({ url: resolved, text: DomUtils.textContent(element).replace(WHITESPACE_RUN, ' ').trim() });
     }
   }
   const linkTags = byName('link').flatMap((element) => {
-    const href = element.attribs.href === undefined ? null : resolveUrl(element.attribs.href, url);
+    const href = element.attribs.href === undefined ? null : resolveUrl(element.attribs.href, baseUrl);
     return href === null ? [] : [{
       rel: (element.attribs.rel ?? '').toLowerCase().split(WHITESPACE_RUN).filter((token) => token !== ''),
       href,
@@ -95,6 +100,7 @@ export function parsePage(html: string, url: string): ParsedPage {
   const titleElement = byName('title')[0];
   return {
     url,
+    baseUrl,
     document,
     title: titleElement === undefined ? '' : DomUtils.textContent(titleElement).replace(WHITESPACE_RUN, ' ').trim(),
     visibleText: visibleText(document.children),

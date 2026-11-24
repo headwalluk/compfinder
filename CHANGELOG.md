@@ -48,6 +48,17 @@ All notable changes to this project are documented here. The format follows
 - A library API: `import { createFinder } from '@headwall/compfinder'`, with settings passed in
   code, `find`, `plan` and `checkProviders`, TypeScript declarations, and the result schema
   exported as `@headwall/compfinder/schema/result-1.0.json`. See `docs/library.md`.
+- On sites with no location markup, a page's own phone and postcode are used first, and loose
+  details that list many places (every branch's number in a footer) are treated as a listing,
+  not as one business's details, with a warning.
+- Places that match a query equally tie, however many sources back each one, and Google searches
+  with the query's own location first: a name and a town with several branches is a tie, not
+  whichever branch another provider happened to find.
+- `Co`, `Company` and `& Co` are compared as legal suffixes. When every candidate is rejected,
+  the reason names each one and what it contradicted.
+- `web-fetch` reads only the start page's own host, honours `<base href>`, and decodes HTML
+  character references in text. Tracking parameters are removed from URLs.
+- `compfinder --version`. The batch summary's error count includes lookups that failed.
 - A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's
   listing for the same place, so they agree even when their phone or address differs.
 

@@ -96,11 +96,14 @@ export function placeRecord(place: Place, countryCode: string, detail: string): 
   return record;
 }
 
-/** The text to search for: the best name known, plus the best location (postcode, then town, then address). */
+/**
+ * The text to search for: the best name known, plus a location. The query's own postcode or address comes first, so a
+ * lead another provider followed (one branch's page) can't narrow a town-wide query to that branch.
+ */
 export function searchText(knowledge: Knowledge): string | null {
   const name = knowledge.query.name ?? knowledge.fields.name ?? null;
   const address = knowledge.fields.address;
-  const location = knowledge.query.postcode ?? address?.postcode ?? address?.town ?? knowledge.query.address ?? null;
+  const location = knowledge.query.postcode ?? knowledge.query.address ?? address?.postcode ?? address?.town ?? null;
   const phone = knowledge.query.phone?.display ?? knowledge.fields.phone?.display ?? null;
   let text: string | null = null;
   if (name !== null && location !== null) {

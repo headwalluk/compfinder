@@ -1,6 +1,6 @@
 /** Flags that take no value. Every other --flag takes the next token, or the text after "=". */
 const BOOLEAN_FLAGS = new Set([
-  'help', 'dry-run', 'explain', 'no-download', 'no-cache', 'allow-private-addresses',
+  'help', 'version', 'dry-run', 'explain', 'no-download', 'no-cache', 'allow-private-addresses',
   // Not options: parsed as flags only so they're rejected with a hint to use --output.
   'json', 'csv',
 ]);

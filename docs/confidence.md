@@ -51,7 +51,7 @@ are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` sta
 | `identity.single-structured` | 60 | One source only, with structured data (schema.org markup, an API field) |
 | `identity.single-loose` | 40 | One source only, from loose page content (a `tel:` link, a postcode in the text) |
 | `identity.none` | 0 | Nothing matches, or every candidate contradicts the query |
-| `identity.tie` | ÷ n | *n* candidates match equally: each gets ⌊score ÷ n⌋ and all are listed in `candidates` |
+| `identity.tie` | ÷ n | *n* candidates match your query equally: each gets ⌊score ÷ n⌋ and all are listed in `candidates`. How many sources back a candidate never breaks a tie: two sources agreeing that a branch exists doesn't make it the branch you meant. The best-sourced candidate is listed first, and supplies the fields |
 | `identity.name-mismatch` | ≤ 40 | Your query's site is confirmed but its name isn't, even allowing for typos. The business is kept rather than dropped, its identity (and so every field) is capped at 40, and a warning gives both names |
 | `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
 
@@ -59,7 +59,8 @@ are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` sta
 
 For each field, values that are the same fact are grouped. Phone numbers are equal by E.164,
 addresses by postcode and building number, websites by site, and names after removing case,
-punctuation and legal suffixes. The group with the most independent sources wins.
+punctuation and legal suffixes (`Ltd`, `Limited`, `PLC`, `LLP`, `Co`, `Company`, `& Co` and similar). The
+group with the most independent sources wins.
 
 | Rule | Score | Applies when |
 |---|---|---|

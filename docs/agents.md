@@ -84,6 +84,7 @@ compfinder find --input=leads.jsonl --output=json --no-download \
 - **stdout** gets exactly one JSON line per input line, in input order. Match results back to
   rows by `id`.
 - **stderr** gets logs and a closing summary: `Batch: N lines, E with errors, M metered calls.`
+  `E` counts every line with `ok: false`: bad input and lookups where every provider failed.
 - **Exit code**: a batch exits 0 when it ran, even if some lines had errors. Per-line problems
   are in each line's `ok` and `error`. Exit 2 means the command itself was wrong (a bad option,
   an unreadable input file), and exit 3 means the configuration is invalid.
@@ -130,7 +131,7 @@ how good a lead is. The ones you'll see most:
 
 | Score | Typically means | A sensible default |
 |---|---|---|
-| 100 | Two independent sources agree (the site and Google), or a source confirms something you supplied | Use it |
+| 100 | Two independent sources agree (the site and Google), or a source confirms something you supplied | Use it. For a branch of a chain, check `identity.rules`: `identity.input-confirmed` means your branch page, postcode or phone was confirmed, which is the strongest answer |
 | 60 | One source, from structured data. Usually the site alone, which nothing else has confirmed | Usable. Check it if it matters |
 | 40 | One source from loose page content, or a name mismatch (below) | Read the reasons before using it |
 | 30 | A branch was asked for, but the value only came from the head office | Treat it as the head office's, not the branch's |
@@ -149,7 +150,7 @@ Some fields are usually lower by nature: Google never gives emails, so an email 
 | `identity.single-structured` | Only one source (usually the site) | Fine for most uses; Google would confirm it |
 | `identity.name-mismatch` | The website you gave is confirmed, but the name isn't, even allowing for typos. Capped at 40 | Often a trading name, a rebrand or a parent company. Compare your name with `fields.name.value` and decide |
 | `identity.tie` | Several places match equally, for example two branches when you gave no location | Look at `identity.candidates`, then re-run with a postcode, phone or branch URL |
-| `identity.head-office` | You gave a chain's home page and no location | The result is the head office. For a branch, give its page or postcode |
+| `identity.head-office` | You gave a chain's home page and no location | The result is the head office, scored as usual (60 from the site alone, 100 when Google agrees). For a branch, give its page or postcode |
 | `identity.none` | Nothing matched, or everything found contradicted your row | Check the input. A wrong URL or a stale phone is the usual cause |
 
 ## Branches of one business
@@ -176,10 +177,11 @@ For a list of branches that share one website:
 | `error.code: input.no_query` | Nothing to look up | The row has no usable name, URL, phone or place ID |
 | `error.code: lookup.no_provider` | No configured provider can work from this row, for example a name with no location and no Brave key | Add data to the row, or configure the missing provider |
 | `error.code: lookup.all_failed` | Every provider that ran failed | Look at `providers[].status` and `detail` |
-| `web-fetch` status `blocked` | The site refused automated requests (Cloudflare and similar) | Nothing to fix here. Google may still give a result |
+| `web-fetch` status `blocked` | The site refused automated requests (Cloudflare and similar) | Nothing to fix on the site. Google can still give a result, but only if the row has a name (with a location or phone) to search with: a URL-only row on a blocked site fails, so send the name too |
 | `web-fetch` status `unreadable` | The site builds its pages with JavaScript, so there's nothing to read | As above |
 | `skipped`, reason `over budget` | The batch's metered budget ran out | Re-run those lines with a new budget |
 | `auth_failed`, `quota_exceeded` | A key was rejected, or a provider's quota was used up | Stop and report it: every later line will hit it too |
+| A warning that the site "lists N phone number(s)" | The site shows many branches' details without marking which is which, so none was taken as this business's | Give the branch's postcode, phone or own page, or a name with its town for Google to search |
 
 ## What compfinder won't do
 

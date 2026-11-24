@@ -10,7 +10,10 @@ const WEB_PROTOCOLS = new Set(['http:', 'https:']);
 const DEFAULT_SCHEME = 'https://';
 const WWW_PREFIX = 'www.';
 
-/** Parses a web address, adding https:// when there's no scheme; null unless it's http(s). */
+/** Query parameters that only track a click (Google Business Profile links carry utm_*); removed from every URL. */
+const TRACKING_PARAMETER = /^(?:utm_[a-z_]+|gclid|gbraid|wbraid|dclid|fbclid|msclkid|yclid|igshid|mc_cid|mc_eid|_ga|_gl)$/i;
+
+/** Parses a web address, adding https:// when there's no scheme, dropping the fragment and tracking parameters; null unless it's http(s). */
 export function normaliseUrl(raw: string): WebsiteValue | null {
   const trimmed = raw.trim();
   const candidate = SCHEME_PATTERN.test(trimmed) ? trimmed : `${DEFAULT_SCHEME}${trimmed}`;
@@ -19,6 +22,9 @@ export function normaliseUrl(raw: string): WebsiteValue | null {
     const parsed = new URL(candidate);
     if (WEB_PROTOCOLS.has(parsed.protocol) && parsed.hostname.includes('.')) {
       parsed.hash = '';
+      for (const name of [...parsed.searchParams.keys()].filter((key) => TRACKING_PARAMETER.test(key))) {
+        parsed.searchParams.delete(name);
+      }
       website = { url: parsed.href, domain: siteHost(parsed.hostname) };
     }
   }

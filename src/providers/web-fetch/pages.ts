@@ -1,4 +1,4 @@
-import { isSameSite, isSiteRoot, pagePath } from '../../normalise/url.js';
+import { isSiteRoot, pagePath, siteHost } from '../../normalise/url.js';
 import type { ParsedPage } from './document.js';
 
 /** Scores for links worth reading, by what the path or link text mentions (docs/providers.md). */
@@ -39,13 +39,13 @@ export function isUnreadable(page: ParsedPage, businessBlocks: number, minimumTe
   return businessBlocks === 0 && !hasContactLinks && page.visibleText.length < minimumTextChars;
 }
 
-/** Ranks the start page's same-site links by how likely they are to hold contact details; best first. */
+/** Ranks the start page's links on its own host (ignoring www., not other subdomains) by how likely they are to hold contact details; best first. */
 export function selectPages(start: ParsedPage, site: string, limit: number): string[] {
   const scores = new Map<string, number>();
   const startPath = pagePath(start.url);
   const add = (url: string, score: number): void => {
     const isEligible = URL.canParse(url) && ['http:', 'https:'].includes(new URL(url).protocol)
-      && isSameSite(new URL(url).hostname, site) && !ASSET_PATH.test(new URL(url).pathname) && pagePath(url) !== startPath;
+      && siteHost(new URL(url).hostname) === site && !ASSET_PATH.test(new URL(url).pathname) && pagePath(url) !== startPath;
     if (isEligible && score > (scores.get(url) ?? 0)) {
       scores.set(url, score);
     }

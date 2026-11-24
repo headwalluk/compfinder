@@ -27,6 +27,9 @@ const SUCCESS_MAX = 299;
 const SITE_ORIGIN_PREFIX = 'site:';
 /** How long web-fetch may keep responses (docs/providers.md): pages and manifests an hour, robots.txt a day. */
 const PAGE_CACHE_TTL_SECONDS = 60 * 60;
+/** Most distinct phone numbers, and postcodes, loose page evidence may hold and still describe one place. */
+const MAX_LOOSE_PHONES = 2;
+const MAX_LOOSE_POSTCODES = 1;
 const ROBOTS_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 /** What reading one page produced. */
@@ -116,6 +119,31 @@ async function fetchPage(url: string, isStart: boolean, site: string, context: P
     context.logger.warn(`Skipping a page: ${problem.detail}`);
   }
   return page;
+}
+
+/** The distinct phone numbers and postcodes in some loose evidence. */
+function placeKeys(evidence: readonly Evidence[]): { phones: Set<string>; postcodes: Set<string> } {
+  const phones = new Set<string>();
+  const postcodes = new Set<string>();
+  for (const item of evidence) {
+    if (item.field === 'phone') {
+      phones.add(item.value.e164);
+    } else if (item.field === 'address' && item.value.postcode !== null) {
+      postcodes.add(item.value.postcode);
+    }
+  }
+  return { phones, postcodes };
+}
+
+/** True when loose evidence lists several places (a branch directory, a footer of numbers) rather than one (docs/providers.md). */
+function isListing(evidence: readonly Evidence[]): boolean {
+  const { phones, postcodes } = placeKeys(evidence);
+  return phones.size > MAX_LOOSE_PHONES || postcodes.size > MAX_LOOSE_POSTCODES;
+}
+
+/** Loose evidence without the facts that belong to one place: what a listing still says about the business. */
+function withoutPlaceFacts(evidence: readonly Evidence[]): Evidence[] {
+  return evidence.filter((item) => item.field !== 'phone' && item.field !== 'address');
 }
 
 /** Extracts everything web-fetch reads from one page. */
@@ -270,7 +298,8 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
           if (result.locations.length === 1) {
             // Loose facts only fill gaps: a footer's registered-office postcode must not join a branch's record.
             const structuredFields = new Set(location.evidence.map((item) => item.field));
-            addUnique(evidence, result.loose.location.filter((item) => !structuredFields.has(item.field)));
+            const fillers = isListing(result.loose.location) ? withoutPlaceFacts(result.loose.location) : result.loose.location;
+            addUnique(evidence, fillers.filter((item) => !structuredFields.has(item.field)));
           }
           records.push({
             source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
@@ -279,17 +308,25 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
           });
         });
       }
+      const brand: Evidence[] = [];
       if (records.length === 0) {
-        const loose: Evidence[] = [];
+        // The start page's own details come first: a branch page names its branch, while the site's other pages
+        // may list every branch. Only when the start page has no place facts are the pages merged.
+        const startLoose = readable[0]?.page.url === start.url ? readable[0].loose.location : [];
+        const hasStartPlace = startLoose.some((item) => item.field === 'phone' || item.field === 'address');
+        const loose: Evidence[] = hasStartPlace && !isListing(startLoose) ? [...startLoose] : [];
         for (const result of readable) {
-          addUnique(loose, result.loose.location);
+          addUnique(loose, loose.length > 0 ? withoutPlaceFacts(result.loose.location) : result.loose.location);
         }
-        if (loose.length > 0) {
+        if (isListing(loose)) {
+          const { phones, postcodes } = placeKeys(loose);
+          context.warn(`${site} lists ${phones.size} phone number(s) and ${postcodes.size} postcode(s) without saying which place each belongs to, so none was taken as this business's.`);
+          addUnique(brand, withoutPlaceFacts(loose));
+        } else if (loose.length > 0) {
           records.push({ source: 'web-fetch', origin, subject: `${start.url}#links`, scope: 'location', role: 'unknown', evidence: loose });
         }
       }
 
-      const brand: Evidence[] = [];
       for (const result of readable) {
         addUnique(brand, result.brand);
         addUnique(brand, result.loose.brand);

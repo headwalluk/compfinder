@@ -33,7 +33,7 @@ Reads the business's own pages. It needs no key, and it's free.
 **What it reads**, starting from the URL given (or the website another provider found):
 
 - `robots.txt`, and honours it ([security.md](security.md));
-- the page itself, then up to `web_fetch.max_pages - 1` more pages on the same site (four, by
+- the page itself, then up to `web_fetch.max_pages - 1` more pages on the same host (four, by
   default). The link scores (highest first)
   are: the page's canonical URL (40), contact pages (30), the home page (25), branch or office
   listings (20), about pages (10). Ties are broken by URL. It stops early once it finds a
@@ -49,9 +49,20 @@ Reads the business's own pages. It needs no key, and it's free.
 | `tel:` and `mailto:` links, social links | phone, role email and social profiles. These are loose evidence |
 | The page text | a postcode, when the page has exactly one |
 
+"The same host" means the start page's own host, with or without `www.`: links to other
+subdomains (`staging.example.com`) aren't followed. Relative links resolve against the page's
+`<base href>` when it has one.
+
 A LocalBusiness on an inner page is a **branch**. An Organization's own address, on a site that
 also lists branches, is the **head office**. The same business repeated on every page counts
 once.
+
+**Sites with no location markup** give only loose evidence: `tel:` links and a postcode in the
+text. The start page's own loose details come first, so a branch page gives its own branch's
+number. Only when the start page has no phone or postcode are the other pages' details merged.
+Loose details holding more than two phone numbers, or more than one postcode, are a **listing**
+(a footer with every branch's number, a branch directory), not one place: none of those numbers
+or postcodes is taken as the business's, and a warning says how many the site lists.
 
 **Statuses** it can report: `blocked` (bot protection, `robots.txt`, or a refused address),
 `unreadable` (pages with no usable content as served, because they build their content with
@@ -72,7 +83,9 @@ metered by Google.
 
 - **With a place ID** (`--place-id`): one Place Details call.
 - **Otherwise**: one Text Search call, for the best name known plus the best location: the
-  query's postcode, else the postcode or town another provider found, else the query's address.
+  query's own postcode, else the query's own address, else the postcode or town another provider
+  found. The query's location comes first, so a branch page another provider happened to find
+  can't narrow a town-wide query to that one branch.
   With no name and location, it searches by phone. With neither, it waits for an earlier stage,
   and is skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
   country as `regionCode`, which favours places there without excluding others.

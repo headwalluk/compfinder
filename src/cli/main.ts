@@ -112,7 +112,7 @@ async function main(argv: string[]): Promise<number> {
 
   if (problems.length > 0 || output === undefined) {
     result = usageResult(problems, false);
-  } else if (firstWord === 'version' && args.words.length === 1) {
+  } else if ((firstWord === 'version' && args.words.length === 1) || (firstWord === undefined && booleanFlag(args, 'version'))) {
     result = { exitCode: ExitCode.success, data: { version: packageVersion() }, text: packageVersion() };
   } else if (firstWord === undefined || firstWord === 'help' || (command !== undefined && booleanFlag(args, 'help'))) {
     result = {

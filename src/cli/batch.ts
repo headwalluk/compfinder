@@ -145,7 +145,7 @@ export async function runBatch(lines: AsyncIterable<string>, options: BatchOptio
     pending.delete(nextToWrite);
     if (outcome !== undefined) {
       options.write(format(outcome, options, nextToWrite + 1));
-      summary.errors += outcome.kind === 'error' ? 1 : 0;
+      summary.errors += outcome.kind === 'error' || (outcome.kind === 'result' && outcome.result.error !== null) ? 1 : 0;
       summary.meteredCalls += outcome.kind === 'plan' ? outcome.plan.maxMeteredCalls : 0;
     }
     nextToWrite += 1;

@@ -31,7 +31,7 @@ src/normalise/       postcodes (per country), phone, URL, names, email, social p
 src/net/             the guarded HTTP client, address guard, robots.txt, charset, redaction
 src/providers/       declarations, the registry, and one folder per provider
 schema/              the published JSON Schema for --output=json
-scripts/             gen-schema-types.ts regenerates web-fetch's schema.org type list
+scripts/             gen-schema-types.ts regenerates web-fetch's schema.org type list; calibrate.ts records and replays live batches
 tests/               node:test suites, helpers, and fixtures (invented businesses on example.com)
 ```
 
@@ -81,6 +81,26 @@ declarations, default priorities, sample config and docs in step.
   must answer the CLI use `runCliAsync`, because a synchronous spawn would block that server.
 - **Docs**: tests check that every setting, flag, exit code, error code, provider status and
   confidence rule is documented, and that every `docs/` page cited from the source exists.
+
+## Calibration
+
+Fixtures test the rules; calibration tests them against real businesses. `scripts/calibrate.ts`
+records a batch's live HTTP exchanges and replays them later with no network calls, so a change
+to scoring or extraction can be checked against real sites and real API answers for free:
+
+```sh
+npx tsx scripts/calibrate.ts record recordings/<set>/input.jsonl recordings/<set>
+npx tsx scripts/calibrate.ts replay recordings/<set>/input.jsonl recordings/<set>
+```
+
+`record` bypasses the cache and makes every call for real, metered ones included. `replay`
+answers each request from the recording, and lists any request that wasn't recorded (a change
+that asks Google something new needs a fresh `record`). Both write one result line per input
+line, with `--explain` evidence, to `recordings/<set>/results-<mode>.jsonl`.
+
+Recordings hold third-party pages and API answers, so `recordings/` is never committed. Bodies
+are stored decoded, and any API key a response echoes is redacted; request headers, which carry
+the keys, aren't stored.
 
 ## Regenerating the schema.org types
 

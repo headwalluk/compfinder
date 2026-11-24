@@ -179,7 +179,11 @@ function assessCandidate(candidate: Candidate, query: Query): CandidateAssessmen
   };
 }
 
-/** Ranks two candidates: a confirmed place ID, a matching name, the head office for a whole-business query, most confirmed keys, fewest contradictions, most origins. 0 is a tie. */
+/**
+ * Ranks how well two candidates match the query: a confirmed place ID, a matching name, the head office for a
+ * whole-business query, most confirmed keys, fewest contradictions. 0 is a tie. How many sources back a candidate
+ * isn't a match to the query, so it never breaks a tie (docs/confidence.md: identity.tie).
+ */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
   const placeIdRank = (assessment: CandidateAssessment): number => (
     assessment.keys.some((match) => match.key === 'place_id' && match.state === 'confirmed') ? 1 : 0
@@ -189,13 +193,19 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
     || Number(first.isNameMismatch) - Number(second.isNameMismatch)
     || Number(second.isPreferredHeadOffice) - Number(first.isPreferredHeadOffice)
     || count(second, 'confirmed') - count(first, 'confirmed')
-    || count(first, 'contradicted') - count(second, 'contradicted')
-    || second.origins.length - first.origins.length;
+    || count(first, 'contradicted') - count(second, 'contradicted');
 }
 
-/** Orders candidates by rank, then by their deterministic position. */
+/** Names a rejected candidate and the query values it contradicts, for reasons. */
+function describeRejection(assessment: CandidateAssessment): string {
+  const name = fieldItems(assessment.candidate.records, 'name')[0]?.value ?? 'an unnamed place';
+  const contradicted = assessment.keys.filter((match) => match.state === 'contradicted').map((match) => match.key.replace('website-', ''));
+  return `${name} (different ${listInWords(contradicted)})`;
+}
+
+/** Orders candidates by rank, then the best-sourced first (it supplies the fields in a tie), then by position. */
 function compareAssessments(first: CandidateAssessment, second: CandidateAssessment): number {
-  return rankDifference(first, second) || first.candidate.index - second.candidate.index;
+  return rankDifference(first, second) || second.origins.length - first.origins.length || first.candidate.index - second.candidate.index;
 }
 
 /** True when the query names a specific place rather than a whole business. */
@@ -221,7 +231,7 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
 
   if (first === undefined) {
     rules.push('identity.none');
-    reasons.push(candidates.length === 0 ? 'no source described the business' : 'every candidate contradicts the query');
+    reasons.push(candidates.length === 0 ? 'no source described the business' : `every candidate contradicts the query: ${listInWords(rejected.map(describeRejection))}`);
   } else {
     rules.push(first.baseRule);
     reasons.push(first.baseReason);

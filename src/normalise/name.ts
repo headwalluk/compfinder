@@ -1,5 +1,7 @@
 /** Legal suffixes dropped from the end of a name before comparing. */
-const LEGAL_SUFFIXES = new Set(['ltd', 'limited', 'plc', 'llp', 'inc', 'llc', 'gmbh']);
+const LEGAL_SUFFIXES = new Set(['ltd', 'limited', 'plc', 'llp', 'inc', 'llc', 'gmbh', 'co', 'company']);
+/** Suffixes that may follow "and" ("& Co"), which goes with them. */
+const JOINED_SUFFIXES = new Set(['co', 'company']);
 const PUNCTUATION = /[^\p{L}\p{N}\s]/gu;
 const WHITESPACE_RUN = /\s+/g;
 /** Words shorter than this must match exactly when comparing a typed name. */
@@ -19,7 +21,10 @@ export function comparableName(name: string): string {
     .split(' ')
     .filter((token) => token !== '');
   while (tokens.length > 1 && LEGAL_SUFFIXES.has(tokens[tokens.length - 1] ?? '')) {
-    tokens.pop();
+    const removed = tokens.pop() ?? '';
+    if (JOINED_SUFFIXES.has(removed) && tokens.length > 1 && tokens[tokens.length - 1] === 'and') {
+      tokens.pop();
+    }
   }
   return tokens.join(' ');
 }

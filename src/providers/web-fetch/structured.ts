@@ -132,7 +132,7 @@ export function microdataBlocks(page: ParsedPage): BusinessBlock[] {
   const scopes = DomUtils.findAll((element) => element.attribs.itemscope !== undefined && element.attribs.itemtype !== undefined, page.document.children);
   return scopes
     .map((scope) => {
-      const properties = microdataItem(scope, page.url);
+      const properties = microdataItem(scope, page.baseUrl);
       return blockFor(typeNames(properties['@type']), properties, 'microdata');
     })
     .filter((block) => block !== null)
