@@ -2,6 +2,9 @@
  * Every confidence rule, with its number. The rules and the reasoning behind each number are in
  * docs/confidence.md; a test fails when a rule here is missing from that page or from the tests.
  */
+/** The highest confidence any value or identity can have. */
+export const MAX_CONFIDENCE = 100;
+
 export const RULES = {
   'identity.input-confirmed': { score: 100, summary: 'A place ID, phone, postcode or page URL from the query is confirmed by structured evidence' },
   'identity.independent-agreement': { score: 100, summary: 'Records from two or more independent sources describe the same place' },

@@ -92,7 +92,7 @@ async function runCommand(command: Command, args: ParsedArgs, output: OutputForm
   let result: CommandResult;
   try {
     const config = loadConfigFromEnvironment(configOverrides(args), { isMissingFileAllowed: command.isMissingConfigAllowed === true });
-    const logger = createLogger({ level: config.logLevel, tag: CLI_NAME, stderrOnly: true , secrets: configuredSecrets(config) });
+    const logger = createLogger({ level: config.logLevel, tag: CLI_NAME, stderrOnly: true, secrets: configuredSecrets(config) });
     for (const warning of config.warnings) {
       logger.warn(warning);
     }

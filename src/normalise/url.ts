@@ -58,14 +58,14 @@ export function isSiteRoot(url: string): boolean {
   return pagePath(url) === '';
 }
 
-/** The business's own part of a domain, as words: keenans-estateagents.co.uk -> "keenans estateagents". */
+/** The business's own part of a domain, as words: example-estateagents.co.uk -> "example estateagents". */
 export function nameFromDomain(domain: string): string {
   const suffix = PUBLIC_SUFFIXES.find((candidate) => domain.endsWith(`.${candidate}`));
   const withoutSuffix = suffix === undefined ? domain : domain.slice(0, -suffix.length - 1);
   return (withoutSuffix.split('.').pop() ?? withoutSuffix).replace(/[-_]+/g, ' ');
 }
 
-/** Letters and digits only, lower-cased, for comparing a name with a domain: "Pure Gym" and "pure-gym" both read "puregym". */
+/** Letters and digits only, lower-cased, for comparing a name with a domain: "Example Gym" and "example-gym" both read "examplegym". */
 export function compactWords(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
@@ -85,11 +85,7 @@ export function sharesPlaceWord(first: string, second: string): boolean {
   return placeWords(second).some((word) => firstWords.has(word));
 }
 
-/**
- * True when every word of one path's last segment is in the other's (/offices/chiswick and
- * /offices/dexters-chiswick-estate-agents), unless the longer one adds a word that makes it another place ("south"), or
- * when the two segments differ only in their separators (remax-centre and re-max-centre).
- */
+/** True when two paths' last segments name one place: one's words within the other's, or the same spelling (docs/confidence.md). */
 export function isRelatedPath(first: string, second: string): boolean {
   const lastSegment = (path: string): string => path.split('/').pop() ?? '';
   const segmentWords = (path: string): Set<string> => new Set(lastSegment(path).split(/[-_.+]+/).filter((word) => word !== ''));

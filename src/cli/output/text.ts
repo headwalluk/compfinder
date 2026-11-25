@@ -1,13 +1,13 @@
 import type { PlannedProvider } from '../../lookup/engine.js';
 import type { LookupResult, OutputField } from '../../lookup/result.js';
 import { normalisePhone } from '../../normalise/phone.js';
+import { MAX_CONFIDENCE } from '../../scoring/rules.js';
 
 const LABEL_WIDTH = 11;
 const VALUE_WIDTH = 46;
 const SCORE_WIDTH = 4;
 const INDENT = '  ';
 const CONTINUATION = ' '.repeat(INDENT.length + LABEL_WIDTH);
-const HIGH_CONFIDENCE = 100;
 const MEDIUM_CONFIDENCE = 40;
 /** Any ESC-introduced sequence or other control character: page text must never drive the terminal. */
 // eslint-disable-next-line no-control-regex -- stripping control characters is this pattern's purpose
@@ -25,7 +25,7 @@ function score(confidence: number, isColour: boolean): string {
   const text = String(confidence).padStart(SCORE_WIDTH);
   let coloured = text;
   if (isColour) {
-    const colour = confidence >= HIGH_CONFIDENCE ? ANSI.green : confidence >= MEDIUM_CONFIDENCE ? ANSI.yellow : ANSI.dim;
+    const colour = confidence >= MAX_CONFIDENCE ? ANSI.green : confidence >= MEDIUM_CONFIDENCE ? ANSI.yellow : ANSI.dim;
     coloured = `${colour}${text}${ANSI.reset}`;
   }
   return coloured;

@@ -40,7 +40,8 @@ export function readQueryInput(value: unknown, extraKeys: readonly string[] = []
 }
 
 /** Google place IDs are URL-safe base64-like tokens. */
-const PLACE_ID_PATTERN = /^[A-Za-z0-9_-]{10,300}$/;
+/** A Google place ID: URL-safe characters, 10 to 300 of them. */
+export const PLACE_ID_PATTERN = /^[A-Za-z0-9_-]{10,300}$/;
 const QUERY_SUBJECT = 'query';
 const QUERY_DETAIL = 'given in the query';
 
@@ -51,7 +52,7 @@ function present(value: string | undefined): string | null {
 }
 
 /** Normalises a lookup's inputs; lists every problem rather than stopping at the first. */
-export function normaliseQuery(input: QueryInput, defaultCountry: string): { query: Query; problems: string[] } {
+export function normaliseQuery(input: QueryInput, defaultCountry: string): { query: Query; problems: string[]; errorCode: QueryErrorCode | null } {
   const problems: string[] = [];
   const countryInput = present(input.country);
   let country = defaultCountry;
@@ -101,11 +102,16 @@ export function normaliseQuery(input: QueryInput, defaultCountry: string): { que
   }
 
   const query: Query = { name, website, address, postcode, phone, placeId, country, ...(notes.length > 0 ? { notes } : {}) };
+  let errorCode: QueryErrorCode | null = problems.length > 0 ? 'input.bad_value' : null;
   if (problems.length === 0 && Object.values({ name, website, address, postcode, phone, placeId }).every((value) => value === null)) {
     problems.push('Give at least one of: a name, url, address, postcode, phone or place_id.');
+    errorCode = 'input.no_query';
   }
-  return { query, problems };
+  return { query, problems, errorCode };
 }
+
+/** The error code for a query that can't be looked up: nothing to look up, or a bad value. */
+export type QueryErrorCode = 'input.no_query' | 'input.bad_value';
 
 /** The query as a record, so scoring can compare it with what sources found. It's never an independent source. */
 export function queryRecord(query: Query): SourceRecord {

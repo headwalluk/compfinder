@@ -83,10 +83,7 @@ export function isOneEditApart(first: string, second: string): boolean {
   return isNear;
 }
 
-/**
- * True when a source's name puts a place qualifier, after its first word, before the query's last word (its place):
- * "Foxtons South Kensington" for "Foxtons Kensington".
- */
+/** True when a source's name puts a place qualifier before the query's place ("South Kensington" for "Kensington"). */
 export function namesOtherPlace(queryName: string, sourceName: string): boolean {
   const queryTokens = nameTokens(queryName);
   const sourceTokens = nameTokens(sourceName);

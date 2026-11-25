@@ -46,10 +46,7 @@ export function parseRobots(text: string): RobotsRules {
   return { groups };
 }
 
-/**
- * True when a robots.txt pattern (with * and $ wildcards) matches a path. Matched without regular expressions, in at
- * most pattern-length × path-length steps, since the pattern comes from the site.
- */
+/** True when a robots.txt pattern (with * and $) matches a path, in at most pattern × path steps (docs/security.md). */
 function patternMatches(pattern: string, path: string): boolean {
   const isAnchored = pattern.endsWith('$');
   // Unanchored, a rule matches any path that starts with it: the same as a trailing *.

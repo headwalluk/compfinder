@@ -18,7 +18,7 @@ const SIZE_PATTERN = /(\d+)\s*x\s*(\d+)/i;
 const LINE_BREAKS = /\s*(?:\r?\n|<br\s*\/?>)\s*/i;
 /** The detail on a brand name read from a page title. */
 export const TITLE_NAME_DETAIL = 'page title, matching the domain';
-/** What sits between a page title's parts: "Cheap Gyms | PureGym", "Home - Acme", "Acme · Plumbers". */
+/** What sits between a page title's parts: "Cheap Gyms | ExampleGym", "Home - Acme", "Acme · Plumbers". */
 const TITLE_SEPARATOR = /\s+[|\-–—:·•]\s+|\s*[|·•]\s*/u;
 /** Marks a website taken from the page a LocalBusiness block sits on, rather than its own url property. */
 export const PAGE_FALLBACK_DETAIL = 'the page holding the';
@@ -205,7 +205,7 @@ function declaredWidth(sizes: string | null): number | null {
   return widths.length === 0 ? null : Math.max(...widths);
 }
 
-/** The part of a page title that spells the site's domain ("Cheap Gyms | PureGym" on puregym.com -> "PureGym"); else null. */
+/** The part of a page title that spells the site's domain ("Cheap Gyms | ExampleGym" on examplegym.com -> "ExampleGym"); else null. */
 function titleBrandName(page: ParsedPage): string | null {
   const domainName = compactWords(nameFromDomain(siteHost(new URL(page.url).hostname)));
   const segments = page.title.split(TITLE_SEPARATOR).map((segment) => sanitiseText(segment, 'name'));

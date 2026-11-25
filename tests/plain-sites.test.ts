@@ -283,7 +283,7 @@ describe('cleaning values', () => {
   });
 
   test('a phrase repeated straight after itself in a name is collapsed', () => {
-    assert.equal(collapseRepeatedPhrase('Dexters Brentford Estate Agents Estate Agents'), 'Dexters Brentford Estate Agents');
+    assert.equal(collapseRepeatedPhrase('Example Brentford Estate Agents Estate Agents'), 'Example Brentford Estate Agents');
     assert.equal(collapseRepeatedPhrase('Bang Bang'), 'Bang');
     assert.equal(collapseRepeatedPhrase('Estate Agents & Letting Agents'), 'Estate Agents & Letting Agents', 'a repeated word that isn\'t adjacent stays');
   });

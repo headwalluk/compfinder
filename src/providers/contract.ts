@@ -26,7 +26,7 @@ export interface ProviderContext {
   meter: CallMeter;
   /** The guarded HTTP client; every network request goes through it, and it records each call on the meter. */
   http: HttpClient;
-  /** For ordinary web pages a metered provider fetches (a website's redirect): never metered, nor in its calls. */
+  /** For ordinary web pages a metered provider fetches (a website's redirect): never metered, but counted in its calls. */
   webHttp: HttpClient;
   /** Adds a warning to the lookup's result. */
   warn(message: string): void;

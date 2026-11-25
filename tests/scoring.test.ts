@@ -46,9 +46,9 @@ describe('linking records into places', () => {
   ], { subject });
 
   test('two places with different place IDs never merge, even sharing a phone and a building', () => {
-    const cityOfBooks = googlePlace(PLACE_ID, 'Powell\'s City of Books', PHONE, POSTCODE, 'city');
-    const airport = googlePlace(OTHER_PLACE_ID, 'Powell\'s Books at PDX', PHONE, POSTCODE, 'pdx');
-    const result = score({ name: 'Powell\'s Books', address: 'Reading' }, [cityOfBooks, airport]);
+    const cityOfBooks = googlePlace(PLACE_ID, 'Example City of Books', PHONE, POSTCODE, 'city');
+    const airport = googlePlace(OTHER_PLACE_ID, 'Example Books at the Airport', PHONE, POSTCODE, 'pdx');
+    const result = score({ name: 'Example Books', address: 'Reading' }, [cityOfBooks, airport]);
     assert.equal(result.identity.leaders.length, 2, 'two places, so a tie, not one hybrid');
     assert.deepEqual(result.identity.leaders.map((leader) => leader.candidate.records.length), [1, 1]);
   });

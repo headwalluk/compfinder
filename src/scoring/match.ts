@@ -17,10 +17,7 @@ const UNIT_PART = /^(?:ste|suite|unit|flat|apt|apartment|floor|fl)\.? ?\w+$/;
 /** A building number followed by a street: "6 fern rd". */
 const NUMBERED_STREET = /^(\d+[a-z]?(?:-\d+[a-z]?)?) (\D.*)$/;
 
-/**
- * The building number and street of an address, in a form two spellings share ("329 W 18th St, Ste 914" and "Ste 914,
- * 329 West 18th Street" both give "329 w 18th st"); null without a numbered street. Units and postcodes are left out.
- */
+/** An address's building number and street in a form two spellings share; null without a numbered street. */
 export function streetAddress(address: AddressValue): string | null {
   const parts = address.lines.flatMap((line) => line.split(','))
     .map((part) => part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').map((word) => STREET_WORDS[word] ?? word).join(' '))

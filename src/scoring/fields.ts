@@ -115,10 +115,7 @@ function specificity<Field extends FieldName>(field: Field, group: ValueGroup<Fi
   return field === 'name' && first !== undefined ? new Set(nameTokens(first.value as string)).size : 0;
 }
 
-/**
- * Orders groups: most independent origins, then structured, then (between names that contradict each other) the one
- * the query agrees with, then specificity, then priority, then value.
- */
+/** Orders value groups for a field, best first (docs/confidence.md: fields). */
 function compareGroups<Field extends FieldName>(field: Field, first: ValueGroup<Field>, second: ValueGroup<Field>): number {
   const canonical = (group: ValueGroup<Field>): string => (group.items[0] === undefined ? '' : canonicalValue(field, group.items[0].value));
   const isNameClash = field === 'name' && first.items[0] !== undefined && second.items[0] !== undefined

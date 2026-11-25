@@ -34,7 +34,7 @@ export interface FinderOptions {
   variables?: Record<string, string | undefined>;
   /** Read the CLI's config file and COMPFINDER_* environment variables instead, exactly as the command does. */
   fromEnvironment?: boolean;
-  /** Receives the library's log lines; by default, warnings and errors go to stderr. */
+  /** Receives the library's log lines; by default, they go to stderr at the configured log_level. */
   logger?: Logger;
 }
 
@@ -108,9 +108,9 @@ export function createFinder(options: FinderOptions = {}): Finder {
     if (read.input === null || read.problems.length > 0) {
       throw new QueryError('input.bad_value', read.problems);
     }
-    const { query, problems } = normaliseQuery(read.input, config.country);
-    if (problems.length > 0) {
-      throw new QueryError(problems.some((problem) => problem.startsWith('Give at least one')) ? 'input.no_query' : 'input.bad_value', problems);
+    const { query, problems, errorCode } = normaliseQuery(read.input, config.country);
+    if (errorCode !== null) {
+      throw new QueryError(errorCode, problems);
     }
     return {
       query, providers, config, logger,

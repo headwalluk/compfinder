@@ -9,6 +9,7 @@ import { PROVIDER_DECLARATIONS, PROVIDER_NAMES, PROVIDER_STAGES, type ProviderNa
 import { NO_CACHE, providerCache } from '../cache/store.js';
 import { rankLogoItems } from '../scoring/fields.js';
 import { scoreLookup, type ScoreResult } from '../scoring/index.js';
+import { MAX_CONFIDENCE } from '../scoring/rules.js';
 import { SYSTEM_CLOCK, type Clock } from './clock.js';
 import { settleLogo } from './logo.js';
 import { CallBudget, CallMeter } from './budget.js';
@@ -78,7 +79,7 @@ function knowledgeFrom(query: Query, score: ScoreResult): Knowledge {
     if (field !== 'socials' && result.value !== null && result.confidence > 0 && !result.rules.includes('field.head-office')) {
       Object.assign(fields, { [field]: result.value });
     }
-    if (result.confidence === 100) {
+    if (result.confidence === MAX_CONFIDENCE) {
       settled.add(field);
     }
   }

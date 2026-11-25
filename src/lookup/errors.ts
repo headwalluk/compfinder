@@ -27,8 +27,8 @@ export class ProviderError extends Error {
   readonly detail: string;
   readonly failureCause: FailureCause;
 
-  constructor(status: Exclude<FailureStatus, 'internal_error'>, detail: string, failureCause: FailureCause) {
-    super(`${status}: ${detail}`);
+  constructor(status: Exclude<FailureStatus, 'internal_error'>, detail: string, failureCause: FailureCause, options?: { cause?: unknown }) {
+    super(`${status}: ${detail}`, options);
     this.name = 'ProviderError';
     this.status = status;
     this.detail = detail;

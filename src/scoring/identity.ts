@@ -144,7 +144,7 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
     state = state === 'silent' && onSite.some((item) => isOtherPage(pagePath(item.value.url))) ? 'contradicted' : state;
   } else if (key === 'name' && query.name !== null) {
     const items = fieldItems(records, 'name');
-    // A query's town that the place's name leaves out ("Michael Poole Nunthorpe" for a listing in Nunthorpe) isn't a mismatch.
+    // A query's town that the place's name leaves out ("Example Poole Nunthorpe" for a listing in Nunthorpe) isn't a mismatch.
     const placeWords = new Set(fieldItems(records, 'address').flatMap((item) => [
       ...item.value.lines, item.value.town ?? '', item.value.county ?? '', ...(item.value.formatted ?? '').split(','),
     ].filter((part) => !isStreetPart(part)).flatMap((part) => nameTokens(part))));
@@ -240,10 +240,7 @@ function searchPageFor(candidate: Candidate, query: Query): SearchPage | null {
   return url === undefined ? null : { url, sources: [...new Set(matches.map((match) => match.source))] };
 }
 
-/**
- * A sole leader known from one origin, whose listed page a search found first, has a second, independent origin: the
- * search stands in for a website given in the query (docs/confidence.md).
- */
+/** A sole leader with its listed page found first by a search, raised to independent agreement (docs/confidence.md). */
 function withSearchAgreement(assessment: CandidateAssessment): CandidateAssessment {
   const page = assessment.searchPage;
   const isSingleOrigin = assessment.baseRule === 'identity.single-structured' || assessment.baseRule === 'identity.single-loose';
@@ -270,11 +267,7 @@ function isSiteMarkupPlace(record: SourceRecord, querySite: string | null): bool
     && record.evidence.some((item) => (item.field === 'address' || item.field === 'phone') && item.quality === 'structured');
 }
 
-/**
- * Ranks how well two candidates match the query: a confirmed place ID, a matching name, for a whole-business query the
- * site's head office and then a place its markup describes, an alias of a branch page asked about, most confirmed keys, fewest contradictions, then (in one building only) the exact name. 0 is a tie. How many sources back a candidate
- * isn't a match to the query, so it never breaks a tie (docs/confidence.md: identity.tie).
- */
+/** Ranks how well two candidates match the query; 0 is a tie (docs/confidence.md: identity). */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
   const placeIdRank = (assessment: CandidateAssessment): number => (
     assessment.keys.some((match) => match.key === 'place_id' && match.state === 'confirmed') ? 1 : 0
@@ -289,10 +282,7 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
     || (isSameBuilding(first, second) ? Number(second.isNameExact) - Number(first.isNameExact) : 0);
 }
 
-/**
- * True when the candidates are one place listed several times: all in one building, and sharing a phone (a branch's
- * sales and lettings listings) or all named alike (a thin duplicate listing with only a postcode).
- */
+/** True when the candidates are one place listed several times (docs/confidence.md: identity.co-listed). */
 function isCoListed(assessments: readonly CandidateAssessment[], countryCode: string): boolean {
   const [first, ...rest] = assessments;
   return first !== undefined && rest.every((other) => (
@@ -322,10 +312,7 @@ function pagesOf(assessment: CandidateAssessment): Set<string> {
   return new Set(fieldItems(assessment.candidate.records, 'website').map((item) => `${item.value.domain}${pagePath(item.value.url)}`));
 }
 
-/**
- * True when two candidates are one place listed twice: the same name and website page, postcodes in one sector (one
- * street or two), and no phone numbers that differ. Separate branches of a chain each have their own number.
- */
+/** True when two candidates are one place listed twice: same name and page, one postcode sector, no differing phone. */
 function isDuplicateListing(first: CandidateAssessment, second: CandidateAssessment, countryCode: string): boolean {
   const rules = countryRules(countryCode);
   const sectorsOf = (assessment: CandidateAssessment): Set<string> => new Set(fieldItems(assessment.candidate.records, 'address')
@@ -339,10 +326,7 @@ function isDuplicateListing(first: CandidateAssessment, second: CandidateAssessm
     && (!hasPhones || sharesPhone(first, second));
 }
 
-/**
- * Leaders the business's own site doesn't stand behind: when the site that was read agrees with some leaders, a leader
- * with no record from that site whose website is on another site (a listing body's page about the place) drops out.
- */
+/** Leaders on another site that the business's own site, agreeing with other leaders, doesn't stand behind. */
 function offSiteLeaders(leaders: readonly CandidateAssessment[]): CandidateAssessment[] {
   const ownSites = new Set(leaders.flatMap((leader) => leader.candidate.records)
     .filter((record) => record.source === 'web-fetch').map(recordSite).filter((site) => site !== null));
@@ -354,10 +338,7 @@ function offSiteLeaders(leaders: readonly CandidateAssessment[]): CandidateAsses
   return ownSites.size === 0 ? [] : leaders.filter(isOffSite);
 }
 
-/**
- * True when two candidates share an address: the same postcode and building number. A postcode alone isn't a building
- * everywhere (a US ZIP code covers a district), so a different building number keeps them apart.
- */
+/** True when two candidates share a postcode and building number. */
 function isSameBuilding(first: CandidateAssessment, second: CandidateAssessment): boolean {
   const secondAddresses = fieldItems(second.candidate.records, 'address').map((item) => item.value);
   return fieldItems(first.candidate.records, 'address').some((item) => item.value.postcode !== null
@@ -373,10 +354,7 @@ function queryListedPaths(candidates: readonly Candidate[], query: Query): Set<s
   return new Set(paths);
 }
 
-/**
- * The query as the site answered it: when its site redirected to another domain, that domain, with the same path; when
- * its page moved to another page of one place, that page.
- */
+/** The query as the site answered it: its redirected domain, or the page its page moved to. */
 function queryAfterRedirect(candidates: readonly Candidate[], query: Query): Query {
   const website = query.website;
   const siteRecords = candidates.flatMap((candidate) => [...candidate.records, ...candidate.brandRecords]).filter((record) => record.source === 'web-fetch');

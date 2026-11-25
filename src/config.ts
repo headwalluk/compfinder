@@ -317,6 +317,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads a whole number within the setting's range, recording a problem otherwise. */
   private parseInteger(spec: SettingSpec, raw: unknown, label: string): number | undefined {
     const number = typeof raw === 'string' && raw.trim() !== '' ? Number(raw.trim()) : raw;
     const minimum = spec.minimum ?? 0;
@@ -330,6 +331,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads a boolean, or a word for one (BOOLEAN_TRUE_WORDS, BOOLEAN_FALSE_WORDS), recording a problem otherwise. */
   private parseBoolean(raw: unknown, label: string): boolean | undefined {
     let parsed: boolean | undefined;
     if (typeof raw === 'boolean') {
@@ -344,6 +346,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads one of the setting's allowed values, recording a problem otherwise. */
   private parseChoice(spec: SettingSpec, raw: unknown, label: string): string | undefined {
     const choices = spec.choices ?? [];
     const value = typeof raw === 'string' ? raw.trim() : raw;
@@ -354,6 +357,7 @@ class SettingsReader {
     return matched;
   }
 
+  /** Reads an ISO 3166-1 alpha-2 country code, upper-cased, recording a problem otherwise. */
   private parseCountry(raw: unknown, label: string): string | undefined {
     let parsed: string | undefined;
     const code = typeof raw === 'string' ? normaliseCountryCode(raw) : null;
@@ -365,6 +369,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads a directory path, expanding ~ and resolving it against the config file or working directory. */
   private parsePath(raw: unknown, label: string, origin: ValueOrigin): string | undefined {
     let parsed: string | undefined;
     if (typeof raw === 'string' && raw.trim() !== '') {
@@ -376,6 +381,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads a list of host names, lower-cased, recording a problem for any that isn't one. */
   private parseHostList(raw: unknown, label: string): string[] | undefined {
     const items = typeof raw === 'string' ? raw.split(',').map((item) => item.trim()).filter((item) => item !== '') : raw;
     let parsed: string[] | undefined;
@@ -396,6 +402,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads a list of built-in provider names, recording a problem for any unknown or repeated one. */
   private parseProviderList(spec: SettingSpec, raw: unknown, label: string): string[] | undefined {
     let parsed: string[] | undefined;
     if (!Array.isArray(raw)) {
@@ -419,6 +426,7 @@ class SettingsReader {
     return parsed;
   }
 
+  /** Reads an API key, trimmed, recording a problem when it is empty or not a string. */
   private parseSecret(raw: unknown, label: string): string | undefined {
     let parsed: string | undefined;
     if (typeof raw === 'string' && raw.trim() !== '') {

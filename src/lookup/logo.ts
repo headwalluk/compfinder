@@ -82,10 +82,7 @@ async function storeLogo(logo: LogoValue, options: LogoOptions): Promise<StoredL
   return stored;
 }
 
-/**
- * Downloads the best logo candidates in turn until one is a usable image, recording its local path and size.
- * Candidates that fail are removed from their records, so re-scoring picks the next best.
- */
+/** Downloads the best logo candidates in turn until one is usable; failed ones are removed, so re-scoring picks the next. */
 export async function settleLogo(candidates: ReadonlyArray<FieldItem<'logo'>>, options: LogoOptions): Promise<void> {
   let isSettled = false;
   const tried = new Set<string>();

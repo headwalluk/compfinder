@@ -14,7 +14,14 @@ const REFUSED_IPV6: ReadonlyArray<[string, number]> = [
   ['::', 128], ['::1', 128], ['2001:db8::', 32], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
 ];
 const IPV6_GROUPS = 8;
-const BITS_PER_HEX_GROUP = 16;
+const HEX_RADIX = 16;
+/** Groups 6 and 7 hold an embedded IPv4 address in the mapped and NAT64 prefixes; the first 6 are the prefix. */
+const PREFIX_GROUP_COUNT = 6;
+const EMBEDDED_HIGH_GROUP = 6;
+const EMBEDDED_LOW_GROUP = 7;
+/** 6to4 carries its IPv4 address in groups 1 and 2. */
+const SIX_TO_FOUR_HIGH_GROUP = 1;
+const SIX_TO_FOUR_LOW_GROUP = 2;
 const BYTE_MASK = 0xff;
 const BITS_PER_BYTE = 8;
 const HEX_GROUP = /^[0-9a-f]{1,4}$/i;
@@ -23,7 +30,7 @@ const MAPPED_GROUPS = [0, 0, 0, 0, 0, 0xffff];
 const NAT64_GROUPS = [0x64, 0xff9b, 0, 0, 0, 0];
 /** NAT64's local-use prefix (64:ff9b:1::/48, RFC 8215) can put the IPv4 address anywhere, so it is refused. */
 const NAT64_LOCAL_GROUPS = [0x64, 0xff9b, 1];
-/** 6to4 (2002::/16) carries an IPv4 address in groups 1 and 2. */
+/** 6to4's first group (2002::/16). */
 const SIX_TO_FOUR_GROUP = 0x2002;
 
 const REFUSED = new BlockList();
@@ -44,7 +51,7 @@ function ipv6Groups(address: string): number[] | null {
   // A dotted IPv4 tail ("::ffff:10.0.0.1") stands for two groups.
   const dotted = isIP(last) === 4 ? last.split('.').map(Number) : null;
   const words = (list: string[]): string[] => (dotted !== null && list.at(-1) === last ? list.slice(0, -1) : list);
-  const toGroups = (list: string[]): number[] | null => (list.every((part) => HEX_GROUP.test(part)) ? list.map((part) => Number.parseInt(part, BITS_PER_HEX_GROUP)) : null);
+  const toGroups = (list: string[]): number[] | null => (list.every((part) => HEX_GROUP.test(part)) ? list.map((part) => Number.parseInt(part, HEX_RADIX)) : null);
   const headGroups = toGroups(halves.length === 1 ? words(head) : head);
   const tailGroups = toGroups(halves.length === 1 ? [] : words(tail));
   const dottedGroups = dotted === null ? [] : [((dotted[0] ?? 0) << BITS_PER_BYTE) | (dotted[1] ?? 0), ((dotted[2] ?? 0) << BITS_PER_BYTE) | (dotted[3] ?? 0)];
@@ -76,14 +83,14 @@ function isIpv6Allowed(address: string): boolean {
   if (groups === null || startsWith(groups, NAT64_LOCAL_GROUPS)) {
     isAllowed = false;
   } else if (startsWith(groups, MAPPED_GROUPS) || startsWith(groups, NAT64_GROUPS)) {
-    isAllowed = !REFUSED.check(ipv4From(groups[6] ?? 0, groups[7] ?? 0), 'ipv4');
+    isAllowed = !REFUSED.check(ipv4From(groups[EMBEDDED_HIGH_GROUP] ?? 0, groups[EMBEDDED_LOW_GROUP] ?? 0), 'ipv4');
   } else if (groups[0] === SIX_TO_FOUR_GROUP) {
-    isAllowed = !REFUSED.check(ipv4From(groups[1] ?? 0, groups[2] ?? 0), 'ipv4');
-  } else if (groups.slice(0, 6).every((group) => group === 0)) {
+    isAllowed = !REFUSED.check(ipv4From(groups[SIX_TO_FOUR_HIGH_GROUP] ?? 0, groups[SIX_TO_FOUR_LOW_GROUP] ?? 0), 'ipv4');
+  } else if (groups.slice(0, PREFIX_GROUP_COUNT).every((group) => group === 0)) {
     // ::/96, the deprecated IPv4-compatible form (and :: and ::1): never a public destination.
     isAllowed = false;
   } else {
-    isAllowed = !REFUSED.check(groups.map((group) => group.toString(BITS_PER_HEX_GROUP)).join(':'), 'ipv6');
+    isAllowed = !REFUSED.check(groups.map((group) => group.toString(HEX_RADIX)).join(':'), 'ipv6');
   }
   return isAllowed;
 }

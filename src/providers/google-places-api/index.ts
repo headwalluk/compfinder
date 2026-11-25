@@ -1,3 +1,4 @@
+import { PLACE_ID_PATTERN } from '../../lookup/query.js';
 import { BUSINESS_STATUSES, type AddressValue, type Evidence, type SourceRecord } from '../../lookup/types.js';
 import { ProviderError } from '../../lookup/errors.js';
 import { countryRules } from '../../normalise/country/index.js';
@@ -74,7 +75,7 @@ export function placeAddress(place: Place, countryCode: string): AddressValue | 
 
 /** One place as a location record. */
 export function placeRecord(place: Place, countryCode: string, detail: string): SourceRecord | null {
-  const placeId = typeof place.id === 'string' && /^[A-Za-z0-9_-]{10,300}$/.test(place.id) ? place.id : null;
+  const placeId = typeof place.id === 'string' && PLACE_ID_PATTERN.test(place.id) ? place.id : null;
   let record: SourceRecord | null = null;
   if (placeId !== null) {
     const reference = { recordId: placeId, detail };
@@ -122,10 +123,7 @@ export function pathHint(url: string): string | null {
   return /\p{L}/u.test(words) && words.length <= MAX_PATH_HINT_CHARS ? words : null;
 }
 
-/**
- * What to search for, in the order docs/providers.md gives: the query's own keys first, then found ones; a path that
- * names a place before a page's phone. Some searches keep only places on the query's site.
- */
+/** What to search Google for, in the order docs/providers.md gives; null when there's nothing to search with. */
 export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const { query, fields } = knowledge;
   const queryLocation = query.postcode ?? query.address;
@@ -134,7 +132,7 @@ export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const isNameFromDomain = knownName === null && query.website !== null;
   const domainName = query.website === null ? null : nameFromDomain(query.website.domain);
   const name = knownName ?? domainName;
-  // On a home page, a found name that only spells the domain ("PureGym" on puregym.com) finds namesakes as the domain would.
+  // On a home page, a found name that only spells the domain ("ExampleGym" on examplegym.com) finds namesakes as the domain would.
   const isDomainSpelling = query.name === null && query.website !== null && isSiteRoot(query.website.url)
     && name !== null && domainName !== null && compactWords(name) === compactWords(domainName);
   const location = queryLocation ?? fields.address?.postcode ?? fields.address?.town ?? null;
@@ -175,10 +173,7 @@ function apiKey(context: ProviderContext): string {
   return context.settings.apiKey;
 }
 
-/**
- * Checks the websites of places named like the query but on another site (docs/providers.md): one that redirects to the
- * query's site is given that address, and one whose host doesn't answer at all is dropped as dead. At most a few are tried.
- */
+/** Checks the websites of namesake places on other sites: redirects onto the query's site are followed, dead hosts dropped. */
 async function resolveOffSiteWebsites(records: SourceRecord[], knowledge: Knowledge, context: ProviderContext): Promise<SourceRecord[]> {
   const { query } = knowledge;
   const querySite = query.website?.domain ?? null;

@@ -9,7 +9,8 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { MAX_CONCURRENCY, runBatch } from '../batch.js';
 import { stringFlag, booleanFlag, type ParsedArgs } from '../args.js';
-import type { Command, CommandResult } from '../command.js';
+import type { Command, CommandResult, OutputFormat } from '../command.js';
+import type { Logger } from '../../logger.js';
 import { ExitCode } from '../exit-codes.js';
 import { csvHeader, csvRow, UTF8_BOM } from '../output/csv.js';
 import { renderLookupText, renderPlanText } from '../output/text.js';
@@ -132,6 +133,23 @@ async function findBatch({ args, config, output, logger, colour, write }: Parame
   return result;
 }
 
+/** Runs one lookup and renders it; an unexpected failure is reported as lookup.internal_error, as a batch line's is. */
+async function lookupOne(request: LookupRequest, options: { output: OutputFormat; colour: boolean; isExplain: boolean; logger: Logger }): Promise<CommandResult> {
+  let result: CommandResult;
+  try {
+    const lookup = buildResult(await runLookup(request), { isExplain: options.isExplain });
+    const exitCode = lookup.error === null ? ExitCode.success : ERROR_CODES[lookup.error.code].exitCode;
+    const text = options.output === 'csv' ? `${UTF8_BOM}${csvHeader()}${csvRow(lookup, null)}` : renderLookupText(lookup, options.colour);
+    result = { exitCode, data: { ...lookup }, text };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    options.logger.error('The lookup failed unexpectedly', { error });
+    const failure = outputError('lookup.internal_error', detail);
+    result = { exitCode: ERROR_CODES['lookup.internal_error'].exitCode, data: { error: failure }, text: `${failure.message} ${detail}` };
+  }
+  return result;
+}
+
 /** find with a query on the command line: one lookup. */
 async function findOne({ args, config, output, logger, colour }: Parameters<Command['run']>[0]): Promise<CommandResult> {
   const input: QueryInput = { name: args.words[1] };
@@ -141,7 +159,7 @@ async function findOne({ args, config, output, logger, colour }: Parameters<Comm
       input[key] = value;
     }
   }
-  const { query, problems } = normaliseQuery(input, config.country);
+  const { query, problems, errorCode } = normaliseQuery(input, config.country);
   const selection = selectionFlags(args);
   const allProblems = [...problems, ...selection.problems];
   const isExplain = booleanFlag(args, 'explain');
@@ -151,10 +169,13 @@ async function findOne({ args, config, output, logger, colour }: Parameters<Comm
   if (booleanFlag(args, 'dry-run') && output === 'csv') {
     allProblems.push(DRY_RUN_CSV_PROBLEM);
   }
+  if (stringFlag(args, 'concurrency') !== undefined) {
+    allProblems.push('--concurrency needs --input: a single lookup runs one at a time.');
+  }
   let result: CommandResult;
 
   if (allProblems.length > 0) {
-    const code = problems.some((problem) => problem.startsWith('Give at least one')) ? 'input.no_query' : 'input.bad_value';
+    const code = errorCode ?? 'input.bad_value';
     result = { exitCode: ExitCode.usage, data: { error: outputError(code, allProblems.join(' ')), problems: allProblems }, text: allProblems.join('\n') };
   } else {
     const request: LookupRequest = {
@@ -176,15 +197,7 @@ async function findOne({ args, config, output, logger, colour }: Parameters<Comm
         text: renderPlanText(plan.providers, plan.maxMeteredCalls),
       };
     } else {
-      const lookup = buildResult(await runLookup(request), { isExplain });
-      const exitCode = lookup.error === null ? ExitCode.success : ERROR_CODES[lookup.error.code].exitCode;
-      let text: string;
-      if (output === 'csv') {
-        text = `${UTF8_BOM}${csvHeader()}${csvRow(lookup, null)}`;
-      } else {
-        text = renderLookupText(lookup, colour);
-      }
-      result = { exitCode, data: { ...lookup }, text };
+      result = await lookupOne(request, { output, colour, isExplain, logger });
     }
   }
   return result;

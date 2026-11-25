@@ -12,6 +12,9 @@ import type { OutputFormat } from './command.js';
 import { csvHeader, csvRow, UTF8_BOM } from './output/csv.js';
 import { renderLookupText, renderPlanText } from './output/text.js';
 
+/** A batch budget of 0 means no limit (config budgets.metered_calls_per_batch). */
+const UNLIMITED_CALLS = 0;
+
 /** Keys a batch line may have besides the query's. */
 const LINE_KEYS = ['id'] as const;
 /** Upper bound on --concurrency: lookups in flight at once. */
@@ -119,10 +122,9 @@ async function runLine(line: string, options: BatchOptions, batchBudget: CallBud
   if (parsed.error !== null || parsed.input === null) {
     outcome = { kind: 'error', id: parsed.id, error: outputError(parsed.error ?? 'input.bad_value', parsed.problems.join(' ')), problems: parsed.problems };
   } else {
-    const { query, problems } = normaliseQuery(parsed.input, options.config.country);
-    if (problems.length > 0) {
-      const code = problems.some((problem) => problem.startsWith('Give at least one')) ? 'input.no_query' : 'input.bad_value';
-      outcome = { kind: 'error', id: parsed.id, error: outputError(code, problems.join(' ')), problems };
+    const { query, problems, errorCode } = normaliseQuery(parsed.input, options.config.country);
+    if (errorCode !== null) {
+      outcome = { kind: 'error', id: parsed.id, error: outputError(errorCode, problems.join(' ')), problems };
     } else {
       const request: LookupRequest = {
         query,
@@ -147,7 +149,7 @@ async function runLine(line: string, options: BatchOptions, batchBudget: CallBud
 /** Runs every line, up to `concurrency` at once, writing each result as soon as all earlier ones are written. */
 export async function runBatch(lines: AsyncIterable<string>, options: BatchOptions): Promise<BatchSummary> {
   const limit = options.config.budgets.meteredCallsPerBatch;
-  const batchBudget = new CallBudget(limit === 0 ? null : limit);
+  const batchBudget = new CallBudget(limit === UNLIMITED_CALLS ? null : limit);
   const pending = new Map<number, Promise<LineOutcome>>();
   const summary: BatchSummary = { lines: 0, errors: 0, meteredCalls: 0 };
   let nextToWrite = 0;
@@ -182,6 +184,6 @@ export async function runBatch(lines: AsyncIterable<string>, options: BatchOptio
     await flushNext();
   }
   // A dry run's per-line plans don't share the batch's budget, so their sum is capped by it here.
-  summary.meteredCalls = options.isDryRun ? Math.min(summary.meteredCalls, limit === 0 ? Infinity : limit) : batchBudget.spent();
+  summary.meteredCalls = options.isDryRun ? Math.min(summary.meteredCalls, limit === UNLIMITED_CALLS ? Infinity : limit) : batchBudget.spent();
   return summary;
 }

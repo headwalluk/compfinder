@@ -79,8 +79,8 @@ describe('web addresses', () => {
   test('are related when one slug\'s words are in the other\'s, or the two differ only in hyphens', () => {
     assert.equal(isRelatedPath('/offices/chiswick', '/offices/example-chiswick-estate-agents'), true);
     assert.equal(isRelatedPath('/offices/kensington', '/offices/south-kensington'), false);
-    assert.equal(isRelatedPath('/offices/remax-property-centre-tendring', '/offices/re-max-property-centre-tendring'), true);
-    assert.equal(isRelatedPath('/offices/remax-centre', '/offices/re-max-centre-north'), false, 'one spelling isn\'t a subset of the other');
+    assert.equal(isRelatedPath('/offices/acmax-property-centre-tendring', '/offices/ac-max-property-centre-tendring'), true);
+    assert.equal(isRelatedPath('/offices/acmax-centre', '/offices/ac-max-centre-north'), false, 'one spelling isn\'t a subset of the other');
   });
 
   test('share a place word when their slugs do, leaving out words for a kind of page', () => {
@@ -97,7 +97,7 @@ describe('business names', () => {
   });
 
   test('word order, connecting words and plain plurals don\'t make names differ', () => {
-    assert.equal(compareNames('Martin & Co Estate Agents & Letting Agents in Reading', 'Martin & Co Reading Lettings & Estate Agents'), 'equal');
+    assert.equal(compareNames('Example & Co Estate Agents & Letting Agents in Reading', 'Example & Co Reading Lettings & Estate Agents'), 'equal');
     assert.equal(compareNames('The Hexagon', 'Hexagon'), 'equal');
     assert.equal(compareNames('Example Estates Reading', 'Example Estates Wokingham'), 'incompatible');
   });
@@ -123,8 +123,8 @@ describe('business names', () => {
   });
 
   test('a source name that puts a place qualifier before the query\'s place names another place', () => {
-    assert.equal(compareQueryName('Foxtons Kensington', 'Foxtons South Kensington Estate Agents'), 'incompatible');
-    assert.equal(compareQueryName('Foxtons South Kensington', 'Foxtons South Kensington Estate Agents'), 'compatible');
+    assert.equal(compareQueryName('Example Estates Kensington', 'Example Estates South Kensington Estate Agents'), 'incompatible');
+    assert.equal(compareQueryName('Example Estates South Kensington', 'Example Estates South Kensington Estate Agents'), 'compatible');
     assert.equal(compareQueryName('Example Woodworks', 'New Example Woodworks'), 'compatible', 'a qualifier before no query word is just part of the name');
   });
 
@@ -177,7 +177,7 @@ describe('untrusted text', () => {
   });
 
   test('a double-encoded name is decoded fully; other text once', () => {
-    assert.equal(sanitiseText('Romans Estate Agents &amp;amp; Letting Agents', 'name'), 'Romans Estate Agents & Letting Agents');
+    assert.equal(sanitiseText('Example Estate Agents &amp;amp; Letting Agents', 'name'), 'Example Estate Agents & Letting Agents');
     assert.equal(sanitiseText('Smith &amp;amp; Sons', 'identifier'), 'Smith &amp; Sons');
   });
 

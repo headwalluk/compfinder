@@ -85,10 +85,7 @@ async function loadRobots(origin: string, context: ProviderContext): Promise<Rob
 /** Why robots.txt keeps compfinder from a URL, or null when it may be fetched. */
 type RobotsGate = (url: URL) => Promise<string | null>;
 
-/**
- * A lookup's robots.txt checks, each origin's rules loaded once. The start origin's are loaded first, so a failure there
- * fails the lookup; another origin (a redirect's) whose robots.txt can't be read is treated as disallowing everything.
- */
+/** A lookup's robots.txt checks, each origin's rules loaded once; an unreadable one (not the start's) refuses everything. */
 async function robotsGate(startOrigin: string, isHonoured: boolean, context: ProviderContext): Promise<RobotsGate> {
   const rulesByOrigin = new Map<string, RobotsRules | null>();
   if (isHonoured) {
@@ -184,11 +181,7 @@ function placeKeys(evidence: readonly Evidence[]): { phones: Set<string>; postco
   return { phones, postcodes };
 }
 
-/**
- * The site's own name, from its Organization markup or og:site_name: one that spells the domain first (so a template's
- * leftover name, "EstateApps" on bradfordandhowley.com, loses), then the one with fewest words ("Notcutts" over
- * "Notcutts Garden Centres").
- */
+/** The site's own name: one that spells the domain first, then the one with fewest words (docs/providers.md). */
 function shortestBrandName(brand: readonly Evidence[], site: string): string | null {
   const names = brand.flatMap((item) => (item.field === 'name' ? [item.value] : [])).filter((name) => nameTokens(name).length > 0);
   const spells = (name: string): number => Number(spellsDomain(name, site));
@@ -196,23 +189,19 @@ function shortestBrandName(brand: readonly Evidence[], site: string): string | n
     || nameTokens(first).length - nameTokens(second).length || first.localeCompare(second))[0] ?? null;
 }
 
-/** True for a brand name unlike the site's own when that spells its domain: a template's leftover ("EstateApps"). */
+/** True for a brand name unlike the site's own when that spells its domain: a template's leftover ("SiteBuilder"). */
 function isLeftoverName(item: Evidence, brandName: string | null, site: string): boolean {
   return item.field === 'name' && brandName !== null && spellsDomain(brandName, site) && compareNames(item.value, brandName) === 'incompatible';
 }
 
-/** True when a name spells the site's domain, "&" read as "and" or as nothing: "Bradford & Howley" on bradfordandhowley.com. */
+/** True when a name spells the site's domain, "&" read as "and" or as nothing: "Example & Sons" on exampleandsons.com. */
 function spellsDomain(name: string, site: string): boolean {
   const domain = compactWords(nameFromDomain(site));
   const spellings = [compactWords(name.replace(/&/g, ' and ')), compactWords(name)];
   return domain !== '' && spellings.includes(domain);
 }
 
-/**
- * A branch's name with the brand in front when the name is only a place ("Oxford", every word of it in the branch's
- * own address, beside words like "branch"): "Notcutts Oxford". A name with any word of its own ("York Vets for Pets")
- * is left as it is.
- */
+/** A branch name that is only a place ("Oxford") with the brand put in front of it (docs/providers.md). */
 function withBrand(item: Evidence, brandName: string, placeWords: ReadonlySet<string>): Evidence {
   const words = item.field === 'name' ? nameTokens(item.value) : [];
   const placeOnly = words.filter((word) => !BRANCH_WORDS.has(word));
@@ -226,10 +215,7 @@ function addressWords(evidence: readonly Evidence[]): Set<string> {
   return new Set(parts.flatMap((part) => nameTokens(part)));
 }
 
-/**
- * True when the query's name has words that are neither in a record's name nor in its address: "Nested Chelmsford" for
- * an Organization named "Nested" in London. The query asks about a branch somewhere the record isn't.
- */
+/** True when the query's name has words in neither a record's name nor its address: a branch somewhere the record isn't. */
 function namesElsewhere(queryName: string | null, evidence: readonly Evidence[]): boolean {
   const recordWords = new Set([
     ...addressWords(evidence),
@@ -349,11 +335,7 @@ function localBusinessSignatures(results: readonly PageResult[]): Set<string> {
   return signatures;
 }
 
-/**
- * A location record's role: a single LocalBusiness on an inner page is a branch; a chain's home page is head office, and
- * so is an Organization on a site that lists branches (other than the one it repeats), or, when an inner page was asked
- * for, one read from another page or one elsewhere than the query's name says (isElsewhere).
- */
+/** A location record's role, branch, head office or unknown (docs/providers.md). */
 function roleFor(result: PageResult, location: PageResult['locations'][number], localSignatures: ReadonlySet<string>, isElsewhere: boolean): RecordRole {
   const localOnPage = result.locations.filter((entry) => entry.isLocalBusiness).length;
   const isRoot = isSiteRoot(result.page.url);
@@ -441,7 +423,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       const isInnerStart = !isSiteRoot(start.url);
       // The brand's name may sit in an Organization that also carries the head office's address.
       const organisationNames = readable.flatMap((result) => result.locations.filter((location) => !location.isLocalBusiness).flatMap((location) => location.evidence));
-      // A LocalBusiness named as the domain is spelt ("Bradford & Howley") names the brand too.
+      // A LocalBusiness named as the domain is spelt ("Example & Sons") names the brand too.
       const domainNamedPlaces = readable.flatMap((result) => result.locations.flatMap((location) => location.evidence))
         .filter((item) => item.field === 'name' && spellsDomain(item.value, site));
       const brandName = shortestBrandName(readable.flatMap((result) => [

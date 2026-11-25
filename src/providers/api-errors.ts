@@ -70,7 +70,7 @@ export function parseApiResponse(response: HttpResponse, api: string): unknown {
     if (!(error instanceof SyntaxError)) {
       throw error;
     }
-    throw new ProviderError('bad_response', `${api} answered with something that isn't JSON`, 'not_json');
+    throw new ProviderError('bad_response', `${api} answered with something that isn't JSON`, 'not_json', { cause: error });
   }
   return parsed;
 }

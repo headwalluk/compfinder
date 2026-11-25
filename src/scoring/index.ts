@@ -15,11 +15,7 @@ export interface ScoreResult {
   warnings: string[];
 }
 
-/**
- * For a home page asked about, when the leading place has nothing from the site itself: the site's own location records
- * that matched no place. They're the business's own word, so where they differ from the leader they show as conflicts;
- * they aren't part of the identity, so they can't raise its score.
- */
+/** A home page's own location records that matched no place, shown as conflicts but never raising the identity. */
 function unmatchedSiteRecords(identity: IdentityResult, query: Query): SourceRecord[] {
   const website = query.website;
   const leader = identity.leaders[0]?.candidate;

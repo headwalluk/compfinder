@@ -86,11 +86,7 @@ function placeIdsOf(record: SourceRecord): Set<string> {
   return new Set(fieldItems([record], 'place_id').map((item) => item.value));
 }
 
-/**
- * For each record without a place ID, the one place it may join: the place it shares its strongest key with. When its
- * strongest key is shared with two or more places (a head office's postcode, in a building of several listings), it
- * can't say which it is, and joins none: null. Records it shares no key with places aren't in the map.
- */
+/** For each record without a place ID, the one place its strongest key allows it to join, or null when ambiguous. */
 function allowedPlaces(locations: readonly SourceRecord[], keys: ReadonlyArray<ReadonlyArray<SharedKey[]>>): Map<number, string | null> {
   const allowed = new Map<number, string | null>();
   locations.forEach((record, index) => {
@@ -195,11 +191,7 @@ function isPlaceless(record: SourceRecord): boolean {
     && !record.evidence.some((item) => item.field === 'place_id' || item.field === 'phone' || item.field === 'address');
 }
 
-/**
- * Joins candidates made only of placeless records (an About page's markup: a name and a website) to the one candidate
- * holding the same source's other records; with several such, they stay apart. Placeless candidates of one origin with
- * nowhere to go are joined to each other.
- */
+/** Joins candidates of only placeless records (an About page's markup) to the candidate holding that source's others. */
 function joinPlaceless(candidates: readonly Candidate[]): Candidate[] {
   const joined = candidates.map((candidate) => ({ ...candidate, records: [...candidate.records] }));
   const isPlacelessOnly = (candidate: Candidate): boolean => candidate.records.every(isPlaceless);

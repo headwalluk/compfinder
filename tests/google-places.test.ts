@@ -149,18 +149,18 @@ describe('google-places-api', () => {
 
   test('the query\'s own address is searched before a postcode another provider found', () => {
     const knowledge = {
-      query: makeQuery({ name: 'Kwik Fit', address: 'Bracknell' }),
+      query: makeQuery({ name: 'Example Tyres', address: 'Bracknell' }),
       fields: { address: { lines: [], town: 'Bracknell', county: null, postcode: 'RG12 9SE', country_code: 'GB', formatted: null, lat: null, lon: null } },
     } as unknown as Parameters<typeof searchText>[0];
-    assert.equal(searchText(knowledge), 'Kwik Fit, Bracknell');
+    assert.equal(searchText(knowledge), 'Example Tyres, Bracknell');
   });
 
   test('search plans: the query\'s phone before a found location; a branch path before a page\'s phone, which comes before a page-kind path', () => {
     const knowledge = (input: QueryInput, fields: Record<string, unknown> = {}) => ({ query: makeQuery(input), fields } as unknown as Parameters<typeof searchText>[0]);
     const foundAddress = { lines: [], town: 'Accrington', county: null, postcode: 'BB5 1HF', country_code: 'GB', formatted: null, lat: null, lon: null };
     const foundPhone = { e164: '+441182172098', display: '0118 217 2098' };
-    assert.equal(searchText(knowledge({ name: 'Keenans', phone: '0161 793 9622' }, { address: foundAddress })), '0161 793 9622');
-    assert.equal(searchText(knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans', phone: foundPhone })), 'Keenans, burnley');
+    assert.equal(searchText(knowledge({ name: 'Example Estates', phone: '0161 496 0000' }, { address: foundAddress })), '0161 496 0000');
+    assert.equal(searchText(knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Example Estates', phone: foundPhone })), 'Example Estates, burnley');
     assert.equal(searchText(knowledge({ name: 'Example Caversham', url: 'https://example.com/our-offices/estate-agents-in-caversham/' }, { phone: foundPhone })),
       'Example Caversham, estate agents in caversham', 'a call-tracking number on the page isn\'t searched before the branch\'s path');
     assert.equal(searchText(knowledge({ name: 'Example Plumbing', url: 'https://example.com/contact-us/' }, { phone: foundPhone })), '0118 217 2098',
@@ -180,7 +180,7 @@ describe('google-places-api', () => {
   test('with no name known, the domain stands in for it, and only places on that site are kept', async () => {
     assert.deepEqual(searchPlan({ query: makeQuery({ url: 'https://www.example-books.co.uk/shops/reading' }), fields: {} } as unknown as Parameters<typeof searchText>[0]),
       { text: 'example books, reading', siteDomain: 'example-books.co.uk' });
-    assert.equal(nameFromDomain('keenans-estateagents.co.uk'), 'keenans estateagents');
+    assert.equal(nameFromDomain('example-estateagents.co.uk'), 'example estateagents');
     assert.equal(pathHint('https://example.com/'), null);
     const routes: Record<string, FixtureRoute> = {
       'https://example.com/robots.txt': { status: 403, body: '' },

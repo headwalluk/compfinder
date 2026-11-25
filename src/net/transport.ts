@@ -36,13 +36,11 @@ function flattenHeaders(message: IncomingMessage): Record<string, string> {
   return headers;
 }
 
-/**
- * A response body that can't crash the process: Node throws an 'error' event no one listens to (a connection reset
- * before the body is read), so one is listened for from the start and rethrown to whoever reads the body. A body
- * abandoned unread (a redirect's) closes the response.
- */
+/** A response body whose stream errors reach its reader rather than crashing the process. */
 function readIncoming(incoming: IncomingMessage): AsyncIterable<Uint8Array> {
   let failure: Error | null = null;
+  // An 'error' event with no listener (a reset before the body is read) ends the process: listen from the start, and
+  // rethrow to whoever reads. A body abandoned unread (a redirect's) closes the response.
   incoming.on('error', (error) => {
     failure = error;
   });
