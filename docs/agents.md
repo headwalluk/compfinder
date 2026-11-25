@@ -84,7 +84,7 @@ compfinder find --input=leads.jsonl --output=json --no-download \
 - **stdout** gets exactly one JSON line per input line, in input order. Match results back to
   rows by `id`.
 - **stderr** gets logs and a closing summary: `Batch: N lines, E with errors, M metered calls.`
-  `E` counts every line with `ok: false`: bad input and lookups where every provider failed.
+  `E` counts every line with `ok: false`: bad input, and every line whose `error` is set.
 - **Exit code**: a batch exits 0 when it ran, even if some lines had errors. Per-line problems
   are in each line's `ok` and `error`. Exit 2 means the command itself was wrong (a bad option,
   an unreadable input file), and exit 3 means the configuration is invalid.
@@ -178,9 +178,10 @@ For a list of branches that share one website:
 |---|---|---|
 | `error.code: input.bad_json` | The line isn't valid JSON | Fix the line |
 | `error.code: input.bad_value` | An unknown key, a non-string value, or a value that can't be read (a URL that isn't one, a phone number that isn't valid) | `problems` lists each one |
-| `error.code: input.no_query` | Nothing to look up | The row has no usable name, URL, phone or place ID |
+| `error.code: input.no_query` | Nothing to look up | The row has no name, url, address, postcode, phone or place_id |
 | `error.code: lookup.no_provider` | No configured provider can work from this row, for example a name with no location and no Brave key | Add data to the row, or configure the missing provider |
 | `error.code: lookup.all_failed` | Every provider that ran failed | Look at `providers[].status` and `cause` |
+| `error.code: lookup.internal_error` | A bug, or a failing disk (the cache directory full or unwritable) | `detail` says why. Re-run the line, and report it if it happens again |
 | `web-fetch` failed with `cause` `dns`, `tls_certificate`, `connection_refused` or `http_404` | The website on record is dead: the domain lapsed, the certificate expired, or the branch page was removed | Treat it as a stale website, not "not found". Google may still have found the business: check `identity` before failing the row |
 | `identity.business_status` is `closed_permanently` | Google lists the place as closed for good | For onboarding, a reject: the business (or this branch) no longer trades there. `closed_temporarily` may be a refurbishment |
 | A warning that a page "seems to be gone" | The branch page you gave redirects to another page on the site (the branch list, the home page) | The branch may have closed or moved. Google's answer, if any, is under the branch's name, and may say it's closed |

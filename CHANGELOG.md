@@ -166,6 +166,10 @@ All notable changes to this project are documented here. The format follows
     `metered_calls` counts only the paid calls.
   - The test suite passes on Node 22 as well as 24.
 - `libphonenumber-js` updated to 1.13.17 (published 2026-11-19), for current phone metadata.
+- A single `find` that fails unexpectedly reports `lookup.internal_error` in its JSON line, as a
+  batch line does, and `--concurrency` without `--input` is a usage error.
+- Documentation brought up to date for 1.0, including what the package's semantic versioning
+  covers ([output.md](docs/output.md#versioning)). Examples use invented businesses.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

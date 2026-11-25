@@ -46,7 +46,6 @@ For people running compfinder:
 For scripts and agents reading the output:
 
 - [Using compfinder from an AI agent](docs/agents.md): input, batches, budgets, and reading results
-
 - [Output](docs/output.md): the JSON result and its schema
 - [Confidence](docs/confidence.md): what the scores mean
 

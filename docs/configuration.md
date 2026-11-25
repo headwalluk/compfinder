@@ -67,7 +67,7 @@ An API key that's set but empty is an error too. Remove the key to leave a provi
 | `timeouts.lookup_ms` | `30000` | | | Longest a whole lookup may take, 1000 to 600000 ms. Not less than `request_ms` |
 | `web_fetch.max_pages` | `5` | | | Most pages read from a business's site per lookup, 1 to 20 |
 | `web_fetch.honour_robots` | `true` | | | Honour the site's `robots.txt` |
-| `web_fetch.unreadable_text_chars` | `200` | | | A page with less visible text than this and no structured data is reported as unreadable |
+| `web_fetch.unreadable_text_chars` | `200` | | | A page with less visible text than this and no structured data is reported as unreadable, 0 to 10000 |
 | `discover.directory_hosts` | directories, social networks, property portals, company registries, Wikipedia, Google and Bing | | | Hosts never taken as a business's own website. See the template for the full list |
 | `net.allow_private_addresses` | `false` | | `--allow-private-addresses` | Let requests reach private, loopback and link-local addresses. For testing only |
 | `priority.<field>` | see below | | | Provider order for a field |

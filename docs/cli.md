@@ -17,7 +17,7 @@ an unknown command and exits 2. `compfinder` with nothing after it prints the he
 | `compfinder config init` | Writes a commented config file to the config path. Refuses, with exit 4, if the file already exists. It never overwrites |
 | `compfinder config path` | Shows which config file is used, and whether it exists |
 | `compfinder config show` | Shows every effective setting and where it came from (`default`, `file`, `env`, `flag`). API keys show only as `set` or `unset`. Accepts the setting flags below, to preview their effect |
-| `compfinder version` | Prints the version |
+| `compfinder version` | Prints the version (also `compfinder --version`) |
 | `compfinder help` | Lists the commands. `compfinder <command> --help` shows one command's usage |
 
 ## find
@@ -74,8 +74,8 @@ options (`--fields`, `--providers`, `--no-download`, …) apply to every line.
 | Option | Means |
 |---|---|
 | `--input=FILE` | Read queries from FILE, or from stdin with `-` |
-| `--concurrency=N` | Run up to N lookups at once, 1 to 16 (default 1). Results are still written in input order |
-| `--max-metered-calls-total=N` | Spend at most N metered calls on the whole batch (also a setting). Once they're spent, metered providers are skipped as `over budget` and free ones carry on |
+| `--concurrency=N` | Run up to N lookups at once, 1 to 16 (default 1). Results are still written in input order. Only with `--input`: a usage error otherwise |
+| `--max-metered-calls-total=N` | Spend at most N metered calls on the whole batch (also a setting). Once they're spent, metered providers are skipped as `over budget` and free ones carry on. A single lookup has only `--max-metered-calls` |
 | `--dry-run` | Plan every line without making a call, then report the most metered calls the batch could make, for estimating a bill. Each line's plan is for that line alone; the total is capped by `--max-metered-calls-total` |
 
 Results stream out as each lookup finishes: one JSON line, one CSV row (after a single header
@@ -124,6 +124,10 @@ command still prints its JSON line, with an `error` and, where there are several
 ```json
 {"ok":false,"exitCode":3,"error":"Invalid configuration","problems":["…","…"]}
 ```
+
+For `find`, a problem with the query, and a lookup that fails unexpectedly
+(`lookup.internal_error`), give `error` as the `{code, message, detail}` object described in
+[output.md](output.md#errors); otherwise `error` is a string.
 
 Text output is for people, and may change in any release. Scripts and agents should use
 `--output=json`.

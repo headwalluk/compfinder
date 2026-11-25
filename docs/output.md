@@ -98,7 +98,7 @@ And these per field:
 | `email` | A role address, such as `info@` or `reading@` | `kind`: always `role`. Possibly personal addresses are never returned, only counted in `warnings` |
 | `logo` | `source_url`, `kind` (`logo`, `social-image` or `icon`), `path` once downloaded, `mime`, `width`, `height`, `converted_from` (`svg` when an SVG was converted to PNG) | |
 | `place_id` | A Google place ID | |
-| `socials` | A list of `{ network, url, confidence }`, each scored on its own | The field's confidence is the best profile's |
+| `socials` | A list of `{ network, url, confidence }`, each scored on its own; `network` is one of `facebook`, `instagram`, `linkedin`, `x`, `youtube`, `tiktok` | The field's confidence is the best profile's |
 
 UK postcodes are in capitals with one space. URLs always have their scheme.
 
@@ -119,9 +119,9 @@ Each entry has `name`, `status`, `reason`, `detail`, `cause`, `calls`, `cached_c
 | `quota_exceeded` | Its quota or rate limit was hit |
 | `blocked` | The site refused compfinder (a 401, 403 or 429, a CDN's protected 503, bot protection, `robots.txt`, or a private address). There's no retry |
 | `unreadable` | The page had no usable content, probably because it builds its content with JavaScript |
-| `unreachable` | Network trouble: the host couldn't be reached |
+| `unreachable` | Network trouble: the host couldn't be reached, or answered with a server error (5xx) |
 | `timeout` | A request took longer than `timeouts.request_ms`, or the lookup's time (`timeouts.lookup_ms`) ran out |
-| `bad_response` | The provider answered with something unparseable |
+| `bad_response` | An unusable answer: an HTTP status other than 2xx (a dead page's 404), not HTML or JSON, too large, or a redirect compfinder won't follow |
 | `internal_error` | A bug in compfinder's code for that provider. It's logged with its stack |
 
 A provider that failed also has a `cause`: a short code saying why, to match on without reading
@@ -129,7 +129,7 @@ A provider that failed also has a `cause`: a short code saying why, to match on 
 
 | `cause` | Means |
 |---|---|
-| `http_NNN` | A page or API answered with this HTTP status (`http_404`, `http_503`): a dead branch page is `http_404` |
+| `http_NNN` | A page or API answered with this HTTP status (`http_404`, `http_503`): a dead branch page is `http_404`. For a `blocked` `web-fetch`, it may be `robots.txt`'s status rather than the page's |
 | `dns` | The host's name doesn't resolve: the domain has lapsed or is mistyped |
 | `connection_refused` | The host refused the connection |
 | `connection_reset` | The connection was dropped part-way |
@@ -139,8 +139,8 @@ A provider that failed also has a `cause`: a short code saying why, to match on 
 | `timeout` | A request, or the whole lookup, ran out of time |
 | `too_large` | A response was over the size limit |
 | `too_many_redirects` | More than five redirects in a row |
-| `redirect_refused` | A redirect went somewhere compfinder won't follow (another site, for a page past the first) |
-| `refused_address` | The host resolves to a private address (`network.allow_private_addresses` is off) |
+| `redirect_refused` | A redirect went somewhere compfinder won't follow: another site, for a page past the first; another origin or plain HTTP, for an API |
+| `refused_address` | The host resolves to a private address (`net.allow_private_addresses` is off) |
 | `refused_url` | The URL isn't one compfinder fetches (not http or https, a non-standard port) |
 | `not_html` | The page isn't HTML |
 | `not_json` | An API answered with something that isn't JSON |
@@ -202,7 +202,8 @@ correctly), CRLF line endings, a header row, then one row per lookup. Cells with
 or line break are quoted, with quotes doubled. A cell starting with `=`, `+`, `-`, `@`, a tab
 or a carriage return gets a leading `'`, so a spreadsheet won't run it as a formula. Page
 content is untrusted, and this also keeps `+441184960000` from becoming `4.41E+11`. Lists
-(address lines, socials, warnings) are joined with `; `.
+(address lines, socials, warnings) are joined with `; `. A batch line that fails has only its
+`id` and `error_code`; every other cell is empty.
 
 The columns, in order:
 
@@ -232,3 +233,10 @@ Evidence, reasons and the conflicting values themselves are in the JSON output.
 
 The JSON Schema allows additional properties, so a result from a later 1.x release still
 validates against the 1.0 schema.
+
+The package itself follows semantic versioning on the same terms. Within 1.x, these only grow:
+rule IDs, warnings, provider statuses, `cause` values, error codes, optional fields, CLI options
+and library exports. A major version is needed to rename or remove any of them, to reorder or
+remove a CSV column, to change an exit code's meaning, or to change a library function's
+signature. Confidence numbers may be retuned in a minor release, noted in the changelog. The
+wording of warnings, reasons and text output isn't a contract: match on codes and rule IDs.

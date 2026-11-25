@@ -118,6 +118,10 @@ There are two kinds, and they are handled differently.
   nothing is thrown. Each provider's `status` is in `result.providers`, and when no provider
   succeeded, `result.error` is set, with code `lookup.all_failed` or `lookup.no_provider`.
 
+Anything else thrown is unexpected (a bug, or a failing disk under the cache directory): rethrow
+it, or log it and report it as you would any other fault. The CLI reports it as
+`lookup.internal_error`; the library never uses that code.
+
 ```ts
 import { QueryError } from '@headwall/compfinder';
 
@@ -293,9 +297,11 @@ const finder = createFinder({ variables, logger: compfinderLogger() });
 
 ## Types and the schema
 
-The package ships TypeScript declarations. The main types are `Finder`, `FindOptions`,
+The package ships TypeScript declarations. The main types are `Finder`, `FinderOptions`, `FindOptions`,
 `QueryInput`, `LookupResult` (and its parts `OutputField`, `OutputEvidence` and
-`OutputCandidate`), `ProviderReport` (with its `FailureCause`), `LookupPlan` and `CheckReport`.
+`OutputCandidate`), `ProviderReport` (with its `FailureCause`), `LookupPlan`, `CheckReport`,
+`ErrorCode` and `OutputError`. `CallBudget` (made by `createBudget`) shares a metered-call budget
+across lookups.
 `FIELD_NAMES` and `PROVIDER_NAMES` list the fields and providers, and `FAILURE_CAUSES` the fixed
 `cause` codes (an HTTP status is `http_NNN` besides).
 

@@ -52,10 +52,12 @@ optional `check` that `providers check` calls to prove a key cheaply.
 - `run` returns **records**: everything it found, each with an `origin` (the independence key),
   a `scope` (`brand` or `location`) and a `role`. It never decides which record is right; that's
   the scorer's job.
-- Every network call goes through `context.http`. That client applies the address guard, byte
-  caps, timeouts and redirect checks, counts calls on the meter, and debits the budget for
-  metered providers.
-- Expected failures throw `ProviderError(status, detail)`. Anything else thrown is reported as
+- Every network call goes through `context.http`, or `context.webHttp` for ordinary web pages a
+  metered provider fetches (Google's website checks), which is never metered. Both apply the
+  address guard, byte caps, timeouts and redirect checks and count calls in the provider's
+  report; `context.http` also debits the budget for metered providers.
+- Expected failures throw `ProviderError(status, detail, cause)`, where `cause` is one of
+  `FAILURE_CAUSES` or `http_NNN`. Anything else thrown is reported as
   `internal_error` and logged with its stack.
 - Every string from outside passes through `sanitiseText` before it becomes evidence.
 
@@ -79,8 +81,8 @@ declarations, default priorities, sample config and docs in step.
   (`0118 496 xxxx`) and documentation IP ranges, never real data.
 - **CLI**: the real CLI as a child process, with an empty temporary home. Tests whose own server
   must answer the CLI use `runCliAsync`, because a synchronous spawn would block that server.
-- **Docs**: tests check that every setting, flag, exit code, error code, provider status and
-  confidence rule is documented, and that every `docs/` page cited from the source exists.
+- **Docs**: tests check that every setting, setting flag, exit code, error code, provider status,
+  failure cause and confidence rule is documented, and that every `docs/` page cited from the source exists.
 
 ## Calibration
 

@@ -45,7 +45,7 @@ Reads the business's own pages. It needs no key, and it's free.
 |---|---|
 | schema.org `Organization`, `LocalBusiness` and their subtypes, in JSON-LD (including `@graph`) and microdata | name, address (with `geo`), phone, email, website, logo, `sameAs` social profiles, and a Google Maps `?cid=` link in `hasMap` or `sameAs`. These are structured evidence |
 | Open Graph and Twitter tags | the site's name from `og:site_name` (loose evidence), and `og:image` and `twitter:image` as social images |
-| The page title | for a home page asked about, with no `og:site_name`, the part of the title that spells the domain (`… \| PureGym` on `puregym.com`), as the site's name (loose evidence). It isn't taken for an inner page, where a name steers Google's search |
+| The page title | for a home page asked about, with no `og:site_name`, the part of the title that spells the domain (`… \| ExampleGym` on `examplegym.com`), as the site's name (loose evidence). It isn't taken for an inner page, where a name steers Google's search |
 | `<link rel="icon">`, `apple-touch-icon`, and the web app manifest when the site has no schema.org logo | icons |
 | `tel:` and `mailto:` links, social links | phone, role email and social profiles. These are loose evidence |
 | The page text | a postcode, when the page has exactly one |
@@ -54,9 +54,9 @@ Reads the business's own pages. It needs no key, and it's free.
 subdomains (`staging.example.com`) aren't followed. Relative links resolve against the page's
 `<base href>` when it has one.
 
-The site's brand name is one of its names that spells the domain when there is one ("Bradford &
-Howley" on `bradfordandhowley.com`, `&` read as "and"), else the shortest. A brand name unlike that
-one (a site template's leftover "EstateApps") is dropped. A block that is only a name, with no
+The site's brand name is one of its names that spells the domain when there is one ("Example &
+Sons" on `exampleandsons.com`, `&` read as "and"), else the shortest. A brand name unlike that
+one (a site template's leftover "SiteBuilder") is dropped. A block that is only a name, with no
 address, phone or anything else (a team member's office, "St Albans"), isn't read as a place.
 
 Organisations written inline under `department`, `parentOrganization`, `subOrganization`,
@@ -64,7 +64,7 @@ Organisations written inline under `department`, `parentOrganization`, `subOrgan
 aren't read as this business. One those properties point to by `@id` is read where it's defined.
 
 A branch whose markup names it only by its place (a garden centre called "Oxford", every word of
-the name in its own address) takes the site's brand name in front: "Notcutts Garden Centres
+the name in its own address) takes the site's brand name in front: "Example Garden Centres
 Oxford". A postcode written at the end of a street line isn't repeated. Cloudflare's own links
 (`/cdn-cgi/`) are never read.
 
@@ -73,8 +73,8 @@ also lists branches, is the **head office**, and so is one read from another pag
 page was asked for (a publisher's address on the site's articles). The same business repeated on
 every page counts once, and an Organization that repeats the site's only LocalBusiness (the same
 phone or postcode) is that business, not a head office. An Organization on the page asked about is the head office too when the
-query's name has a word that is in neither the Organization's name nor its address ("Nested
-Chelmsford" against an Organization named "Nested" in London). A head office's address and phone
+query's name has a word that is in neither the Organization's name nor its address ("Example Homes
+Chelmsford" against an Organization named "Example Homes" in London). A head office's address and phone
 are never used to search Google for a branch.
 
 A branch page that **redirects elsewhere on the site** (`/locations/formby/` to `/our-branches/`)
@@ -91,7 +91,7 @@ still gone.
 An inner page with no location of its own (no markup, and no phone or postcode, or those of
 several places) is a **listing page**: an area page that links each nearby branch. web-fetch
 reports the pages on the site that it links to, and a branch whose page is one of them isn't
-contradicted by the query's URL (see `docs/confidence.md`).
+contradicted by the query's URL (see [confidence.md](confidence.md)).
 
 **Sites with no location markup** give only loose evidence: `tel:` links and a postcode in the
 text. The start page's own loose details come first, so a branch page gives its own branch's
@@ -129,11 +129,11 @@ metered by Google.
 
   The query's own values come first, so a branch page another provider happened to find can't
   narrow a town-wide query to that one branch. When no name is known at all (the site is blocked,
-  or has no name in its markup), the domain stands in for the name (`waterstones.com` gives
-  `waterstones`), and the URL's path comes before a phone the page showed even when it names
+  or has no name in its markup), the domain stands in for the name (`examplebooks.com` gives
+  `examplebooks`), and the URL's path comes before a phone the page showed even when it names
   only a kind of page. A page's phone comes after the path because it may be a call-tracking
   number Google doesn't know. A search on a domain-derived name, on a name alone,
-  or, for a home page, on a found name that only spells the domain (`PureGym` on `puregym.com`),
+  or, for a home page, on a found name that only spells the domain (`ExampleGym` on `examplegym.com`),
   **keeps only places whose website is on the query's site**, so a namesake elsewhere is
   never taken. With nothing to search for, it waits for an earlier stage, and is
   skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's

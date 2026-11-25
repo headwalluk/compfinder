@@ -27,7 +27,7 @@ business owner may edit both.
 There's one exception, when your query gives no website. If a search's first result is exactly
 the branch page that Google's listing gives as its website (an inner page, not the site's home
 page), the search plays the part of the URL your query would have given. The site then counts as
-a second origin, and a name-and-town lookup (`Romans Caversham`, `--address=Caversham`) can reach
+a second origin, and a name-and-town lookup (`Example Estates Caversham`, `--address=Caversham`) can reach
 `identity.independent-agreement`. This never chooses between tied places: when several places
 match equally, a search's pick of one place's page leaves the tie as it is.
 
@@ -64,10 +64,10 @@ different URL for what may be the same page: a longer slug, or an old URL scheme
 (`/healthandfitness/york` against `/health-club/york`). Only a clearly different page contradicts
 it, one where neither URL's last segment has all its words in the other's (`/shops/wokingham`
 against `/shops/reading`), or where the longer one adds a word that makes it another place
-(`south`, `north`, `upper`, `new` and the like: `/foxtons_kensington` isn't
-`/foxtons_south_kensington`). Two slugs that differ only in their hyphens
-(`/remax-property-centre-tendring` against `/re-max-property-centre-tendring`) are the same page. An alias (`/offices/chiswick` against
-`/offices/dexters-chiswick-estate-agents`) is neither confirmed nor contradicted, but a candidate
+(`south`, `north`, `upper`, `new` and the like: `/example_kensington` isn't
+`/example_south_kensington`). Two slugs that differ only in their hyphens
+(`/acmax-property-centre-tendring` against `/ac-max-property-centre-tendring`) are the same page. An alias (`/offices/chiswick` against
+`/offices/example-chiswick-estate-agents`) is neither confirmed nor contradicted, but a candidate
 with an alias of your branch page ranks above one whose website is the site's home page (a
 head office). When your query's
 site redirects to another domain (an old brand's domain to the new one's), places on the new
@@ -92,15 +92,15 @@ the source's spelling wins the name field, with yours shown as a conflict. Names
 are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` stay apart.
 
 All name comparisons ignore case, punctuation, word order, legal suffixes, connecting words
-(`and`, `in`, `at`, `of`, `the`, `for`) and plain plurals. So `Martin & Co Estate Agents & Letting
-Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name. A word of
+(`and`, `in`, `at`, `of`, `the`, `for`) and plain plurals. So `Example & Co Estate Agents & Letting
+Agents in Reading` and `Example & Co Reading Lettings & Estate Agents` are the same name. A word of
 your query's name that is in a candidate's own address (its town, or any part of Google's
 formatted address) can be missing from the
-candidate's name: `Michael Poole Nunthorpe` matches a listing called `Michael Poole Estate Agents`
-in Nunthorpe. A street's name doesn't count as a place: `Keenans Blackburn` doesn't match
-`Keenans Estate Agents - Accrington Branch` at `7 Blackburn Rd, Accrington`. A candidate's name
-that puts a place qualifier before your query's place names another place, so `Foxtons Kensington`
-doesn't match `Foxtons South Kensington Estate Agents`, as with branch pages.
+candidate's name: `Example Poole Nunthorpe` matches a listing called `Example Poole Estate Agents`
+in Nunthorpe. A street's name doesn't count as a place: `Example Estates Blackburn` doesn't match
+`Example Estates - Accrington Branch` at `7 Blackburn Rd, Accrington`. A candidate's name
+that puts a place qualifier before your query's place names another place, so `Example Estates Kensington`
+doesn't match `Example Estates South Kensington`, as with branch pages.
 
 For a home page with no location (a whole business), the site's head office ranks first, then a
 place its own markup gives an address or phone for. When the leading place has nothing from the site
@@ -144,8 +144,9 @@ search, which returns only its best few matches, so the list may not be complete
 ## Fields
 
 For each field, values that are the same fact are grouped. Phone numbers are equal by E.164,
-addresses by postcode and building number, websites by site, and names after removing case,
-punctuation and legal suffixes (`Ltd`, `Limited`, `PLC`, `LLP`, `Co`, `Company`, `& Co` and similar). The
+addresses by postcode and building number, websites by site, and names compared as in
+[Identity](#identity): case, punctuation, word order, connecting words, plain plurals and legal
+suffixes (`Ltd`, `Limited`, `PLC`, `LLP`, `Co`, `Company`, `& Co` and similar) ignored. The
 group with the most independent sources wins.
 
 | Rule | Score | Applies when |
@@ -192,5 +193,6 @@ best profile.
 
 ## Calibration
 
-These numbers are a reasoned starting point, to be calibrated against a set of known businesses
-before 1.0. A change to any number is noted in the changelog.
+These numbers were calibrated against batches of real businesses, recorded and replayed as
+[development.md](development.md#calibration) describes. A change to any number is noted in the
+changelog.
