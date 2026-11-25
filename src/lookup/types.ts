@@ -103,6 +103,8 @@ export interface SourceRecord {
   redirectedFrom?: string;
   /** For a listing page asked about (one with no place of its own): the paths of the site's pages it links to. */
   listedPages?: string[];
+  /** For a page asked about that redirected to another page of one place (a renamed branch page): where it landed. */
+  movedTo?: string;
   /** Whether the place is open, as Google lists it. */
   businessStatus?: BusinessStatus;
 }

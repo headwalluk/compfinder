@@ -58,6 +58,9 @@ function numberFrom(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+/** A region that is only a country code and a hyphen. */
+const EMPTY_SUBDIVISION = /^[A-Za-z]{2}-$/;
+
 /** A line with a postcode (in any case or spacing) taken out, and the commas around it tidied. */
 function withoutPostcode(line: string, postcode: string): string {
   const pattern = new RegExp(postcode.replace(/\s+/g, '').split('').join('\\s*'), 'gi');
@@ -82,7 +85,9 @@ export function addressFrom(value: unknown, geo: unknown, countryCode: string): 
     // A street line that already ends in the postcode would repeat it when the address is written out.
     const streetLines = postcode === null ? lines : lines.map((line) => withoutPostcode(line, postcode)).filter((line) => line !== '');
     const town = firstText(fields.addressLocality, 'town');
-    const county = firstText(fields.addressRegion, 'town');
+    const region = firstText(fields.addressRegion, 'town');
+    // An ISO 3166-2 code with its subdivision left empty ("GB-") names no region.
+    const county = region !== null && EMPTY_SUBDIVISION.test(region) ? null : region;
     address = {
       lines: streetLines,
       town,

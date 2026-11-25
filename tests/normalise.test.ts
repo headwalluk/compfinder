@@ -7,7 +7,7 @@ import { mapsCid } from '../src/normalise/maps.js';
 import { compareNames, compareQueryName, comparableName, isOneEditApart } from '../src/normalise/name.js';
 import { normalisePhone } from '../src/normalise/phone.js';
 import { decodeEscapes, sanitiseText, TEXT_LIMITS } from '../src/normalise/text.js';
-import { isSameSite, isSiteRoot, normaliseUrl, pagePath } from '../src/normalise/url.js';
+import { isRelatedPath, isSameSite, isSiteRoot, normaliseUrl, pagePath, sharesPlaceWord } from '../src/normalise/url.js';
 
 describe('UK postcodes', () => {
   const gb = countryRules('gb');
@@ -74,6 +74,19 @@ describe('web addresses', () => {
     assert.equal(isSiteRoot('https://example.com/'), true);
     assert.equal(isSiteRoot('https://example.com/?ref=x'), true);
     assert.equal(isSiteRoot('https://example.com/contact'), false);
+  });
+
+  test('are related when one slug\'s words are in the other\'s, or the two differ only in hyphens', () => {
+    assert.equal(isRelatedPath('/offices/chiswick', '/offices/example-chiswick-estate-agents'), true);
+    assert.equal(isRelatedPath('/offices/kensington', '/offices/south-kensington'), false);
+    assert.equal(isRelatedPath('/offices/remax-property-centre-tendring', '/offices/re-max-property-centre-tendring'), true);
+    assert.equal(isRelatedPath('/offices/remax-centre', '/offices/re-max-centre-north'), false, 'one spelling isn\'t a subset of the other');
+  });
+
+  test('share a place word when their slugs do, leaving out words for a kind of page', () => {
+    assert.equal(sharesPlaceWord('/branches/putney-roehampton-and-putney-vale', '/putney-branch/'), true);
+    assert.equal(sharesPlaceWord('/branches/putney-branch', '/wandsworth-branch'), false);
+    assert.equal(sharesPlaceWord('/estate-agents-in-caversham', '/estate-agents-in-reading'), false);
   });
 });
 

@@ -69,6 +69,21 @@ export function compactWords(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
+/** Path words naming a kind of page or trade, not a place: /contact-us, /branches/estate-agents-in-x. */
+export const PAGE_WORDS: ReadonlySet<string> = new Set([
+  'about', 'us', 'contact', 'contactus', 'find', 'get', 'in', 'touch', 'meet', 'the', 'and', 'of', 'at', 'team', 'our', 'people',
+  'staff', 'home', 'index', 'welcome', 'services', 'location', 'locations', 'branch', 'branches', 'office', 'offices',
+  'estate', 'agent', 'agents', 'letting', 'lettings', 'sales', 'property',
+]);
+
+/** True when two paths' last segments share a word that isn't a page word: /putney-roehampton and /putney-branch. */
+export function sharesPlaceWord(first: string, second: string): boolean {
+  const placeWords = (path: string): string[] => (path.split('/').filter((segment) => segment !== '').pop() ?? '').toLowerCase().split(/[-_.+]+/)
+    .filter((word) => /\p{L}/u.test(word) && !PAGE_WORDS.has(word));
+  const firstWords = new Set(placeWords(first));
+  return placeWords(second).some((word) => firstWords.has(word));
+}
+
 /** Words that, added to a place's name, make it another place: "South Kensington" isn't "Kensington". */
 const PLACE_QUALIFIERS: ReadonlySet<string> = new Set([
   'north', 'south', 'east', 'west', 'upper', 'lower', 'central', 'new', 'old', 'great', 'little', 'greater', 'high', 'inner', 'outer',
@@ -76,13 +91,17 @@ const PLACE_QUALIFIERS: ReadonlySet<string> = new Set([
 
 /**
  * True when every word of one path's last segment is in the other's (/offices/chiswick and
- * /offices/dexters-chiswick-estate-agents), unless the longer one adds a word that makes it another place ("south").
+ * /offices/dexters-chiswick-estate-agents), unless the longer one adds a word that makes it another place ("south"), or
+ * when the two segments differ only in their separators (remax-centre and re-max-centre).
  */
 export function isRelatedPath(first: string, second: string): boolean {
-  const segmentWords = (path: string): Set<string> => new Set((path.split('/').pop() ?? '').split(/[-_.+]+/).filter((word) => word !== ''));
+  const lastSegment = (path: string): string => path.split('/').pop() ?? '';
+  const segmentWords = (path: string): Set<string> => new Set(lastSegment(path).split(/[-_.+]+/).filter((word) => word !== ''));
   const firstWords = segmentWords(first);
   const secondWords = segmentWords(second);
   const isWithin = (inner: Set<string>, outer: Set<string>): boolean => inner.size > 0 && [...inner].every((word) => outer.has(word))
     && ![...outer].some((word) => !inner.has(word) && PLACE_QUALIFIERS.has(word));
-  return isWithin(firstWords, secondWords) || isWithin(secondWords, firstWords);
+  const firstCompact = compactWords(lastSegment(first));
+  const isSameSpelling = firstCompact !== '' && firstCompact === compactWords(lastSegment(second));
+  return isSameSpelling || isWithin(firstWords, secondWords) || isWithin(secondWords, firstWords);
 }

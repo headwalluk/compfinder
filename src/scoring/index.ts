@@ -47,7 +47,8 @@ export function scoreLookup(
   const fieldRecords = isChain
     ? [queryRecord, ...brandRecords]
     : [queryRecord, ...(leader?.records ?? []), ...(leader?.brandRecords ?? []), ...unmatchedSiteRecords(identity, query)];
-  const context: FieldContext = { query, priority, identity, isBranchQuery: queryHasLocation(query) };
+  const pageMovedTo = records.find((record) => record.movedTo !== undefined)?.movedTo ?? null;
+  const context: FieldContext = { query, priority, identity, isBranchQuery: queryHasLocation(query), pageMovedTo };
   const website = scoreField('website', fieldRecords, context);
   const fields: FieldResults = {
     name: scoreField('name', fieldRecords, context),

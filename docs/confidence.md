@@ -58,12 +58,16 @@ different URL for what may be the same page: a longer slug, or an old URL scheme
 it, one where neither URL's last segment has all its words in the other's (`/shops/wokingham`
 against `/shops/reading`), or where the longer one adds a word that makes it another place
 (`south`, `north`, `upper`, `new` and the like: `/foxtons_kensington` isn't
-`/foxtons_south_kensington`). An alias (`/offices/chiswick` against
+`/foxtons_south_kensington`). Two slugs that differ only in their hyphens
+(`/remax-property-centre-tendring` against `/re-max-property-centre-tendring`) are the same page. An alias (`/offices/chiswick` against
 `/offices/dexters-chiswick-estate-agents`) is neither confirmed nor contradicted, but a candidate
 with an alias of your branch page ranks above one whose website is the site's home page (a
 head office). When your query's
 site redirects to another domain (an old brand's domain to the new one's), places on the new
-domain count as on your query's site, with the same path. When your query's page is a **listing page**
+domain count as on your query's site, with the same path. When your query's page redirects to a
+renamed page for the same place (`/branches/putney-roehampton-and-putney-vale` to `/putney-branch/`,
+see [providers](providers.md)), the page it lands on stands for your query's page, and is the
+website shown. When your query's page is a **listing page**
 (it describes no place of its own, as an area page linking each nearby branch does), a candidate
 whose page it links to isn't contradicted either; the candidates are then those of its places that
 a search found, and a warning says the page lists several places. A candidate the query contradicts is dropped, unless one of your query's pinning values
@@ -125,6 +129,7 @@ search, which returns only its best few matches, so the list may not be complete
 | `identity.chain` | — | A chain's home page with no location given matches several of its places (a tie), or only Google listings whose websites are branch pages on its site, which nothing the site says joins. The identity is the chain: the fields come from the brand's own records (name, website, logo, socials) at the brand's confidence, place fields (address, phone, place ID) are left empty, the places are listed in `candidates`, and a warning says so. `identity.confidence` is still the tie's divided score, because it measures which place, and no one place is meant |
 | `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
 | `identity.head-office-only` | ≤ 30 | A branch was asked for (a branch page, or a name with a place in it), but every source describes only the head office: an online agent's town page that carries its London office's markup. The identity is capped at 30, the address and phone are the head office's (and capped by `field.head-office`), and a warning names where the head office is |
+| `identity.site-brand-only` | ≤ 40 | An inner page was asked about, but the only evidence is the site's own brand (its site-wide Organization: a name, a logo), with no place: a franchise network's agent profile page carries the network's markup, not the agent's. The identity is capped at 40, and a warning says the name may be the network's or a parent's |
 
 ## Fields
 

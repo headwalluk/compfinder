@@ -180,6 +180,15 @@ describe('linking records into places', () => {
     assert.ok(result.identity.warnings.some((warning) => warning.includes('(London)')));
   });
 
+  test('identity.site-brand-only: an inner page gives only the site\'s own brand (a network\'s agent page)', () => {
+    const brand = record('web-fetch', [fact.name('Exhomes'), fact.website('https://example.com/')], { scope: 'brand' });
+    const result = score({ name: 'Exhomes Jane Smith', url: 'https://example.com/our-agents/jane-smith/' }, [brand]);
+    expectRules(result.identity.rules, ['identity.single-structured', 'identity.site-brand-only']);
+    assert.equal(result.identity.confidence, 40);
+    const home = score({ name: 'Exhomes', url: 'https://example.com/' }, [brand]);
+    assert.ok(!home.identity.rules.includes('identity.site-brand-only'), 'on a home page the brand is the business');
+  });
+
   test('one ZIP code isn\'t one building: branches with different building numbers still tie', () => {
     const market = record('google-places-api', [fact.name('Example Chowder'), fact.address({ lines: ['1530 Post Alley'], postcode: '98101' }), fact.placeId(PLACE_ID)], { subject: 'market' });
     const mall = record('google-places-api', [fact.name('Example Chowder - Pacific Place'), fact.address({ lines: ['600 Pine St'], postcode: '98101' }), fact.placeId(OTHER_PLACE_ID)], { subject: 'mall' });
@@ -387,6 +396,13 @@ describe('identity rules', () => {
 });
 
 describe('field rules', () => {
+  test('between names that contradict each other, with equal backing, the one the query agrees with wins', () => {
+    const site = record('web-fetch', [fact.name('Example Estate & Lettings Agents in England and Wales'), fact.address({ postcode: POSTCODE }, 'loose')]);
+    const office = record('google-places-api', [fact.name('Example Property Centre Tendring'), fact.address({ postcode: POSTCODE }), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Property Centre - Tendring', url: 'https://example.com/offices/property-centre-tendring' }, [site, office]);
+    assert.equal(result.fields.name.value, 'Example Property Centre Tendring');
+  });
+
   test('field.independent-agreement: the site and Google agree on the phone', () => {
     const result = score({ url: 'https://example.com/' }, [siteBranch, googleBranch]);
     assert.equal(result.fields.phone.value?.e164, PHONE_E164);

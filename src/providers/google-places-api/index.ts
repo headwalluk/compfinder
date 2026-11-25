@@ -4,7 +4,7 @@ import { countryRules } from '../../normalise/country/index.js';
 import { mapsCid } from '../../normalise/maps.js';
 import { normalisePhone } from '../../normalise/phone.js';
 import { decodeEscapes, sanitiseText } from '../../normalise/text.js';
-import { compactWords, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl } from '../../normalise/url.js';
+import { compactWords, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl, PAGE_WORDS } from '../../normalise/url.js';
 import { HttpError } from '../../net/http-client.js';
 import { compareQueryName } from '../../normalise/name.js';
 import { apiRequest } from '../api-errors.js';
@@ -123,12 +123,8 @@ export function pathHint(url: string): string | null {
 }
 
 /**
- * What to search for (docs/providers.md). The query's own keys come first, so a lead another provider followed (one
- * branch's page) can't narrow a town-wide query to that branch: its postcode or address with the best name known; else
- * its phone; else a location another provider found; else a phone a page showed; else a hint from the URL's path.
- * With no name known, the domain stands in for one, and the path comes before a page's phone (which may be a call-
- * tracking number). A search on a domain-derived name, a name alone, or (for a home page) a found name that spells the
- * domain, keeps only places on the query's site.
+ * What to search for, in the order docs/providers.md gives: the query's own keys first, then found ones; a path that
+ * names a place before a page's phone. Some searches keep only places on the query's site.
  */
 export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const { query, fields } = knowledge;
@@ -144,13 +140,15 @@ export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const location = queryLocation ?? fields.address?.postcode ?? fields.address?.town ?? null;
   const foundPhone = fields.phone?.display ?? null;
   const hint = query.website === null ? null : pathHint(query.website.url);
+  // A branch page's path names the branch; a phone the page showed may be a call-tracking number Google doesn't know.
+  const isPlaceHint = hint !== null && hint.toLowerCase().split(' ').some((word) => !PAGE_WORDS.has(word));
   let text: string | null = null;
   let isSiteOnly = isNameFromDomain || isDomainSpelling;
   if (queryLocation === null && queryPhone !== null) {
     text = queryPhone;
   } else if (name !== null && location !== null) {
     text = `${name}, ${location}`;
-  } else if (foundPhone !== null && !isNameFromDomain) {
+  } else if (foundPhone !== null && !isNameFromDomain && !isPlaceHint) {
     text = foundPhone;
   } else if (name !== null && hint !== null) {
     text = `${name}, ${hint}`;

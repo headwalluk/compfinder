@@ -124,6 +124,14 @@ All notable changes to this project are documented here. The format follows
   a rival in the same building no longer takes the site's own details down with it. On a home
   page, the site's own details that match no place show as conflicts with the leader's.
 - A query's town found only in Google's formatted address isn't a name mismatch either.
+- Adding the branch's name to a branch page no longer lowers the answer: Google is searched with
+  the name and the URL's path before a phone the page showed, which may be a call-tracking number.
+- Branch slugs that differ only in their hyphens (`remax-` and `re-max-`) are the same page, and
+  a branch page that redirects to its renamed page is read as that page instead of being gone.
+- When two names contradict each other with equal backing, the one the query agrees with wins.
+- `identity.site-brand-only` (capped at 40): an inner page that gives only the site's own brand,
+  as a franchise network's agent page does, no longer passes the network's name as the agent's.
+- A schema.org region that is only a country code and a hyphen (`GB-`) is dropped.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

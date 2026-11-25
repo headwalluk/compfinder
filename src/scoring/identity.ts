@@ -1,6 +1,6 @@
 import { QUERY_SOURCE, type Query, type SourceRecord } from '../lookup/types.js';
 import { compareNames, compareQueryName, nameTokens } from '../normalise/name.js';
-import { isRelatedPath, isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
+import { isRelatedPath, isSameSite, isSiteRoot, normaliseUrl, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
 import { addressesEqual } from './match.js';
 import { countryRules } from '../normalise/country/index.js';
@@ -321,14 +321,21 @@ function queryListedPaths(candidates: readonly Candidate[], query: Query): Set<s
   return new Set(paths);
 }
 
-/** The query as the site answered it: when its site redirected to another domain, that domain, with the same path. */
+/**
+ * The query as the site answered it: when its site redirected to another domain, that domain, with the same path; when
+ * its page moved to another page of one place, that page.
+ */
 function queryAfterRedirect(candidates: readonly Candidate[], query: Query): Query {
   const website = query.website;
-  const redirected = website === null ? undefined : candidates.flatMap((candidate) => [...candidate.records, ...candidate.brandRecords])
-    .find((record) => record.redirectedFrom !== undefined && isSameSite(record.redirectedFrom, website.domain));
+  const siteRecords = candidates.flatMap((candidate) => [...candidate.records, ...candidate.brandRecords]).filter((record) => record.source === 'web-fetch');
+  const redirected = website === null ? undefined : siteRecords.find((record) => record.redirectedFrom !== undefined && isSameSite(record.redirectedFrom, website.domain));
   const site = redirected === undefined ? null : recordSite(redirected);
+  const movedTo = siteRecords.find((record) => record.movedTo !== undefined)?.movedTo;
+  const moved = movedTo === undefined ? null : normaliseUrl(movedTo);
   let answered = query;
-  if (website !== null && site !== null) {
+  if (website !== null && moved !== null) {
+    answered = { ...query, website: moved };
+  } else if (website !== null && site !== null) {
     const url = new URL(website.url);
     url.hostname = site;
     answered = { ...query, website: { url: url.href, domain: site } };
@@ -448,6 +455,17 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
       rules.push('identity.head-office-only');
       reasons.push(`every source describes the head office${where}, not the branch asked about; capped at ${cap}`);
       warnings.push(`A branch was asked for, but the site only gives its head office's details${where}. The address and phone are the head office's, not the branch's.`);
+    }
+    // A site-wide Organization on a network's agent page names the network, not the agent (docs/confidence.md).
+    const isInnerPage = query.website !== null && !isSiteRoot(query.website.url);
+    if (isInnerPage && sourced.length > 0 && sourced.every((record) => record.scope === 'brand')) {
+      const cap = ruleScore('identity.site-brand-only');
+      const siteName = fieldItems(sourced, 'name')[0]?.value ?? null;
+      confidence = Math.min(confidence, cap);
+      brandConfidence = Math.min(brandConfidence, cap);
+      rules.push('identity.site-brand-only');
+      reasons.push(`the page asked about gives only the site's own brand${siteName === null ? '' : ` (${siteName})`}, not a place; capped at ${cap}`);
+      warnings.push(`The page asked about gives no address or phone, only the site's own brand${siteName === null ? '' : ` "${siteName}"`}, which may be a network's or a parent's rather than this business's.`);
     }
   }
   return { confidence, rules, reasons, leaders, rejected, others, brandConfidence, isHeadOffice, warnings };

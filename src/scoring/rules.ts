@@ -14,6 +14,7 @@ export const RULES = {
   'identity.chain': { score: null, summary: 'A chain\'s home page with no location matches several of its places: the identity is the chain' },
   'identity.head-office': { score: null, summary: 'A chain\'s home page with no location: the identity is the head office' },
   'identity.head-office-only': { score: 30, summary: 'A branch was asked for, but every source describes only the head office: capped at this score' },
+  'identity.site-brand-only': { score: 40, summary: 'An inner page was asked about, but the only evidence is the site\'s own brand, not a place: capped at this score' },
 
   'field.independent-agreement': { score: 100, summary: 'Two or more independent sources agree' },
   'field.input-confirmed': { score: 100, summary: 'One source confirms the query\'s value, with structured evidence' },

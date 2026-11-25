@@ -1,7 +1,7 @@
 import type { Evidence, RecordRole, SourceRecord, WebsiteValue } from '../../lookup/types.js';
 import { httpStatusCause, ProviderError } from '../../lookup/errors.js';
 import { comparableName, compareNames, nameTokens } from '../../normalise/name.js';
-import { compactWords, isRelatedPath, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl, pagePath, siteHost } from '../../normalise/url.js';
+import { compactWords, isRelatedPath, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl, pagePath, sharesPlaceWord, siteHost } from '../../normalise/url.js';
 import { decodeBody } from '../../net/charset.js';
 import { HttpError, type HttpResponse } from '../../net/http-client.js';
 import { httpFailureCause } from '../api-errors.js';
@@ -362,9 +362,14 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       }
 
       // A branch page that now redirects to another inner page (the branch list) is gone: the site's loose numbers and
-      // postcodes belong to other branches, so none is taken as this one's. Landing on the home page isn't a move.
-      const isPageGone = !isSiteRoot(website.url) && !isSiteRoot(start.url) && !isRelatedPath(pagePath(start.url), pagePath(website.url));
-      if (isPageGone) {
+      // postcodes belong to other branches, so none is taken as this one's. Landing on the home page isn't a move, and
+      // landing on one place's page that keeps a word of the old one's name (putney-vale to putney-branch) is a rename.
+      const isRedirected = !isSiteRoot(website.url) && !isSiteRoot(start.url) && !isRelatedPath(pagePath(start.url), pagePath(website.url));
+      const isPageMoved = isRedirected && !isListingPage(results[0]) && sharesPlaceWord(pagePath(start.url), pagePath(website.url));
+      const isPageGone = isRedirected && !isPageMoved;
+      if (isPageMoved) {
+        context.warn(`${website.url} redirected to ${start.url}, which is read as the page asked about.`);
+      } else if (isPageGone) {
         context.warn(`${website.url} redirected to ${start.url}: the page asked about seems to be gone, so the site's loose phone numbers and postcodes aren't taken as this business's.`);
         for (const result of results) {
           result.loose.location = withoutPlaceFacts(result.loose.location);
@@ -463,7 +468,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       if (brand.length > 0) {
         records.push({
           source: 'web-fetch', origin, subject: `${start.url}#brand`, scope: 'brand', role: 'unknown', evidence: brand,
-          ...(listedPages.length === 0 ? {} : { listedPages }),
+          ...(listedPages.length === 0 ? {} : { listedPages }), ...(isPageMoved ? { movedTo: start.url } : {}),
         });
       }
       if (withheld.personalEmails > 0) {

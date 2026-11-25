@@ -153,13 +153,16 @@ describe('google-places-api', () => {
     assert.equal(searchText(knowledge), 'Kwik Fit, Bracknell');
   });
 
-  test('search plans: the query\'s phone before a found location; a page\'s phone before a URL hint', () => {
+  test('search plans: the query\'s phone before a found location; a branch path before a page\'s phone, which comes before a page-kind path', () => {
     const knowledge = (input: QueryInput, fields: Record<string, unknown> = {}) => ({ query: makeQuery(input), fields } as unknown as Parameters<typeof searchText>[0]);
     const foundAddress = { lines: [], town: 'Accrington', county: null, postcode: 'BB5 1HF', country_code: 'GB', formatted: null, lat: null, lon: null };
+    const foundPhone = { e164: '+441182172098', display: '0118 217 2098' };
     assert.equal(searchText(knowledge({ name: 'Keenans', phone: '0161 793 9622' }, { address: foundAddress })), '0161 793 9622');
-    const burnley = knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans', phone: { e164: '+441282469023', display: '01282 469023' } });
-    assert.equal(searchText(burnley), '01282 469023');
-    assert.equal(searchText(knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans' })), 'Keenans, burnley');
+    assert.equal(searchText(knowledge({ url: 'https://example.com/branches/burnley/' }, { name: 'Keenans', phone: foundPhone })), 'Keenans, burnley');
+    assert.equal(searchText(knowledge({ name: 'Example Caversham', url: 'https://example.com/our-offices/estate-agents-in-caversham/' }, { phone: foundPhone })),
+      'Example Caversham, estate agents in caversham', 'a call-tracking number on the page isn\'t searched before the branch\'s path');
+    assert.equal(searchText(knowledge({ name: 'Example Plumbing', url: 'https://example.com/contact-us/' }, { phone: foundPhone })), '0118 217 2098',
+      'a path naming only a kind of page says nothing about the place');
   });
 
   test('a home page with a name but no location searches the name alone, kept to the site; no name puts the path before a page\'s phone', () => {
@@ -187,6 +190,22 @@ describe('google-places-api', () => {
     const { result } = await find({ url: 'https://example.com/' }, routes);
     assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.status, 'blocked');
     assert.equal(result.fields.place_id.value, 'ChIJexampleReading001', 'the namesake on another site is dropped');
+  });
+
+  test('a branch page renamed by a redirect is confirmed by Google\'s place on the new page, which is the website shown', async () => {
+    const { result } = await find({ name: 'Example Estates Putney', url: 'https://example.com/branches/putney-roehampton-and-putney-vale' }, {
+      'https://example.com/robots.txt': { body: 'User-agent: *\nAllow: /\n', headers: { 'content-type': 'text/plain' } },
+      'https://example.com/branches/putney-roehampton-and-putney-vale': { status: 301, headers: { location: 'https://example.com/putney-branch/' } },
+      'https://example.com/putney-branch/': { body: '<html><head><title>Putney</title></head><body><a href="tel:020 8944 2918">Call</a> SW15 6TD</body></html>' },
+      [SEARCH_URL]: { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places: [
+        { id: 'ChIJexamplePutney0001', displayName: { text: 'Example Estates | Putney' }, websiteUri: 'https://example.com/putney-branch/',
+          nationalPhoneNumber: '020 8944 2918', formattedAddress: '212 Upper Richmond Rd, London SW15 6TD',
+          addressComponents: [{ longText: 'SW15 6TD', types: ['postal_code'] }, { longText: 'London', types: ['postal_town'] }] },
+      ] }) },
+    });
+    assert.equal(result.identity.confidence, 100);
+    assert.equal(result.fields.place_id.value, 'ChIJexamplePutney0001');
+    assert.equal(result.fields.website.value, 'https://example.com/putney-branch/');
   });
 
   test('a branch page that times out is unread: Google\'s place under an alias URL isn\'t contradicted', async () => {

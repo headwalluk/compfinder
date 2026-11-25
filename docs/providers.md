@@ -80,6 +80,11 @@ A branch page that **redirects elsewhere on the site** (`/locations/formby/` to 
 seems to be gone. A warning says so, and no loose phone number or postcode on the site is taken as
 the business's, since they belong to other branches. Markup on the page it lands on still counts.
 An alias redirect (a longer slug, a new URL scheme with the same last segment) isn't a move.
+A redirect to a page that describes one place and keeps a place word of the old slug
+(`/branches/putney-roehampton-and-putney-vale` to `/putney-branch/`) is a **rename**: a warning
+says so, the page it lands on is read as the page asked about, and its details count. Words for a
+kind of page or trade (`branch`, `office`, `estate`, `agents`, `contact` and the like) aren't
+place words, so a closed branch sent to another branch's page is still gone.
 
 An inner page with no location of its own (no markup, and no phone or postcode, or those of
 several places) is a **listing page**: an area page that links each nearby branch. web-fetch
@@ -115,15 +120,17 @@ metered by Google.
   1. the best name known with the query's own postcode or address;
   2. the query's phone, when it has a phone but no postcode or address;
   3. the best name with a postcode or town another provider found;
-  4. a phone a page showed;
-  5. the best name with a hint from the URL's path (`/bookshops/reading` gives `reading`);
+  4. the best name with a hint from the URL's path (`/bookshops/reading` gives `reading`), when
+     the path names a place rather than a kind of page (`/contact-us` doesn't);
+  5. a phone a page showed;
   6. for a home page with a name but no location or phone (a chain's home page), the name alone.
 
   The query's own values come first, so a branch page another provider happened to find can't
   narrow a town-wide query to that one branch. When no name is known at all (the site is blocked,
   or has no name in its markup), the domain stands in for the name (`waterstones.com` gives
-  `waterstones`), and the URL's path comes before a phone the page showed, which may be a
-  call-tracking number Google doesn't know. A search on a domain-derived name, on a name alone,
+  `waterstones`), and the URL's path comes before a phone the page showed even when it names
+  only a kind of page. A page's phone comes after the path because it may be a call-tracking
+  number Google doesn't know. A search on a domain-derived name, on a name alone,
   or, for a home page, on a found name that only spells the domain (`PureGym` on `puregym.com`),
   **keeps only places whose website is on the query's site**, so a namesake elsewhere is
   never taken. With nothing to search for, it waits for an earlier stage, and is

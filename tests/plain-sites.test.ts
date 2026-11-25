@@ -4,6 +4,7 @@ import { runLookup } from '../src/lookup/engine.js';
 import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
 import { collapseRepeatedPhrase, decodeEntities } from '../src/normalise/text.js';
+import { addressFrom } from '../src/providers/web-fetch/evidence.js';
 import { normaliseUrl } from '../src/normalise/url.js';
 import { builtInProviders } from '../src/providers/registry.js';
 import { fixtureTransport, type FixtureResponse, type FixtureTransport } from './helpers/fixture-transport.js';
@@ -150,6 +151,24 @@ describe('web-fetch on sites without location markup', () => {
     assert.ok(!home.result.warnings.some((warning) => warning.includes('seems to be gone')));
   });
 
+  test('a branch page that redirects to the renamed page of the same branch is moved, not gone', async () => {
+    const { result } = await find({ name: 'Example Estates Putney', url: 'https://example.com/branches/putney-roehampton-and-putney-vale' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/branches/putney-roehampton-and-putney-vale': { status: 301, headers: { location: 'https://example.com/putney-branch/' } },
+      'https://example.com/putney-branch/': page('Putney | Example Estates', '<h1>Putney</h1><a href="tel:020 8944 2918">020 8944 2918</a> 212 Upper Richmond Road, SW15 6TD'),
+    });
+    assert.equal(result.fields.phone.value, '+442089442918');
+    assert.equal((result.fields.address.value as { postcode: string }).postcode, 'SW15 6TD');
+    assert.ok(result.warnings.some((warning) => warning.includes('which is read as the page asked about')));
+    const closed = await find({ name: 'Example Estates Putney', url: 'https://example.com/branches/putney' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/branches/putney': { status: 301, headers: { location: 'https://example.com/wandsworth-branch/' } },
+      'https://example.com/wandsworth-branch/': page('Wandsworth | Example Estates', '<a href="tel:020 8870 0000">020 8870 0000</a> SW18 1AA'),
+    });
+    assert.equal(closed.result.fields.phone.value, null, 'a closed branch sent to another branch\'s page is gone');
+    assert.ok(closed.result.warnings.some((warning) => warning.includes('seems to be gone')));
+  });
+
   test('an Organization elsewhere than the query\'s name says, on the page asked about, is the head office', async () => {
     const organisation = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Homes', telephone: '020 3858 0695',
       address: { '@type': 'PostalAddress', streetAddress: '24 Greville Street', addressLocality: 'London', postalCode: 'EC1N 8SS' } });
@@ -211,6 +230,12 @@ describe('schema.org organisations that aren\'t the business', () => {
 });
 
 describe('cleaning values', () => {
+  test('a region that is only a country code and a hyphen ("GB-") is no region', () => {
+    const address = addressFrom({ streetAddress: '33 Orion Drive', addressLocality: 'Brackley', addressRegion: 'GB-', postalCode: 'NN13 6GE' }, null, 'GB');
+    assert.equal(address?.county, null);
+    assert.equal(addressFrom({ streetAddress: '1 High St', addressRegion: 'GB-NTH', postalCode: 'NN13 6GE' }, null, 'GB')?.county, 'GB-NTH');
+  });
+
   test('HTML character references in text are decoded', () => {
     assert.equal(decodeEntities('Hunters Estate Agents &amp; Letting Agents'), 'Hunters Estate Agents & Letting Agents');
     assert.equal(decodeEntities('Caf&#233; &#x2013; &rsquo;'), 'Café – ’');

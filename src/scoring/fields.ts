@@ -33,6 +33,8 @@ export interface FieldContext {
   identity: IdentityResult;
   /** True when the query names a place (a branch), not a whole business. */
   isBranchQuery: boolean;
+  /** Where the page asked about redirected to, when it moved to another page of one place; else null. */
+  pageMovedTo: string | null;
 }
 
 /** A value with its own score: a whole field, or one social profile. */
@@ -113,11 +115,17 @@ function specificity<Field extends FieldName>(field: Field, group: ValueGroup<Fi
   return field === 'name' && first !== undefined ? new Set(nameTokens(first.value as string)).size : 0;
 }
 
-/** Orders groups: most independent origins, then structured, then specificity, then priority, then value. */
+/**
+ * Orders groups: most independent origins, then structured, then (between names that contradict each other) the one
+ * the query agrees with, then specificity, then priority, then value.
+ */
 function compareGroups<Field extends FieldName>(field: Field, first: ValueGroup<Field>, second: ValueGroup<Field>): number {
   const canonical = (group: ValueGroup<Field>): string => (group.items[0] === undefined ? '' : canonicalValue(field, group.items[0].value));
+  const isNameClash = field === 'name' && first.items[0] !== undefined && second.items[0] !== undefined
+    && compareNames(first.items[0].value as string, second.items[0].value as string) === 'incompatible';
   return second.origins.length - first.origins.length
     || Number(second.isStructured) - Number(first.isStructured)
+    || (isNameClash ? Number(second.hasQuery) - Number(first.hasQuery) : 0)
     || specificity(field, second) - specificity(field, first)
     || first.priorityRank - second.priorityRank
     || canonical(first).localeCompare(canonical(second));
@@ -168,9 +176,14 @@ function chooseValue<Field extends FieldName>(field: Field, group: ValueGroup<Fi
   // An inner page asked about that a source gives exactly; one that redirected to another URL shows where it went.
   const isConfirmedPage = queryUrl !== null && !isSiteRoot(queryUrl) && sourced.some((item) => item.quality === 'structured'
     && pagePath((item.value as FieldValues['website']).url) === pagePath(queryUrl));
+  const movedPath = field === 'website' && context.pageMovedTo !== null ? pagePath(context.pageMovedTo) : null;
+  const movedItem = movedPath === null ? undefined
+    : sourced.find((item) => item.quality === 'structured' && pagePath((item.value as FieldValues['website']).url) === movedPath);
   if (field === 'website' && queryItem !== undefined && (context.identity.rules.includes('identity.chain') || isConfirmedPage)) {
     // A chain's website is the home page asked about; a page asked about and confirmed is shown as given.
     chosen = queryItem;
+  } else if (movedItem !== undefined) {
+    chosen = movedItem;
   } else if (field === 'website') {
     const trusted = group.items.filter((item) => item.record.source === QUERY_SOURCE || item.quality === 'structured');
     const choices = trusted.length > 0 ? trusted : group.items;
