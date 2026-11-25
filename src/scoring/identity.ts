@@ -1,5 +1,5 @@
 import { QUERY_SOURCE, type Query, type SourceRecord } from '../lookup/types.js';
-import { compareNames, compareQueryName } from '../normalise/name.js';
+import { compareNames, compareQueryName, nameTokens } from '../normalise/name.js';
 import { isRelatedPath, isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
 import { addressesEqual } from './match.js';
@@ -39,6 +39,8 @@ export interface CandidateAssessment {
   /** True when the query is a whole business (a home page, no location) and this candidate is its head office. */
   /** For a whole-business query: 2 for the site's head office, 1 for another place its markup describes, else 0. */
   sitePlaceRank: number;
+  /** For a branch-page query: the candidate's own page is another URL for it (an alias), neither confirmed nor contradicted. */
+  isAliasPage: boolean;
   /** True when the query's site is confirmed and its name is the only contradiction (identity.name-mismatch). */
   isNameMismatch: boolean;
   /** True when one of the candidate's names equals the query's, not just contains it. */
@@ -126,8 +128,13 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
     state = state === 'silent' && onSite.some((item) => isOtherPage(pagePath(item.value.url))) ? 'contradicted' : state;
   } else if (key === 'name' && query.name !== null) {
     const items = fieldItems(records, 'name');
+    // A query's town that the place's name leaves out ("Michael Poole Nunthorpe" for a listing in Nunthorpe) isn't a mismatch.
+    const placeWords = new Set(fieldItems(records, 'address').flatMap((item) => [...item.value.lines, item.value.town ?? ''].flatMap((part) => nameTokens(part))));
+    const withoutPlace = nameTokens(query.name).filter((word) => !placeWords.has(word)).join(' ');
     const queryName = query.name;
-    for (const item of items.filter((candidate) => compareQueryName(queryName, candidate.value) !== 'incompatible')) {
+    const isCompatible = (name: string): boolean => compareQueryName(queryName, name) !== 'incompatible'
+      || (withoutPlace !== '' && compareQueryName(withoutPlace, name) !== 'incompatible');
+    for (const item of items.filter((candidate) => isCompatible(candidate.value))) {
       confirm(item.value, item.quality === 'structured', item.record.source);
     }
     state = state === 'silent' && items.length > 0 ? 'contradicted' : state;
@@ -184,6 +191,7 @@ function assessCandidate(candidate: Candidate, query: Query, listedPaths: Readon
     baseScore: ruleScore(baseRule),
     baseRule,
     baseReason,
+    isAliasPage: isAliasPage(candidate, query),
     sitePlaceRank: !isWholeBusinessQuery ? 0
       : candidate.records.some((record) => record.role === 'head-office') ? 2
         : candidate.records.some((record) => isSiteMarkupPlace(record, querySite)) ? 1 : 0,
@@ -191,6 +199,14 @@ function assessCandidate(candidate: Candidate, query: Query, listedPaths: Readon
     isNameExact: query.name !== null && fieldItems(candidate.records, 'name').some((item) => compareNames(item.value, query.name ?? '') === 'equal'),
     postcodes: new Set(fieldItems(candidate.records, 'address').map((item) => item.value.postcode).filter((postcode) => postcode !== null)),
   };
+}
+
+/** True when, for a branch page asked about, a candidate's page on the site is an alias of it rather than the page itself. */
+function isAliasPage(candidate: Candidate, query: Query): boolean {
+  const website = query.website;
+  const queryPath = website === null || isSiteRoot(website.url) ? null : pagePath(website.url);
+  return website !== null && queryPath !== null && fieldItems(candidate.records, 'website').some((item) => isSameSite(item.value.domain, website.domain)
+    && !isSiteRoot(item.value.url) && pagePath(item.value.url) !== queryPath && isRelatedPath(pagePath(item.value.url), queryPath));
 }
 
 /** True when a record is the query's own site describing a place in its markup: a structured address or phone. */
@@ -202,7 +218,7 @@ function isSiteMarkupPlace(record: SourceRecord, querySite: string | null): bool
 
 /**
  * Ranks how well two candidates match the query: a confirmed place ID, a matching name, for a whole-business query the
- * site's head office and then a place its markup describes, most confirmed keys, fewest contradictions, then (in one building only) the exact name. 0 is a tie. How many sources back a candidate
+ * site's head office and then a place its markup describes, an alias of a branch page asked about, most confirmed keys, fewest contradictions, then (in one building only) the exact name. 0 is a tie. How many sources back a candidate
  * isn't a match to the query, so it never breaks a tie (docs/confidence.md: identity.tie).
  */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
@@ -215,6 +231,7 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
     || second.sitePlaceRank - first.sitePlaceRank
     || count(second, 'confirmed') - count(first, 'confirmed')
     || count(first, 'contradicted') - count(second, 'contradicted')
+    || Number(second.isAliasPage) - Number(first.isAliasPage)
     || (isSameBuilding(first, second) ? Number(second.isNameExact) - Number(first.isNameExact) : 0);
 }
 

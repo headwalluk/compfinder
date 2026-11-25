@@ -54,6 +54,11 @@ Reads the business's own pages. It needs no key, and it's free.
 subdomains (`staging.example.com`) aren't followed. Relative links resolve against the page's
 `<base href>` when it has one.
 
+The site's brand name is one of its names that spells the domain when there is one ("Bradford &
+Howley" on `bradfordandhowley.com`, `&` read as "and"), else the shortest. A brand name unlike that
+one (a site template's leftover "EstateApps") is dropped. A block that is only a name, with no
+address, phone or anything else (a team member's office, "St Albans"), isn't read as a place.
+
 Organisations written inline under `department`, `parentOrganization`, `subOrganization`,
 `member` or `memberOf` are other organisations (a Sales department, a parent company), and
 aren't read as this business. One those properties point to by `@id` is read where it's defined.

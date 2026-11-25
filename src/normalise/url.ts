@@ -69,11 +69,20 @@ export function compactWords(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
-/** True when every word of one path's last segment is in the other's (/offices/chiswick and /offices/dexters-chiswick-estate-agents). */
+/** Words that, added to a place's name, make it another place: "South Kensington" isn't "Kensington". */
+const PLACE_QUALIFIERS: ReadonlySet<string> = new Set([
+  'north', 'south', 'east', 'west', 'upper', 'lower', 'central', 'new', 'old', 'great', 'little', 'greater', 'high', 'inner', 'outer',
+]);
+
+/**
+ * True when every word of one path's last segment is in the other's (/offices/chiswick and
+ * /offices/dexters-chiswick-estate-agents), unless the longer one adds a word that makes it another place ("south").
+ */
 export function isRelatedPath(first: string, second: string): boolean {
   const segmentWords = (path: string): Set<string> => new Set((path.split('/').pop() ?? '').split(/[-_.+]+/).filter((word) => word !== ''));
   const firstWords = segmentWords(first);
   const secondWords = segmentWords(second);
-  const isWithin = (inner: Set<string>, outer: Set<string>): boolean => inner.size > 0 && [...inner].every((word) => outer.has(word));
+  const isWithin = (inner: Set<string>, outer: Set<string>): boolean => inner.size > 0 && [...inner].every((word) => outer.has(word))
+    && ![...outer].some((word) => !inner.has(word) && PLACE_QUALIFIERS.has(word));
   return isWithin(firstWords, secondWords) || isWithin(secondWords, firstWords);
 }

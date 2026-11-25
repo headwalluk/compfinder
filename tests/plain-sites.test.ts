@@ -164,6 +164,24 @@ describe('web-fetch on sites without location markup', () => {
     assert.ok(!same.result.identity.rules.includes('identity.head-office-only'), 'a query name the record matches is that record');
   });
 
+  test('a template\'s leftover Organization name loses to the name that spells the domain; name-only blocks are dropped', async () => {
+    const markup = JSON.stringify([
+      { '@context': 'https://schema.org', '@type': 'Organization', name: 'SiteBuilder', logo: 'https://www.example-and-sons.com/logo.png' },
+      { '@context': 'https://schema.org', '@type': 'RealEstateAgent', name: 'Example & Sons', telephone: '01727 648000',
+        address: { '@type': 'PostalAddress', streetAddress: 'Chequer Street', addressLocality: 'St Albans', postalCode: 'AL1 3XZ' } },
+      { '@context': 'https://schema.org', '@type': 'RealEstateAgent', name: 'Harpenden', telephone: '01582 769966',
+        address: { '@type': 'PostalAddress', streetAddress: 'High Street', addressLocality: 'Harpenden', postalCode: 'AL5 2SX' } },
+      { '@context': 'https://schema.org', '@type': 'Place', name: 'Marshalswick' },
+    ]);
+    const { result } = await find({ url: 'https://www.example-and-sons.com/' }, {
+      'https://www.example-and-sons.com/robots.txt': ROBOTS,
+      'https://www.example-and-sons.com/': page('Example & Sons', '', `<script type="application/ld+json">${markup}</script>`),
+    });
+    const names = [result.fields.name.value, ...result.fields.name.conflicts.map((conflict) => conflict.value)];
+    assert.ok(!names.some((name) => String(name).includes('SiteBuilder')), JSON.stringify(names));
+    assert.ok(!names.includes('Marshalswick'), 'a block that is only a name isn\'t a place');
+  });
+
   test('relative links resolve against <base href>, as a browser resolves them', async () => {
     const { transport } = await find({ url: 'https://example.com/contact/solicitors-wokingham' }, {
       'https://example.com/robots.txt': ROBOTS,

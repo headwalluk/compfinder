@@ -114,6 +114,12 @@ All notable changes to this project are documented here. The format follows
 - A connection reset part-way through a compressed response no longer ends the process: it's that
   provider's failure (`cause` `connection_reset`), and a batch carries on. A redirect's unread
   body is closed rather than left open.
+- A site's brand name is the one that spells its domain, so a template's leftover Organization
+  name no longer names the business; blocks that are only a name aren't places.
+- An alias of a branch page can't add a place word (`south`, `upper`, …): Kensington isn't South
+  Kensington. A listing with an alias of the branch page beats the head office's home page.
+- A query's town that a listing's name leaves out isn't a name mismatch, and an address without a
+  postcode agrees with the same street given with one.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

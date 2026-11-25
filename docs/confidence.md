@@ -52,8 +52,12 @@ Candidates are matched against your query. A branch page in your query isn't con
 different URL for what may be the same page: a longer slug, or an old URL scheme that redirects
 (`/healthandfitness/york` against `/health-club/york`). Only a clearly different page contradicts
 it, one where neither URL's last segment has all its words in the other's (`/shops/wokingham`
-against `/shops/reading`). An alias (`/offices/chiswick` against
-`/offices/dexters-chiswick-estate-agents`) is neither confirmed nor contradicted. When your query's
+against `/shops/reading`), or where the longer one adds a word that makes it another place
+(`south`, `north`, `upper`, `new` and the like: `/foxtons_kensington` isn't
+`/foxtons_south_kensington`). An alias (`/offices/chiswick` against
+`/offices/dexters-chiswick-estate-agents`) is neither confirmed nor contradicted, but a candidate
+with an alias of your branch page ranks above one whose website is the site's home page (a
+head office). When your query's
 site redirects to another domain (an old brand's domain to the new one's), places on the new
 domain count as on your query's site, with the same path. When your query's page is a **listing page**
 (it describes no place of its own, as an area page linking each nearby branch does), a candidate
@@ -74,7 +78,10 @@ are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` sta
 
 All name comparisons ignore case, punctuation, word order, legal suffixes, connecting words
 (`and`, `in`, `at`, `of`, `the`, `for`) and plain plurals. So `Martin & Co Estate Agents & Letting
-Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name.
+Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name. A word of
+your query's name that is in a candidate's own address (its town) can be missing from the
+candidate's name: `Michael Poole Nunthorpe` matches a listing called `Michael Poole Estate Agents`
+in Nunthorpe.
 
 For a home page with no location (a whole business), the site's head office ranks first, then a
 place its own markup gives an address or phone for. The site saying where it is counts as the

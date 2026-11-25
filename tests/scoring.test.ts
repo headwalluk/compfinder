@@ -116,6 +116,39 @@ describe('linking records into places', () => {
     assert.equal(result.fields.website.value?.url, 'https://example.com/uk');
   });
 
+  test('on a branch page, a listing whose page is an alias of it beats the head office on the home page', () => {
+    const site = record('web-fetch', [fact.name('Example Property Wokingham'), fact.phone(PHONE), fact.address({ lines: ['16 Market Place'], postcode: 'RG40 1AL' }),
+      fact.website('https://example.com/contact-us/estate-agents-wokingham')], { subject: 'site' });
+    const branch = record('google-places-api', [fact.name('Example Property - Estate Agents Wokingham'), fact.phone(PHONE), fact.address({ lines: ['16 Market Place'], postcode: 'RG40 1AL' }),
+      fact.website('https://example.com/contact-us/estate-agents-wokingham'), fact.placeId(PLACE_ID)], { subject: 'branch' });
+    const office = record('web-fetch', [fact.name('Example Property'), fact.phone(OTHER_PHONE), fact.address({ lines: ['34 Falcon Way'], postcode: 'RG12 8DQ' }),
+      fact.website('https://example.com/')], { subject: 'office' });
+    const result = score({ name: 'Example Property Wokingham', url: 'https://example.com/contact-us/estate-agents-wokingham-branch.html' }, [site, branch, office]);
+    assert.equal(result.identity.leaders.length, 1);
+    assert.equal(result.fields.place_id.value, PLACE_ID);
+  });
+
+  test('a branch page isn\'t an alias of one that adds a place word: Kensington isn\'t South Kensington', () => {
+    const south = record('google-places-api', [fact.name('Example South Kensington Estate Agents'), fact.address({ postcode: 'SW7 3RD' }),
+      fact.website('https://example.com/contact/example_South_Kensington_estate_agents'), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Kensington', url: 'https://example.com/contact/example_kensington_estate_agents' }, [south]);
+    assert.equal(result.identity.confidence, 0);
+  });
+
+  test('a query\'s town that a listing\'s name leaves out, in its address, isn\'t a name mismatch', () => {
+    const listing = record('google-places-api', [fact.name('Example Poole Estate Agents'), fact.address({ lines: ['12 High Street'], town: 'Nunthorpe', postcode: 'TS7 0AA' }),
+      fact.website('https://example.com/our-offices/nunthorpe'), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Poole Nunthorpe', url: 'https://example.com/our-offices/nunthorpe' }, [listing]);
+    assert.ok(!result.identity.rules.includes('identity.name-mismatch'));
+  });
+
+  test('an address without a postcode agrees with the same street given with one', () => {
+    const site = record('web-fetch', [fact.name('Example Woodworks'), fact.phone(PHONE), fact.address({ lines: ['329 W 18th St, Ste 914'], town: 'Chicago' })]);
+    const google = record('google-places-api', [fact.name('Example Woodworks'), fact.phone(PHONE), fact.address({ lines: ['329 West 18th Street'], town: 'Chicago', postcode: '60616' }), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Woodworks' }, [site, google]);
+    assert.deepEqual(result.fields.address.conflicts, []);
+  });
+
   test('identity.head-office-only: a branch was asked for, but every source describes the head office', () => {
     const office = record('web-fetch', [fact.name('Example Homes'), fact.phone(PHONE), fact.address({ lines: ['24 Greville Street'], town: 'London', postcode: 'EC1N 8SS' })], { role: 'head-office' });
     const result = score({ name: 'Example Homes Chelmsford', url: 'https://example.com/chelmsford' }, [office]);

@@ -49,7 +49,7 @@ function comparableAddress(address: AddressValue): string {
   return [...address.lines, address.town ?? ''].join(' ').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').replace(WHITESPACE_RUN, ' ').trim();
 }
 
-/** Same postcode, and the same building number when both have one; without postcodes, the same lines and town. */
+/** Same postcode and building number; without postcodes, the same lines and town; with one, the same numbered street. */
 export function addressesEqual(first: AddressValue, second: AddressValue): boolean {
   let isEqual: boolean;
   if (first.postcode !== null && second.postcode !== null) {
@@ -59,7 +59,9 @@ export function addressesEqual(first: AddressValue, second: AddressValue): boole
   } else if (first.postcode === null && second.postcode === null) {
     isEqual = comparableAddress(first) !== '' && comparableAddress(first) === comparableAddress(second);
   } else {
-    isEqual = false;
+    // One without a postcode is the same address when its numbered street is the other's.
+    const firstStreet = streetAddress(first);
+    isEqual = firstStreet !== null && firstStreet === streetAddress(second);
   }
   return isEqual;
 }

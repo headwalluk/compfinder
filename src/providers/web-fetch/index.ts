@@ -1,7 +1,7 @@
 import type { Evidence, RecordRole, SourceRecord, WebsiteValue } from '../../lookup/types.js';
 import { httpStatusCause, ProviderError } from '../../lookup/errors.js';
-import { comparableName, nameTokens } from '../../normalise/name.js';
-import { isRelatedPath, isSameSite, isSiteRoot, normaliseUrl, pagePath, siteHost } from '../../normalise/url.js';
+import { comparableName, compareNames, nameTokens } from '../../normalise/name.js';
+import { compactWords, isRelatedPath, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl, pagePath, siteHost } from '../../normalise/url.js';
 import { decodeBody } from '../../net/charset.js';
 import { HttpError, type HttpResponse } from '../../net/http-client.js';
 import { httpFailureCause } from '../api-errors.js';
@@ -141,10 +141,28 @@ function placeKeys(evidence: readonly Evidence[]): { phones: Set<string>; postco
   return { phones, postcodes };
 }
 
-/** The site's own name, from its Organization markup or og:site_name: the one with fewest words ("Notcutts" over "Notcutts Garden Centres"). */
-function shortestBrandName(brand: readonly Evidence[]): string | null {
+/**
+ * The site's own name, from its Organization markup or og:site_name: one that spells the domain first (so a template's
+ * leftover name, "EstateApps" on bradfordandhowley.com, loses), then the one with fewest words ("Notcutts" over
+ * "Notcutts Garden Centres").
+ */
+function shortestBrandName(brand: readonly Evidence[], site: string): string | null {
   const names = brand.flatMap((item) => (item.field === 'name' ? [item.value] : [])).filter((name) => nameTokens(name).length > 0);
-  return [...names].sort((first, second) => nameTokens(first).length - nameTokens(second).length || first.localeCompare(second))[0] ?? null;
+  const spells = (name: string): number => Number(spellsDomain(name, site));
+  return [...names].sort((first, second) => spells(second) - spells(first)
+    || nameTokens(first).length - nameTokens(second).length || first.localeCompare(second))[0] ?? null;
+}
+
+/** True for a brand name unlike the site's own when that spells its domain: a template's leftover ("EstateApps"). */
+function isLeftoverName(item: Evidence, brandName: string | null, site: string): boolean {
+  return item.field === 'name' && brandName !== null && spellsDomain(brandName, site) && compareNames(item.value, brandName) === 'incompatible';
+}
+
+/** True when a name spells the site's domain, "&" read as "and" or as nothing: "Bradford & Howley" on bradfordandhowley.com. */
+function spellsDomain(name: string, site: string): boolean {
+  const domain = compactWords(nameFromDomain(site));
+  const spellings = [compactWords(name.replace(/&/g, ' and ')), compactWords(name)];
+  return domain !== '' && spellings.includes(domain);
 }
 
 /**
@@ -365,9 +383,15 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       const isInnerStart = !isSiteRoot(start.url);
       // The brand's name may sit in an Organization that also carries the head office's address.
       const organisationNames = readable.flatMap((result) => result.locations.filter((location) => !location.isLocalBusiness).flatMap((location) => location.evidence));
+      // A LocalBusiness named as the domain is spelt ("Bradford & Howley") names the brand too.
+      const domainNamedPlaces = readable.flatMap((result) => result.locations.flatMap((location) => location.evidence))
+        .filter((item) => item.field === 'name' && spellsDomain(item.value, site));
+      const brandName = shortestBrandName(readable.flatMap((result) => [
+        ...result.brand.filter((item) => !isInnerStart || item.reference.detail !== TITLE_NAME_DETAIL), ...result.loose.brand, ...organisationNames, ...domainNamedPlaces,
+      ]), site);
       // A name from a title steers later searches; it's taken only for a home page asked about (docs/providers.md).
-      const brandOf = (result: PageResult): Evidence[] => result.brand.filter((item) => !isInnerStart || item.reference.detail !== TITLE_NAME_DETAIL);
-      const brandName = shortestBrandName(readable.flatMap((result) => [...brandOf(result), ...result.loose.brand, ...organisationNames]));
+      const brandOf = (result: PageResult): Evidence[] => result.brand.filter((item) => (!isInnerStart || item.reference.detail !== TITLE_NAME_DETAIL)
+        && !isLeftoverName(item, brandName, site));
       const records: SourceRecord[] = [];
       for (const result of readable) {
         result.locations.forEach((location, index) => {
@@ -379,12 +403,16 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
             const fillers = isListing(result.loose.location) ? withoutPlaceFacts(result.loose.location) : result.loose.location;
             addUnique(evidence, fillers.filter((item) => !structuredFields.has(item.field)));
           }
-          records.push({
-            source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
-            role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses,
-              isInnerStart && (result.page.url !== start.url || namesElsewhere(knowledge.query.name, location.evidence))), evidence,
-            ...(location.mapsCids.length === 0 ? {} : { mapsCids: location.mapsCids }),
-          });
+          // A block that is only a name (a team member's office, "St Albans") says nothing about a business.
+          const isNameOnly = evidence.every((item) => item.field === 'name') && location.mapsCids.length === 0;
+          if (!isNameOnly) {
+            records.push({
+              source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
+              role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses,
+                isInnerStart && (result.page.url !== start.url || namesElsewhere(knowledge.query.name, location.evidence))), evidence,
+              ...(location.mapsCids.length === 0 ? {} : { mapsCids: location.mapsCids }),
+            });
+          }
         });
       }
       const brand: Evidence[] = [];
