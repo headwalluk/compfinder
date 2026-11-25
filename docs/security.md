@@ -13,7 +13,11 @@ When `web-fetch` reads a business's site, it:
   allows everything. One that answers 401, 403, 429 or 5xx means the whole site is treated as
   disallowed, and the lookup reports `web-fetch` as `blocked`, following RFC 9309. A `robots.txt`
   that redirects is followed, to another host if need be (an old domain sending everything to a
-  new one), up to five redirects, each checked against the refused addresses below.
+  new one), up to five redirects, each checked against the refused addresses below. Every
+  redirect a page takes is checked too, against the `robots.txt` of the origin it lands on,
+  before it's followed: a hop to a disallowed path, or to an origin whose `robots.txt` can't be
+  read, isn't followed. Rules are matched without regular expressions, and a group keeps at most
+  1,000 rules of up to 512 characters each, so no `robots.txt` can make matching slow.
   `web_fetch.honour_robots = false` turns this off, at your own responsibility;
 - reads only a few pages per lookup (`web_fetch.max_pages`, default 5): the page given, then
   contact, home, branches and about pages on the same host (not other subdomains). It never crawls. The only way it leaves
@@ -37,8 +41,10 @@ So that compfinder can't be used to reach into the network it runs on (SSRF), it
 
 - any URL that isn't `http` or `https`, or uses a port other than 80 or 443;
 - any host that resolves to a private, loopback, link-local, shared (CGNAT), documentation,
-  multicast or reserved address, IPv4 or IPv6. That includes IPv4 addresses inside IPv4-mapped
-  and NAT64 IPv6 addresses. The check runs on the resolved address **at connect time** and on
+  multicast or reserved address, IPv4 or IPv6. That includes IPv4 addresses inside IPv4-mapped,
+  NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) IPv6 addresses, however the address is written.
+  The deprecated IPv4-compatible form (`::/96`) and NAT64's local-use prefix (`64:ff9b:1::/48`),
+  which can hold an IPv4 address anywhere, are refused outright. The check runs on the resolved address **at connect time** and on
   every redirect, so a name that resolves somewhere else on a second lookup is still caught;
 - an IP address given directly, checked before any connection.
 
@@ -50,6 +56,13 @@ Every response has a size cap, and the cap applies to the **decompressed** bytes
 so a compressed "bomb" is cut off: 2 MiB for a page, 512 KiB for `robots.txt`, 64 KiB for a web
 app manifest, 1 MiB for an API's JSON answer, 5 MiB for an image. An SVG logo over 1 MiB isn't
 rendered. Redirects are followed at most five times.
+
+A cached response keeps the redirect hops that led to it. A later request answered from the
+cache has those hops checked as a live request's would be (where it may redirect, the refused
+addresses, `robots.txt`), so the cache can't let through what the network wouldn't. A request's
+cache entry is its full URL, and responses fetched with `--allow-private-addresses` are kept
+apart from the rest. If the cache can't be read or written (a full disk), the request is made
+live and a warning says so; it never costs the lookup its evidence.
 
 ## Untrusted content
 
@@ -77,7 +90,10 @@ compfinder looks up organisations, not people.
 
 API keys come from `config.toml` or `COMPFINDER_*` environment variables
 ([configuration.md](configuration.md)). compfinder never prints, logs or caches a key.
-`config show` shows each as `set` or `unset`. Keys are sent in request headers, and anything
-that reaches a log or the output (error details, logged URLs) passes through a redactor that
-removes every configured key and any credential-looking query parameter. Never pass a key as a
+`config show` shows each as `set` or `unset`. Keys are sent in request headers, and an API
+request never follows a redirect to another origin or to plain HTTP, so a key is only ever sent
+to the API it's for. Anything that reaches a log or the output (error details, logged URLs,
+warnings) passes through a redactor that removes every configured key, the user and password
+part of a URL, and any credential-looking query parameter (`key`, `token`, `signature` and
+signed-URL parameters such as `X-Amz-Signature`). Never pass a key as a
 command-line argument: it would end up in your shell history.

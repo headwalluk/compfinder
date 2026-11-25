@@ -41,7 +41,7 @@ Give at least one of a name or the options below. A URL or a name plus a place w
 | `--fields=a,b` | Only look for these fields, skipping providers that can't supply them |
 | `--providers=a,b` / `--exclude=a,b` | Use only these providers, or all but these |
 | `--max-metered-calls=N` | Spend at most N metered calls on this lookup (also a setting) |
-| `--dry-run` | Show which providers would run, in what order, and the most metered calls. No calls are made |
+| `--dry-run` | Show which providers would run, in what order, and the most metered calls. No calls are made. Text or JSON output only |
 | `--explain` | Include every piece of evidence behind each field (text or JSON output) |
 | `--no-download` | Report logo URLs without downloading them |
 | `--no-cache` | Don't reuse cached responses or logos. A downloaded logo is still stored, because its path is part of the result |
@@ -76,7 +76,7 @@ options (`--fields`, `--providers`, `--no-download`, …) apply to every line.
 | `--input=FILE` | Read queries from FILE, or from stdin with `-` |
 | `--concurrency=N` | Run up to N lookups at once, 1 to 16 (default 1). Results are still written in input order |
 | `--max-metered-calls-total=N` | Spend at most N metered calls on the whole batch (also a setting). Once they're spent, metered providers are skipped as `over budget` and free ones carry on |
-| `--dry-run` | Plan every line without making a call, then report the most metered calls the batch could make, for estimating a bill |
+| `--dry-run` | Plan every line without making a call, then report the most metered calls the batch could make, for estimating a bill. Each line's plan is for that line alone; the total is capped by `--max-metered-calls-total` |
 
 Results stream out as each lookup finishes: one JSON line, one CSV row (after a single header
 row), or one text block headed by `[id]` (or `[line N]` when the line has no id). A line that can't be looked up gets an error

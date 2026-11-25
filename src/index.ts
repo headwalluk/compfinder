@@ -2,7 +2,7 @@
  * The library entry point: everything the CLI does, callable from code. Usage and examples are in
  * docs/library.md. Nothing outside this module's exports is a public contract.
  */
-import { loadConfigFromEnvironment, loadConfigFromValues, type Config } from './config.js';
+import { configuredSecrets, loadConfigFromEnvironment, loadConfigFromValues, type Config } from './config.js';
 import { createLogger, type Logger } from './logger.js';
 import { CallBudget } from './lookup/budget.js';
 import { checkProviders, planLookup, runLookup, type CheckReport, type LookupRequest, type PlannedProvider } from './lookup/engine.js';
@@ -96,7 +96,7 @@ export function createFinder(options: FinderOptions = {}): Finder {
   const config = options.fromEnvironment === true
     ? loadConfigFromEnvironment({})
     : loadConfigFromValues({ ...(options.toml === undefined ? {} : { toml: options.toml }), ...(options.variables === undefined ? {} : { variables: options.variables }) });
-  const logger = options.logger ?? createLogger({ level: config.logLevel, tag: LOGGER_TAG, stderrOnly: true });
+  const logger = options.logger ?? createLogger({ level: config.logLevel, tag: LOGGER_TAG, stderrOnly: true , secrets: configuredSecrets(config) });
   for (const warning of config.warnings) {
     logger.warn(warning);
   }

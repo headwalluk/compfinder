@@ -10,6 +10,8 @@ import { createHttpClient, HttpError, type HttpClient } from '../src/net/http-cl
 import { redact } from '../src/net/redact.js';
 import { isPathAllowed, parseRobots } from '../src/net/robots.js';
 import { LIVE_TRANSPORT } from '../src/net/transport.js';
+import type { ProviderCache } from '../src/cache/store.js';
+import { fixtureTransport } from './helpers/fixture-transport.js';
 import { httpFailureCause } from '../src/providers/api-errors.js';
 
 const COMPRESSION_BOMB_BYTES = 3 * 1024 * 1024;
@@ -128,6 +130,15 @@ describe('address guard', () => {
     assert.equal(isAddressAllowed('64:ff9b::a00:1'), false, '64:ff9b::10.0.0.1');
   });
 
+  test('an embedded IPv4 address is found however the IPv6 address is spelt; prefixes it can\'t read are refused', () => {
+    for (const address of ['64:ff9b::10.0.0.1', '64:ff9b:0:0:0:0:a00:1', '64:ff9b:0000::0a00:0001', '::ffff:a00:1', '2002:a00:1::1', '::10.0.0.1', '64:ff9b:1::808:808', 'fe80::1%eth0', '1::2::3']) {
+      assert.equal(isAddressAllowed(address), false, address);
+    }
+    for (const address of ['64:ff9b::8.8.8.8', '64:ff9b:0:0:0:0:808:808', '2002:808:808::1', '2606:4700:4700:0:0:0:0:1111']) {
+      assert.equal(isAddressAllowed(address), true, address);
+    }
+  });
+
   test('refuses a host name that resolves to a private address, at lookup time', async () => {
     const error = await new Promise<NodeJS.ErrnoException | null>((resolve) => {
       guardedLookup('localhost', {}, (lookupError) => resolve(lookupError));
@@ -153,6 +164,13 @@ describe('HTTP client', () => {
   test('refuses a redirect the caller doesn\'t allow, such as one off the site', async () => {
     const sameHost = (from: URL, to: URL): boolean => from.host === to.host;
     await rejectsWith(client().request({ url: `${baseUrl}/elsewhere`, kind: 'html', canFollowRedirect: sameHost }), 'redirect_refused');
+  });
+
+  test('a request carrying its own headers (an API key) never follows a redirect to another origin', async () => {
+    const credentialed = { [`x-api-key`]: 'secret-value' };
+    await rejectsWith(client().request({ url: `${baseUrl}/elsewhere`, kind: 'json', headers: credentialed, canFollowRedirect: () => true }), 'redirect_refused');
+    const sameOrigin = await client().request({ url: `${baseUrl}/redirect`, kind: 'html', headers: credentialed });
+    assert.equal(sameOrigin.status, 200, 'a redirect on the same origin is still followed');
   });
 
   test('decompresses gzip, and cuts off a compression bomb at the byte cap', async () => {
@@ -214,6 +232,44 @@ describe('HTTP client', () => {
   });
 });
 
+describe('HTTP client and the response cache', () => {
+  /** An in-memory cache, to see what the client stores and replays. */
+  const memoryCache = (): ProviderCache & { entries: Map<string, unknown> } => {
+    const entries = new Map<string, unknown>();
+    return { entries, get: (kind, key) => entries.get(`${kind} ${key}`), set: (kind, key, data) => { entries.set(`${kind} ${key}`, data); } };
+  };
+  const cachedClient = (cache: ProviderCache, transport: ReturnType<typeof fixtureTransport>, allowPrivateAddresses = false): HttpClient => createHttpClient({
+    transport, userAgent: 'test', requestTimeoutMs: 1000, allowPrivateAddresses, meter: new CallMeter(false, []), signal: new AbortController().signal, cache,
+  });
+
+  test('a cached redirect is checked against the current request\'s policy before it is used', async () => {
+    const transport = fixtureTransport({
+      'https://old.example.com/': { status: 301, headers: { location: 'https://new.example.org/' } },
+      'https://new.example.org/': { body: '<p>Moved</p>' },
+    });
+    const cache = memoryCache();
+    const anywhere = await cachedClient(cache, transport).request({ url: 'https://old.example.com/', kind: 'html', cacheTtlSeconds: 60, canFollowRedirect: () => true });
+    assert.equal(anywhere.url, 'https://new.example.org/');
+    const sent = transport.requests.length;
+    const onSite = (from: URL, to: URL): boolean => from.hostname === to.hostname;
+    await rejectsWith(cachedClient(cache, transport).request({ url: 'https://old.example.com/', kind: 'html', cacheTtlSeconds: 60, canFollowRedirect: onSite }), 'redirect_refused');
+    assert.equal(transport.requests.length, sent, 'refused from the cache, without a request');
+  });
+
+  test('distinct URLs are cached apart, and so are responses fetched with private addresses allowed', async () => {
+    const transport = fixtureTransport({
+      'https://example.com/page?token=one': { body: 'first' },
+      'https://example.com/page?token=two': { body: 'second' },
+    });
+    const cache = memoryCache();
+    await cachedClient(cache, transport).request({ url: 'https://example.com/page?token=one', kind: 'html', cacheTtlSeconds: 60 });
+    const second = await cachedClient(cache, transport).request({ url: 'https://example.com/page?token=two', kind: 'html', cacheTtlSeconds: 60 });
+    assert.equal(second.body.toString(), 'second');
+    await cachedClient(cache, transport, true).request({ url: 'https://example.com/page?token=one', kind: 'html', cacheTtlSeconds: 60 });
+    assert.equal(transport.requests.length, 3, 'the private-addresses run doesn\'t share the guarded run\'s entry');
+  });
+});
+
 describe('charset', () => {
   test('uses the header, then <meta charset>, then UTF-8', () => {
     const latin1 = Buffer.from('<meta charset="iso-8859-1"><p>Café</p>', 'latin1');
@@ -246,10 +302,29 @@ describe('robots.txt', () => {
     assert.equal(isPathAllowed(rules, 'somebot', '/docs/file.pdf'), false);
     assert.equal(isPathAllowed(rules, 'somebot', '/docs/file.pdf?x=1'), true);
     assert.equal(isPathAllowed(parseRobots(''), 'compfinder', '/anything'), true);
+    const wildcards = parseRobots('User-agent: *\nDisallow: /*/branches/*/team\nDisallow: /a*b$\n');
+    assert.equal(isPathAllowed(wildcards, 'compfinder', '/uk/branches/reading/team/jane'), false);
+    assert.equal(isPathAllowed(wildcards, 'compfinder', '/uk/branches/reading'), true);
+    assert.equal(isPathAllowed(wildcards, 'compfinder', '/a-to-b'), false);
+    assert.equal(isPathAllowed(wildcards, 'compfinder', '/a-to-b/c'), true);
+    assert.equal(isPathAllowed(parseRobots('User-agent: *\nDisallow: /*.'), 'compfinder', '/file.pdf'), false, 'a . is literal, not any character');
+    assert.equal(isPathAllowed(parseRobots('User-agent: *\nDisallow: /*.'), 'compfinder', '/file'), true);
+  });
+
+  test('a rule full of wildcards is matched in bounded time, not by backtracking', () => {
+    const hostile = parseRobots(`User-agent: *\nDisallow: /${'*a'.repeat(200)}b$\n`);
+    const startedAt = performance.now();
+    assert.equal(isPathAllowed(hostile, 'compfinder', `/${'a'.repeat(300)}`), true);
+    assert.ok(performance.now() - startedAt < 1000, 'matched well within a second');
   });
 });
 
 describe('redaction', () => {
+  test('removes a URL\'s user and password, and signed-URL parameters', () => {
+    assert.equal(redact('GET https://jane:hunter2@example.com/logo.png failed', []), 'GET https://[redacted]@example.com/logo.png failed');
+    assert.equal(redact('https://cdn.example.com/a.png?X-Amz-Signature=abc&w=1', []), 'https://cdn.example.com/a.png?X-Amz-Signature=[redacted]&w=1');
+  });
+
   test('removes known secrets and credential-looking query parameters', () => {
     assert.equal(redact('GET https://api.example.com/x?q=1&key=abc123 failed', []), 'GET https://api.example.com/x?q=1&key=[redacted] failed');
     assert.equal(redact('auth with sk-secret-value rejected', ['sk-secret-value']), 'auth with [redacted] rejected');

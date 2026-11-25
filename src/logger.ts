@@ -1,4 +1,5 @@
 import type { LogLevel } from './config.js';
+import { redact } from './net/redact.js';
 
 type Severity = LogLevel | 'error';
 
@@ -18,6 +19,8 @@ export interface LoggerOptions {
   tag: string;
   /** When true every line goes to stderr, keeping stdout clean for --json output. */
   stderrOnly?: boolean;
+  /** Values never written, such as API keys. URL userinfo and credential parameters are always removed. */
+  secrets?: readonly string[];
 }
 
 /** Converts Error values in details into plain objects that JSON.stringify can show. */
@@ -34,7 +37,7 @@ export function createLogger(options: LoggerOptions): Logger {
   const write = (severity: Severity, message: string, details?: Record<string, unknown>): void => {
     if (SEVERITY_ORDER[severity] >= threshold) {
       const suffix = details === undefined ? '' : ` ${serialiseDetails(details)}`;
-      const line = `${new Date().toISOString()} ${severity.padEnd(5)} [${options.tag}] ${message}${suffix}`;
+      const line = redact(`${new Date().toISOString()} ${severity.padEnd(5)} [${options.tag}] ${message}${suffix}`, options.secrets ?? []);
       if (options.stderrOnly === true || SEVERITY_ORDER[severity] >= SEVERITY_ORDER.warn) {
         console.error(line);
       } else {

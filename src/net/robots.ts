@@ -11,6 +11,9 @@ export interface RobotsRules {
 
 const COMMENT = /#.*$/;
 const WILDCARD_AGENT = '*';
+/** Rules kept per group, and the longest pattern read: together they bound the matching work (docs/security.md). */
+const MAX_RULES_PER_GROUP = 1000;
+const MAX_PATTERN_CHARS = 512;
 
 /** Parses robots.txt (RFC 9309): user-agent groups of allow and disallow rules. */
 export function parseRobots(text: string): RobotsRules {
@@ -32,8 +35,9 @@ export function parseRobots(text: string): RobotsRules {
       } else if (field === 'allow' || field === 'disallow') {
         isCollectingAgents = false;
         for (const agent of agents) {
-          if (value !== '') {
-            groups.get(agent)?.push({ isAllow: field === 'allow', pattern: value });
+          const group = groups.get(agent);
+          if (group !== undefined && value !== '' && value.length <= MAX_PATTERN_CHARS && group.length < MAX_RULES_PER_GROUP) {
+            group.push({ isAllow: field === 'allow', pattern: value });
           }
         }
       }
@@ -42,12 +46,41 @@ export function parseRobots(text: string): RobotsRules {
   return { groups };
 }
 
-/** True when a robots.txt pattern (with * and $ wildcards) matches a path. */
+/**
+ * True when a robots.txt pattern (with * and $ wildcards) matches a path. Matched without regular expressions, in at
+ * most pattern-length × path-length steps, since the pattern comes from the site.
+ */
 function patternMatches(pattern: string, path: string): boolean {
   const isAnchored = pattern.endsWith('$');
-  const body = isAnchored ? pattern.slice(0, -1) : pattern;
-  const expression = body.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*');
-  return new RegExp(`^${expression}${isAnchored ? '$' : ''}`).test(path);
+  // Unanchored, a rule matches any path that starts with it: the same as a trailing *.
+  const glob = isAnchored ? pattern.slice(0, -1) : `${pattern}*`;
+  let patternIndex = 0;
+  let pathIndex = 0;
+  let starIndex = -1;
+  let resumeIndex = 0;
+  let isMatch = true;
+  while (pathIndex < path.length) {
+    if (patternIndex < glob.length && glob[patternIndex] === '*') {
+      starIndex = patternIndex;
+      resumeIndex = pathIndex;
+      patternIndex += 1;
+    } else if (patternIndex < glob.length && glob[patternIndex] === path[pathIndex]) {
+      patternIndex += 1;
+      pathIndex += 1;
+    } else if (starIndex !== -1) {
+      // Let the last * absorb one more character and retry from there.
+      patternIndex = starIndex + 1;
+      resumeIndex += 1;
+      pathIndex = resumeIndex;
+    } else {
+      isMatch = false;
+      break;
+    }
+  }
+  while (isMatch && patternIndex < glob.length && glob[patternIndex] === '*') {
+    patternIndex += 1;
+  }
+  return isMatch && patternIndex === glob.length;
 }
 
 /** Whether a user agent may fetch a path: its own group (else *), the longest matching rule, allow on a tie. */

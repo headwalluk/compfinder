@@ -31,7 +31,7 @@ export interface BatchOptions {
   exclude?: ProviderName[];
   concurrency: number;
   /** Writes one finished lookup's output to stdout. */
-  write(text: string): void;
+  write(text: string): Promise<void>;
 }
 
 export interface BatchSummary {
@@ -99,6 +99,19 @@ function format(outcome: LineOutcome, options: BatchOptions, lineNumber: number)
   return text;
 }
 
+/** Runs one batch line to its outcome; an unexpected failure is that line's error, never the batch's. */
+async function runLineSafely(line: string, options: BatchOptions, batchBudget: CallBudget): Promise<LineOutcome> {
+  let outcome: LineOutcome;
+  try {
+    outcome = await runLine(line, options, batchBudget);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    options.logger.error('A batch line failed unexpectedly', { error });
+    outcome = { kind: 'error', id: parseLine(line).id, error: outputError('lookup.internal_error', detail), problems: [detail] };
+  }
+  return outcome;
+}
+
 /** Runs one batch line to its outcome. */
 async function runLine(line: string, options: BatchOptions, batchBudget: CallBudget): Promise<LineOutcome> {
   const parsed = parseLine(line);
@@ -144,7 +157,7 @@ export async function runBatch(lines: AsyncIterable<string>, options: BatchOptio
     const outcome = await pending.get(nextToWrite);
     pending.delete(nextToWrite);
     if (outcome !== undefined) {
-      options.write(format(outcome, options, nextToWrite + 1));
+      await options.write(format(outcome, options, nextToWrite + 1));
       summary.errors += outcome.kind === 'error' || (outcome.kind === 'result' && outcome.result.error !== null) ? 1 : 0;
       summary.meteredCalls += outcome.kind === 'plan' ? outcome.plan.maxMeteredCalls : 0;
     }
@@ -152,14 +165,14 @@ export async function runBatch(lines: AsyncIterable<string>, options: BatchOptio
   };
 
   if (options.output === 'csv') {
-    options.write(`${UTF8_BOM}${csvHeader()}`);
+    await options.write(`${UTF8_BOM}${csvHeader()}`);
   }
   for await (const rawLine of lines) {
     const line = rawLine.trim();
     if (line === '') {
       continue;
     }
-    pending.set(summary.lines, runLine(line, options, batchBudget));
+    pending.set(summary.lines, runLineSafely(line, options, batchBudget));
     summary.lines += 1;
     while (pending.size >= options.concurrency) {
       await flushNext();
@@ -168,6 +181,7 @@ export async function runBatch(lines: AsyncIterable<string>, options: BatchOptio
   while (pending.size > 0) {
     await flushNext();
   }
-  summary.meteredCalls = options.isDryRun ? summary.meteredCalls : batchBudget.spent();
+  // A dry run's per-line plans don't share the batch's budget, so their sum is capped by it here.
+  summary.meteredCalls = options.isDryRun ? Math.min(summary.meteredCalls, limit === 0 ? Infinity : limit) : batchBudget.spent();
   return summary;
 }

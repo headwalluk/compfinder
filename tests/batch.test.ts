@@ -122,6 +122,17 @@ describe('find --input (batch)', () => {
     assert.match(result.stderr, /Batch: 2 lines, 0 with errors, at most 2 metered calls\./);
   });
 
+  test('a dry run\'s total is capped by the batch\'s metered-call budget; CSV is refused', async () => {
+    const { inputPath, home } = inputFile([JSON.stringify({ id: 'a', url: 'https://example.com/' }), JSON.stringify({ id: 'b', name: 'Example', postcode: 'RG1 1AA' })]);
+    const environment = { HOME: home, COMPFINDER_GOOGLE_PLACES_API_KEY: 'test-key' };
+    const capped = await runCliAsync(['find', `--input=${inputPath}`, '--dry-run', '--output=json', '--max-metered-calls-total=1'], environment);
+    assert.equal(capped.exitCode, 0, capped.stderr);
+    assert.match(capped.stderr, /Batch: 2 lines, 0 with errors, at most 1 metered calls\./);
+    const csv = await runCliAsync(['find', `--input=${inputPath}`, '--dry-run', '--output=csv'], environment);
+    assert.equal(csv.exitCode, 2);
+    assert.match(csv.stderr, /--dry-run needs --output=text or json/);
+  });
+
   test('unknown keys and non-string values in a line are input.bad_value', async () => {
     const { inputPath, home } = inputFile([JSON.stringify({ id: 'x', url: 'https://example.com/', colour: 'red', phone: 1184960000 })]);
     const result = await runCliAsync(['find', `--input=${inputPath}`, '--output=json', '--dry-run'], { HOME: home });

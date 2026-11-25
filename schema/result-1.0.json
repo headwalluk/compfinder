@@ -110,7 +110,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "status", "reason", "detail", "cause", "calls", "cached_calls", "metered"],
+        "required": ["name", "status", "reason", "detail", "cause", "calls", "cached_calls", "metered_calls", "metered"],
         "properties": {
           "name": { "type": "string" },
           "status": {
@@ -130,6 +130,7 @@
           },
           "calls": { "type": "integer", "minimum": 0 },
           "cached_calls": { "type": "integer", "minimum": 0 },
+          "metered_calls": { "type": "integer", "minimum": 0 },
           "metered": { "type": "boolean" }
         }
       }

@@ -121,6 +121,26 @@ describe('web-fetch on sites without location markup', () => {
     assert.equal(inner.result.fields.name.value, null);
   });
 
+  test('a redirect to a path robots.txt disallows isn\'t followed, on the start page or a later one', async () => {
+    const robots = { body: 'User-agent: *\nDisallow: /private/\n', headers: { 'content-type': 'text/plain' } };
+    const start = await find({ url: 'https://example.com/branches/reading/' }, {
+      'https://example.com/robots.txt': robots,
+      'https://example.com/branches/reading/': { status: 301, headers: { location: '/private/reading/' } },
+      'https://example.com/private/reading/': page('Reading', '<a href="tel:0118 496 0000">Call</a>'),
+    });
+    const report = start.result.providers.find((provider) => provider.name === 'web-fetch');
+    assert.equal(report?.status, 'blocked');
+    assert.equal(report?.cause, 'robots_disallowed');
+    assert.ok(!start.transport.requests.includes('GET https://example.com/private/reading/'));
+    const later = await find({ url: 'https://example.com/' }, {
+      'https://example.com/robots.txt': robots,
+      'https://example.com/': page('Example', '<a href="/contact/">Contact</a> <a href="tel:0118 496 0000">Call</a>'),
+      'https://example.com/contact/': { status: 302, headers: { location: '/private/contact/' } },
+    });
+    assert.ok(later.transport.requests.includes('GET https://example.com/contact/'));
+    assert.ok(!later.transport.requests.some((request) => request.includes('/private/')), later.transport.requests.join(', '));
+  });
+
   test('an Organization repeating a home page\'s only LocalBusiness is that business, not a head office', async () => {
     const details = { name: 'Example Woodworks', telephone: '(773) 555-0142', address: { '@type': 'PostalAddress', streetAddress: '329 W 18th St, Ste 914', addressLocality: 'Chicago', addressRegion: 'IL' } };
     const markup = JSON.stringify([{ '@context': 'https://schema.org', '@type': 'Organization', ...details }, { '@context': 'https://schema.org', '@type': 'LocalBusiness', ...details }]);

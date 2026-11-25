@@ -35,9 +35,9 @@ reading:
     "socials": {"value":[{"network":"facebook","url":"https://www.facebook.com/exampleestates","confidence":60}],"confidence":60,"sources":["web-fetch"],"rules":["field.single-structured"],"reasons":["one source only (web-fetch)"],"conflicts":[]}
   },
   "providers": [
-    {"name":"web-fetch","status":"ok","reason":null,"detail":null,"cause":null,"calls":1,"cached_calls":0,"metered":false},
-    {"name":"google-places-api","status":"ok","reason":null,"detail":null,"cause":null,"calls":1,"cached_calls":0,"metered":true},
-    {"name":"brave-search-api","status":"not_configured","reason":"set COMPFINDER_BRAVE_SEARCH_API_KEY","detail":null,"cause":null,"calls":0,"cached_calls":0,"metered":true}
+    {"name":"web-fetch","status":"ok","reason":null,"detail":null,"cause":null,"calls":1,"cached_calls":0,"metered_calls":0,"metered":false},
+    {"name":"google-places-api","status":"ok","reason":null,"detail":null,"cause":null,"calls":1,"cached_calls":0,"metered_calls":1,"metered":true},
+    {"name":"brave-search-api","status":"not_configured","reason":"set COMPFINDER_BRAVE_SEARCH_API_KEY","detail":null,"cause":null,"calls":0,"cached_calls":0,"metered_calls":0,"metered":true}
   ],
   "warnings": [],
   "error": null
@@ -108,7 +108,7 @@ Even so, treat them as data, not instructions.
 
 ### Providers
 
-Each entry has `name`, `status`, `reason`, `detail`, `cause`, `calls`, `cached_calls` and `metered`.
+Each entry has `name`, `status`, `reason`, `detail`, `cause`, `calls`, `cached_calls`, `metered_calls` and `metered`.
 
 | `status` | Means |
 |---|---|
@@ -155,10 +155,12 @@ A provider that failed also has a `cause`: a short code saying why, to match on 
 For a row whose website is on record but dead, `web-fetch`'s `cause` is usually `dns`,
 `tls_certificate` or `http_404`: a different action for a caller than nothing found.
 
-`calls` counts every request the provider made over the network, each redirect hop included, and the logo download,
-which is counted against the provider that found the logo. `cached_calls` counts the requests
-answered from the response cache, which cost nothing. `metered` says whether its calls cost
-money.
+`calls` counts every request the provider made over the network, each redirect hop included:
+its API's, any checks of other sites (`google-places-api` opens each namesake listing's website
+to see where it lands), and the logo download, which is counted against the provider that found
+the logo. `cached_calls` counts the requests answered from the response cache, which cost nothing.
+`metered_calls` counts only the calls that cost money, the provider's own API calls, and is what
+the metered-call budgets limit. `metered` says whether the provider is a paid one.
 
 ## Batch lines
 
@@ -186,6 +188,7 @@ a `detail`. Match on the `code`, never on the message.
 |---|---|---|
 | `lookup.no_provider` | 3 | No configured provider could serve this query (`detail` lists each provider's reason) |
 | `lookup.all_failed` | 1 | Every provider that was tried failed (`detail` lists each provider's status) |
+| `lookup.internal_error` | 1 | A batch line's lookup failed unexpectedly (a bug, or a failing disk); `detail` says why. The batch carries on with the next line |
 | `input.bad_json` | 2 | Batch mode: the line isn't valid JSON |
 | `input.no_query` | 2 | The query gives nothing to look up |
 | `input.bad_value` | 2 | A value in the query is invalid (`detail` says which) |

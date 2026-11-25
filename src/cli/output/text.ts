@@ -102,7 +102,8 @@ export function renderLookupText(result: LookupResult, isColour: boolean, headin
   const skipped = result.providers.filter((provider) => provider.status === 'skipped');
   const providerLines = [
     ...ran.map((provider) => {
-      const calls = `${provider.calls} ${provider.metered ? 'metered ' : ''}call${provider.calls === 1 ? '' : 's'}`;
+      const paid = provider.metered_calls > 0 ? `, ${provider.metered_calls} metered` : '';
+      const calls = `${provider.calls} call${provider.calls === 1 ? '' : 's'}${paid}`;
       const cached = provider.cached_calls > 0 ? `, ${provider.cached_calls} from cache` : '';
       return `${provider.name} ${provider.status} (${calls}${cached})${provider.detail === null ? '' : `: ${terminalSafe(provider.detail)}`}`;
     }),

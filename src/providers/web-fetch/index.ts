@@ -82,17 +82,59 @@ async function loadRobots(origin: string, context: ProviderContext): Promise<Rob
   return parseRobots(response.status >= CLIENT_ERROR_MIN ? '' : decodeBody(response.body, response.headers['content-type']));
 }
 
+/** Why robots.txt keeps compfinder from a URL, or null when it may be fetched. */
+type RobotsGate = (url: URL) => Promise<string | null>;
+
+/**
+ * A lookup's robots.txt checks, each origin's rules loaded once. The start origin's are loaded first, so a failure there
+ * fails the lookup; another origin (a redirect's) whose robots.txt can't be read is treated as disallowing everything.
+ */
+async function robotsGate(startOrigin: string, isHonoured: boolean, context: ProviderContext): Promise<RobotsGate> {
+  const rulesByOrigin = new Map<string, RobotsRules | null>();
+  if (isHonoured) {
+    rulesByOrigin.set(startOrigin, await loadRobots(startOrigin, context));
+  }
+  return async (url: URL): Promise<string | null> => {
+    let rules = rulesByOrigin.get(url.origin);
+    if (isHonoured && rules === undefined) {
+      try {
+        rules = await loadRobots(url.origin, context);
+      } catch (error) {
+        if (!(error instanceof ProviderError)) {
+          throw error;
+        }
+        context.logger.warn(`Treating ${url.origin} as disallowed: ${error.detail}`);
+        rules = null;
+      }
+      rulesByOrigin.set(url.origin, rules);
+    }
+    let refusal: string | null = null;
+    if (isHonoured && (rules === null || rules === undefined)) {
+      refusal = `${url.origin}'s robots.txt can't be read`;
+    } else if (isHonoured && rules !== undefined && rules !== null && !isPathAllowed(rules, ROBOTS_PRODUCT_TOKEN, `${url.pathname}${url.search}`)) {
+      refusal = `robots.txt disallows ${url.pathname}`;
+    }
+    return refusal;
+  };
+}
+
 /** Fetches and parses one page. For the start page every problem is a ProviderError; for others, null. */
-async function fetchPage(url: string, isStart: boolean, site: string, context: ProviderContext): Promise<ParsedPage | null> {
+async function fetchPage(url: string, isStart: boolean, site: string, context: ProviderContext, robotsRefusal: RobotsGate): Promise<ParsedPage | null> {
   let page: ParsedPage | null = null;
   let problem: ProviderError | null = null;
+  const refused: { reason: string | null } = { reason: null };
   try {
     const response = await context.http.request({
       url,
       kind: 'html',
       cacheTtlSeconds: PAGE_CACHE_TTL_SECONDS,
-      // The start page may redirect anywhere (a business that moved domain); later pages must stay on the site.
-      canFollowRedirect: (from, to) => isStart || isSameSite(to.hostname, site),
+      // The start page may redirect anywhere (a business that moved domain); later pages must stay on the site. Every
+      // hop must also be one its origin's robots.txt allows.
+      canFollowRedirect: async (unusedFrom, to) => {
+        const isOnSite = isStart || isSameSite(to.hostname, site);
+        refused.reason = isOnSite ? await robotsRefusal(to) : null;
+        return isOnSite && refused.reason === null;
+      },
     });
     const contentType = response.headers['content-type'] ?? 'text/html';
     if (REFUSING_STATUSES.has(response.status) || isProtected503(response.status, response.headers)) {
@@ -116,7 +158,8 @@ async function fetchPage(url: string, isStart: boolean, site: string, context: P
     if (!(error instanceof HttpError)) {
       throw error;
     }
-    problem = failureFor(error);
+    const reason = refused.reason;
+    problem = reason === null ? failureFor(error) : new ProviderError('blocked', `${url} redirects to ${error.url}, but ${reason}`, 'robots_disallowed');
   }
   if (problem !== null && isStart) {
     throw problem;
@@ -345,24 +388,22 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       const countryCode = knowledge.query.country;
       const withheld: Withheld = { personalEmails: 0, personalProfiles: 0 };
       const startUrl = new URL(website.url);
-      const robots = options.honourRobots ? await loadRobots(startUrl.origin, context) : null;
-      if (robots !== null && !isPathAllowed(robots, ROBOTS_PRODUCT_TOKEN, `${startUrl.pathname}${startUrl.search}`)) {
-        throw new ProviderError('blocked', `robots.txt disallows ${startUrl.pathname}`, 'robots_disallowed');
+      const robotsRefusal = await robotsGate(startUrl.origin, options.honourRobots, context);
+      const startRefusal = await robotsRefusal(startUrl);
+      if (startRefusal !== null) {
+        throw new ProviderError('blocked', startRefusal, 'robots_disallowed');
       }
 
-      const start = await fetchPage(website.url, true, website.domain, context) as ParsedPage;
+      const start = await fetchPage(website.url, true, website.domain, context, robotsRefusal) as ParsedPage;
       const site = siteHost(new URL(start.url).hostname);
       const redirectedFrom = isSameSite(site, website.domain) ? null : website.domain;
       if (redirectedFrom !== null) {
         context.warn(`${website.domain} redirected to ${site}; read ${site} as the business's site.`);
       }
       const results = [readPage(start, countryCode, options.unreadableTextChars, withheld)];
-      const siteRobots = robots !== null && !isSameSite(site, website.domain) ? await loadRobots(new URL(start.url).origin, context) : robots;
       for (const url of selectPages(start, site, options.maxPages - 1)) {
-        const parsedUrl = new URL(url);
-        const isAllowed = siteRobots === null || isPathAllowed(siteRobots, ROBOTS_PRODUCT_TOKEN, `${parsedUrl.pathname}${parsedUrl.search}`);
-        if (!results.some((result) => answersQuery(result, knowledge)) && isAllowed) {
-          const page = await fetchPage(url, false, site, context);
+        if (!results.some((result) => answersQuery(result, knowledge)) && await robotsRefusal(new URL(url)) === null) {
+          const page = await fetchPage(url, false, site, context, robotsRefusal);
           if (page !== null) {
             results.push(readPage(page, countryCode, options.unreadableTextChars, withheld));
           }
@@ -462,10 +503,10 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       }
       const manifestUrl = readable.find((result) => result.manifestUrl !== null)?.manifestUrl ?? null;
       const hasSchemaLogo = brand.some((item) => item.field === 'logo' && item.value.source === 'schema-org');
-      if (manifestUrl !== null && !hasSchemaLogo) {
+      if (manifestUrl !== null && !hasSchemaLogo && await robotsRefusal(new URL(manifestUrl)) === null) {
         try {
           const manifest = await context.http.request({
-            url: manifestUrl, kind: 'manifest', cacheTtlSeconds: PAGE_CACHE_TTL_SECONDS, canFollowRedirect: (from, to) => isSameSite(to.hostname, site),
+            url: manifestUrl, kind: 'manifest', cacheTtlSeconds: PAGE_CACHE_TTL_SECONDS, canFollowRedirect: async (unusedFrom, to) => isSameSite(to.hostname, site) && await robotsRefusal(to) === null,
           });
           if (manifest.status >= SUCCESS_MIN && manifest.status <= SUCCESS_MAX) {
             addUnique(brand, manifestEvidence(decodeBody(manifest.body, manifest.headers['content-type']), manifest.url));

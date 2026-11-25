@@ -82,6 +82,9 @@ function inputLines(inputPath: string): AsyncIterable<string> {
   return createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
 }
 
+/** --dry-run plans calls; a CSV row has no columns for a plan. */
+const DRY_RUN_CSV_PROBLEM = '--dry-run needs --output=text or json; CSV has no columns for a plan.';
+
 /** find --input: one lookup per JSONL line, streamed in order (docs/cli.md). */
 async function findBatch({ args, config, output, logger, colour, write }: Parameters<Command['run']>[0], inputPath: string): Promise<CommandResult> {
   const selection = selectionFlags(args);
@@ -96,6 +99,9 @@ async function findBatch({ args, config, output, logger, colour, write }: Parame
   }
   if (booleanFlag(args, 'explain') && output === 'csv') {
     problems.push('--explain needs --output=text or json; CSV carries only the chosen values.');
+  }
+  if (booleanFlag(args, 'dry-run') && output === 'csv') {
+    problems.push(DRY_RUN_CSV_PROBLEM);
   }
   let result: CommandResult;
   if (problems.length > 0) {
@@ -141,6 +147,9 @@ async function findOne({ args, config, output, logger, colour }: Parameters<Comm
   const isExplain = booleanFlag(args, 'explain');
   if (isExplain && output === 'csv') {
     allProblems.push('--explain needs --output=text or json; CSV carries only the chosen values.');
+  }
+  if (booleanFlag(args, 'dry-run') && output === 'csv') {
+    allProblems.push(DRY_RUN_CSV_PROBLEM);
   }
   let result: CommandResult;
 

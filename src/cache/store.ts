@@ -64,21 +64,31 @@ export function providerCache(provider: string, options: CacheStoreOptions): Pro
         }
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') {
-          if (!(error instanceof SyntaxError)) {
-            throw error;
-          }
+        if (error instanceof SyntaxError) {
           options.logger.warn('Discarding a corrupt cache entry', { provider, kind, path: filePath, error });
           options.warn(`A corrupt ${provider} cache entry was discarded.`);
           rmSync(filePath, { force: true });
+        } else if (code !== 'ENOENT') {
+          // An unreadable cache (permissions, a failing disk) costs a live request, not the lookup.
+          options.logger.warn('Couldn\'t read a cache entry', { provider, kind, path: filePath, error });
+          options.warn(`The ${provider} cache couldn't be read (${code ?? 'error'}), so the request was made live.`);
         }
-        data = undefined; // A miss: no entry, or a corrupt one just removed.
+        data = undefined; // A miss: no entry, a corrupt one just removed, or an unreadable one.
       }
       return data;
     },
     set(kind: string, key: string, data: unknown, ttlSeconds: number): void {
       if (ttlSeconds > 0) {
-        writeAtomically(entryPath(kind, key), JSON.stringify({ storedAt: options.clock.now(), ttlSeconds, data } satisfies CacheEntry));
+        try {
+          writeAtomically(entryPath(kind, key), JSON.stringify({ storedAt: options.clock.now(), ttlSeconds, data } satisfies CacheEntry));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === undefined) {
+            throw error;
+          }
+          // A full or read-only disk loses the cache entry, never the response already fetched.
+          options.logger.warn('Couldn\'t write a cache entry', { provider, kind, error });
+          options.warn(`A ${provider} response couldn't be cached (${(error as NodeJS.ErrnoException).code ?? 'error'}).`);
+        }
       }
     },
   };

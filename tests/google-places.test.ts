@@ -13,6 +13,8 @@ import { fixtureTransport, type FixtureResponse, type FixtureRoute, type Fixture
 import { makeQuery, testConfig } from './helpers/records.js';
 import { quietLogger } from './helpers/stub-providers.js';
 
+/** How long the never-answering fixture holds the event loop open; far beyond the request timeout under test. */
+const FIXTURE_HOLD_MS = 30_000;
 const API_KEY = 'test-google-key-not-real';
 const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
 const DETAILS_URL = 'https://places.googleapis.com/v1/places/ChIJexampleReading001';
@@ -216,10 +218,17 @@ describe('google-places-api', () => {
         { id: 'ChIJexampleChiswick01', displayName: { text: 'Example Chiswick Estate Agents' }, websiteUri: 'https://example.com/offices/chiswick' },
       ] }) },
     });
-    // The branch page never answers: the request is abandoned when its timeout fires, as with a slow site.
+    // The branch page never answers: the request is abandoned when its timeout fires, as with a slow site. The timeout's
+    // timer is unref'd, so a referenced one keeps the event loop alive until then, as an open socket would.
     const transport: Transport = {
       send: (request) => (request.url.href === PAGE
-        ? new Promise((unusedResolve, reject) => request.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+        ? new Promise((unusedResolve, reject) => {
+          const openSocket = setTimeout(() => reject(new Error('the request was never aborted')), FIXTURE_HOLD_MS);
+          request.signal.addEventListener('abort', () => {
+            clearTimeout(openSocket);
+            reject(new Error('aborted'));
+          });
+        })
         : fixtures.send(request)),
     };
     const config = testConfig({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: API_KEY }, fileText: '[timeouts]\nrequest_ms = 1000\nlookup_ms = 5000\n' });
@@ -242,7 +251,8 @@ describe('google-places-api', () => {
     assert.equal(result.fields.website.value, 'https://example.com/');
     assert.ok(result.fields.website.sources.includes('google-places-api'), 'Google\'s website, followed, agrees with the query');
     assert.ok(!transport.requests.includes('GET https://www.example.com/'), 'the query\'s own page isn\'t fetched by the check');
-    assert.equal(googleReport(result)?.calls, 1, 'the website check is a plain page fetch: not metered, not one of Google\'s calls');
+    assert.equal(googleReport(result)?.metered_calls, 1, 'the website check is a plain page fetch: not metered');
+    assert.equal(googleReport(result)?.calls, 2, 'but it is a request Google\'s provider made, so calls counts it');
   });
 
   test('a namesake\'s website whose host doesn\'t resolve is left out, so it doesn\'t contradict the query', async () => {

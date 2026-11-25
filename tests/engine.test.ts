@@ -65,7 +65,7 @@ describe('runLookup', () => {
     const webFetch = stubProvider('web-fetch', { readiness: needsWebsite });
     const outcome = await lookup([webFetch], { query: makeQuery({ name: 'Example Estates' }) });
     assert.deepEqual(reportFor(outcome.reports, 'web-fetch'), {
-      name: 'web-fetch', status: 'skipped', reason: 'no website known', detail: null, cause: null, calls: 0, cached_calls: 0, metered: false,
+      name: 'web-fetch', status: 'skipped', reason: 'no website known', detail: null, cause: null, calls: 0, cached_calls: 0, metered_calls: 0, metered: false,
     });
   });
 

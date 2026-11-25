@@ -144,6 +144,27 @@ All notable changes to this project are documented here. The format follows
   listing's different name, and a name with a place qualifier before the query's place ("South
   Kensington" for "Kensington") is another place.
 - In text output, a conflicting phone and each source's phone are shown with their own display.
+- From an outside code review:
+  - `robots.txt` rules are matched without regular expressions and capped in number and length,
+    so a hostile `robots.txt` can't stall the process. Every redirect hop is checked against
+    the `robots.txt` of the origin it lands on before it's followed.
+  - An API request (one carrying its key in a header) never follows a redirect to another
+    origin or to plain HTTP.
+  - The address guard reads an IPv6 address's groups, so an embedded IPv4 address is found
+    however it's written; 6to4 is checked, and IPv4-compatible and local-use NAT64 addresses are
+    refused.
+  - A cached response is checked against the current request's redirect and address policy.
+    Cache entries are keyed by the full URL, and kept apart for `--allow-private-addresses`.
+  - A cache or logo-storage failure (a full disk) is a warning, never a lost lookup. A batch
+    line that fails unexpectedly is that line's `lookup.internal_error`, and the batch carries on.
+  - Log lines and warnings are redacted centrally, URL userinfo and signed-URL parameters
+    included.
+  - Batch output waits for stdout to drain, and a closed pipe (`| head`) stops the batch.
+  - A dry-run batch's total is capped by `--max-metered-calls-total`, and `--dry-run` with
+    `--output=csv` is a usage error.
+  - A provider's `calls` include its checks of other sites (Google's website checks); the new
+    `metered_calls` counts only the paid calls.
+  - The test suite passes on Node 22 as well as 24.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

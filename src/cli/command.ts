@@ -14,8 +14,8 @@ export interface CommandContext {
   logger: Logger;
   /** True when text output may use colour: config allows it and stdout is a terminal. */
   colour: boolean;
-  /** Writes straight to stdout, for commands that stream their output (find --input). */
-  write(text: string): void;
+  /** Writes straight to stdout, for commands that stream their output (find --input); waits while stdout drains. */
+  write(text: string): Promise<void>;
 }
 
 /** What a command returns. With --output=json, data is printed; with text, text is. */
@@ -41,4 +41,12 @@ export interface Command {
   /** True when a config file named by --config or COMPFINDER_CONFIG may not exist yet (config init, config path). */
   isMissingConfigAllowed?: boolean;
   run(context: CommandContext): Promise<CommandResult>;
+}
+
+/** Thrown by write() once stdout's reader has gone (a closed pipe, such as `| head`): the command stops there. */
+export class OutputClosedError extends Error {
+  constructor() {
+    super('stdout was closed');
+    this.name = 'OutputClosedError';
+  }
 }

@@ -1,8 +1,9 @@
-import { ConfigError, SETTING_FLAGS, loadConfigFromEnvironment, type ConfigOverrides, type SettingFlag } from '../config.js';
+import { once } from 'node:events';
+import { ConfigError, SETTING_FLAGS, configuredSecrets, loadConfigFromEnvironment, type ConfigOverrides, type SettingFlag } from '../config.js';
 import { createLogger } from '../logger.js';
 import { packageVersion } from '../package-files.js';
 import { booleanFlag, parseArgs, stringFlag, type ParsedArgs } from './args.js';
-import { OUTPUT_FORMATS, type Command, type CommandResult, type OutputFormat } from './command.js';
+import { OUTPUT_FORMATS, OutputClosedError, type Command, type CommandResult, type OutputFormat } from './command.js';
 import { configInitCommand, configPathCommand, configShowCommand } from './commands/config.js';
 import { findCommand } from './commands/find.js';
 import { providersCheckCommand, providersListCommand } from './commands/providers.js';
@@ -74,25 +75,54 @@ function configOverrides(args: ParsedArgs): ConfigOverrides {
   return overrides;
 }
 
+/** Whether stdout's reader has gone. Set by the error listener below, read by write(). */
+const stdoutState = { isClosed: false };
+
+// A closed pipe (EPIPE) is an 'error' event on stdout: without a listener it would end the process mid-batch.
+process.stdout.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code !== 'EPIPE') {
+    throw error;
+  }
+  stdoutState.isClosed = true;
+  process.stderr.write('compfinder: stdout was closed; stopping.\n');
+});
+
 /** Loads config and runs a command; configuration problems become an invalidConfig result. */
 async function runCommand(command: Command, args: ParsedArgs, output: OutputFormat): Promise<CommandResult> {
   let result: CommandResult;
   try {
     const config = loadConfigFromEnvironment(configOverrides(args), { isMissingFileAllowed: command.isMissingConfigAllowed === true });
-    const logger = createLogger({ level: config.logLevel, tag: CLI_NAME, stderrOnly: true });
+    const logger = createLogger({ level: config.logLevel, tag: CLI_NAME, stderrOnly: true , secrets: configuredSecrets(config) });
     for (const warning of config.warnings) {
       logger.warn(warning);
     }
     const colour = config.colour && process.stdout.isTTY;
-    const write = (text: string): void => {
-      process.stdout.write(text);
+    const write = async (text: string): Promise<void> => {
+      if (stdoutState.isClosed) {
+        throw new OutputClosedError();
+      }
+      if (!process.stdout.write(text)) {
+        try {
+          await Promise.race([once(process.stdout, 'drain'), once(process.stdout, 'close')]);
+        } catch (error) {
+          // once() rejects on the 'error' event; a closed pipe ends the command, anything else is a real failure.
+          if (!stdoutState.isClosed) {
+            throw error;
+          }
+          throw new OutputClosedError();
+        }
+      }
     };
     result = await command.run({ args, config, output, logger, colour, write });
   } catch (error) {
-    if (!(error instanceof ConfigError)) {
+    if (error instanceof OutputClosedError) {
+      // The reader stopped reading (| head): nothing more can be written, and no more lookups are worth making.
+      result = { exitCode: ExitCode.success, data: {}, text: '', isStreamed: true };
+    } else if (error instanceof ConfigError) {
+      result = { exitCode: ExitCode.invalidConfig, data: { error: 'Invalid configuration', problems: error.problems }, text: error.message };
+    } else {
       throw error;
     }
-    result = { exitCode: ExitCode.invalidConfig, data: { error: 'Invalid configuration', problems: error.problems }, text: error.message };
   }
   return result;
 }

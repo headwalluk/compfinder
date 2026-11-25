@@ -1,4 +1,4 @@
-import type { Config } from '../config.js';
+import { configuredSecrets, type Config } from '../config.js';
 import type { Logger } from '../logger.js';
 import { createHttpClient } from '../net/http-client.js';
 import { redact } from '../net/redact.js';
@@ -27,9 +27,12 @@ export interface ProviderReport {
   detail: string | null;
   /** Why it failed, as a short stable code (docs/output.md: providers); null unless it failed. */
   cause: FailureCause | null;
+  /** Every request it made over the network, each redirect hop included: its API's, and any to other sites. */
   calls: number;
   /** Requests answered from the cache, which cost nothing. */
   cached_calls: number;
+  /** The calls that cost money: its API's own, never its checks of other sites. */
+  metered_calls: number;
   metered: boolean;
 }
 
@@ -104,7 +107,7 @@ function staticSkip(name: ProviderName, request: LookupRequest, requested: Reado
   const declaration = PROVIDER_DECLARATIONS[name];
   const settings = request.config.providers[name];
   const skip = (status: ProviderRunStatus, reason: string): ProviderReport => (
-    { name, status, reason, detail: null, cause: null, calls: 0, cached_calls: 0, metered: declaration.metered }
+    { name, status, reason, detail: null, cause: null, calls: 0, cached_calls: 0, metered_calls: 0, metered: declaration.metered }
   );
   let report: ProviderReport | null = null;
   if ((request.only !== undefined && !request.only.includes(name)) || request.exclude?.includes(name) === true) {
@@ -134,7 +137,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
   const reports = new Map<ProviderName, ProviderReport>();
   const waiting = new Map<ProviderName, string>();
   const warnings: string[] = [];
-  const secrets = Object.values(config.providers).map((settings) => settings.apiKey).filter((key) => key !== null);
+  const secrets = configuredSecrets(config);
   let score = scoreLookup(records, query, anchor, config.priority);
   let knowledge = knowledgeFrom(query, score);
 
@@ -150,7 +153,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
   const attempt = async (provider: Provider, isLatePass: boolean): Promise<void> => {
     const { name, metered, supplies } = provider.declaration;
     const skip = (status: ProviderRunStatus, reason: string): void => {
-      reports.set(name, { name, status, reason, detail: null, cause: null, calls: 0, cached_calls: 0, metered });
+      reports.set(name, { name, status, reason, detail: null, cause: null, calls: 0, cached_calls: 0, metered_calls: 0, metered });
     };
     const readiness = provider.readiness(knowledge);
     const meter = new CallMeter(metered, budgets);
@@ -180,12 +183,13 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           directory: config.cacheDir, clock: request.clock ?? SYSTEM_CLOCK, logger, warn: (message) => warnings.push(message),
         }),
       });
+      const webMeter = new CallMeter(false, budgets);
       const webHttp = createHttpClient({
         transport: request.transport ?? LIVE_TRANSPORT,
         userAgent: userAgent(),
         requestTimeoutMs: config.timeouts.requestMs,
         allowPrivateAddresses: config.net.allowPrivateAddresses,
-        meter: new CallMeter(false, budgets),
+        meter: webMeter,
         signal,
         logger: logger.child(name),
         secrets,
@@ -229,7 +233,9 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           cause = 'internal';
         }
       }
-      reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, cause, calls: meter.calls, cached_calls: meter.cachedCalls, metered });
+      reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, cause,
+        calls: meter.calls + webMeter.calls, cached_calls: meter.cachedCalls + webMeter.cachedCalls, metered_calls: metered ? meter.calls : 0, metered,
+      });
       score = scoreLookup(records, query, anchor, config.priority);
       knowledge = knowledgeFrom(query, score);
     }
@@ -262,7 +268,10 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
       logger: logger.child('logo'),
       secrets,
     });
-    await settleLogo(logoCandidates, { http, cacheDir: config.cacheDir, isCacheBypassed: request.isCacheBypassed === true, logger: logger.child('logo') });
+    await settleLogo(logoCandidates, {
+      http, cacheDir: config.cacheDir, isCacheBypassed: request.isCacheBypassed === true, logger: logger.child('logo'), secrets,
+      warn: (message) => warnings.push(redact(message, secrets)),
+    });
     const report = reports.get(logoSource);
     if (report !== undefined) {
       report.calls += meter.calls;
@@ -375,7 +384,7 @@ export interface CheckReport {
 export async function checkProviders(request: Pick<LookupRequest, 'providers' | 'config' | 'logger' | 'transport' | 'only'>): Promise<CheckReport[]> {
   const { config, logger } = request;
   const implementations = new Map(request.providers.map((provider) => [provider.declaration.name, provider]));
-  const secrets = Object.values(config.providers).map((settings) => settings.apiKey).filter((key) => key !== null);
+  const secrets = configuredSecrets(config);
   const reports: CheckReport[] = [];
   for (const name of PROVIDER_NAMES.filter((candidate) => request.only === undefined || request.only.includes(candidate))) {
     const declaration = PROVIDER_DECLARATIONS[name];

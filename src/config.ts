@@ -657,3 +657,8 @@ export function loadConfigFromValues(values: { toml?: string; variables?: Record
     homeDirectory: homedir(),
   });
 }
+
+/** Every configured API key, for redaction. */
+export function configuredSecrets(config: Config): string[] {
+  return Object.values(config.providers).map((settings) => settings.apiKey).filter((key) => key !== null);
+}

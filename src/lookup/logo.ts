@@ -6,6 +6,7 @@ import { IMAGE_TYPES, sniffImage } from '../images/sniff.js';
 import { ImageError, rasteriseSvg } from '../images/svg.js';
 import type { Logger } from '../logger.js';
 import { HttpError, type HttpClient } from '../net/http-client.js';
+import { redact } from '../net/redact.js';
 import { siteHost } from '../normalise/url.js';
 import type { FieldItem } from '../scoring/evidence.js';
 import type { LogoValue, SourceRecord } from './types.js';
@@ -21,11 +22,16 @@ export interface LogoOptions {
   /** --no-cache: don't reuse a cached file. The downloaded file is still stored, because its path is the result. */
   isCacheBypassed: boolean;
   logger: Logger;
+  /** Records a problem in the lookup's result. */
+  warn(message: string): void;
+  /** Values to keep out of logged URLs. */
+  secrets: readonly string[];
 }
 
 /** A downloaded logo, ready to store: PNG when it was an SVG. */
 interface StoredLogo {
-  path: string;
+  /** Null when the image was usable but couldn't be saved. */
+  path: string | null;
   mime: string;
   width: number | null;
   height: number | null;
@@ -59,8 +65,18 @@ async function storeLogo(logo: LogoValue, options: LogoOptions): Promise<StoredL
     const prepared = response.status >= SUCCESS_MIN && response.status <= SUCCESS_MAX ? prepareImage(response.body) : null;
     if (prepared !== null) {
       const filePath = `${basePath}.${prepared.extension}`;
-      writeAtomically(filePath, prepared.bytes);
-      stored = { path: filePath, mime: prepared.mime, width: prepared.width, height: prepared.height, convertedFrom: prepared.convertedFrom };
+      try {
+        writeAtomically(filePath, prepared.bytes);
+        stored = { path: filePath, mime: prepared.mime, width: prepared.width, height: prepared.height, convertedFrom: prepared.convertedFrom };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === undefined) {
+          throw error;
+        }
+        // The image is usable but can't be saved (a full disk): the logo keeps its URL, without a local path.
+        options.logger.warn('Couldn\'t save a logo', { path: filePath, error });
+        options.warn(`The logo couldn't be saved (${(error as NodeJS.ErrnoException).code ?? 'error'}), so it has no local path.`);
+        stored = { path: null, mime: prepared.mime, width: prepared.width, height: prepared.height, convertedFrom: prepared.convertedFrom };
+      }
     }
   }
   return stored;
@@ -88,7 +104,7 @@ export async function settleLogo(candidates: ReadonlyArray<FieldItem<'logo'>>, o
       if (!(error instanceof HttpError) && !(error instanceof ImageError)) {
         throw error;
       }
-      options.logger.warn(`Couldn't use logo ${candidate.value.source_url}: ${error.message}`);
+      options.logger.warn(`Couldn't use logo ${redact(candidate.value.source_url, options.secrets)}: ${error.message}`);
     }
     const sameUrl = candidates.filter((other) => other.value.source_url === candidate.value.source_url);
     for (const item of sameUrl) {
