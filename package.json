@@ -62,7 +62,7 @@
     "domhandler": "^6.0.1",
     "domutils": "^4.0.2",
     "htmlparser2": "^12.0.0",
-    "libphonenumber-js": "^1.13.16",
+    "libphonenumber-js": "^1.13.17",
     "smol-toml": "^1.9.1"
   },
   "devDependencies": {

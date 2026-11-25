@@ -165,6 +165,7 @@ All notable changes to this project are documented here. The format follows
   - A provider's `calls` include its checks of other sites (Google's website checks); the new
     `metered_calls` counts only the paid calls.
   - The test suite passes on Node 22 as well as 24.
+- `libphonenumber-js` updated to 1.13.17 (published 2026-11-19), for current phone metadata.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.
