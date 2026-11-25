@@ -24,6 +24,13 @@ So two pages of the same site are one source, and a search result that repeats t
 text confirms nothing. Google's listing counts as independent of the site, even though the
 business owner may edit both.
 
+There's one exception, when your query gives no website. If a search's first result is exactly
+the branch page that Google's listing gives as its website (an inner page, not the site's home
+page), the search plays the part of the URL your query would have given. The site then counts as
+a second origin, and a name-and-town lookup (`Romans Caversham`, `--address=Caversham`) can reach
+`identity.independent-agreement`. This never chooses between tied places: when several places
+match equally, a search's pick of one place's page leaves the tie as it is.
+
 ## Identity
 
 First, compfinder works out which real business (and which branch) the evidence is about. It

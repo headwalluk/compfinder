@@ -121,6 +121,17 @@ describe('web-fetch on sites without location markup', () => {
     assert.equal(inner.result.fields.name.value, null);
   });
 
+  test('an Organization repeating a home page\'s only LocalBusiness is that business, not a head office', async () => {
+    const details = { name: 'Example Woodworks', telephone: '(773) 555-0142', address: { '@type': 'PostalAddress', streetAddress: '329 W 18th St, Ste 914', addressLocality: 'Chicago', addressRegion: 'IL' } };
+    const markup = JSON.stringify([{ '@context': 'https://schema.org', '@type': 'Organization', ...details }, { '@context': 'https://schema.org', '@type': 'LocalBusiness', ...details }]);
+    const { result } = await find({ name: 'Example Woodworks', url: 'https://example.com/', country: 'US' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/': page('Example Woodworks', '', `<script type="application/ld+json">${markup}</script>`),
+    });
+    assert.ok(!result.identity.rules.includes('identity.head-office'), result.identity.rules.join(', '));
+    assert.equal(result.fields.phone.value, '+17735550142');
+  });
+
   test('an Organization read from another page, when an inner page was asked for, is the head office', async () => {
     const organisation = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Vets', telephone: '01923 470000',
       address: { '@type': 'PostalAddress', streetAddress: '38 Clarendon Road', addressLocality: 'Watford', postalCode: 'WD17 1HZ' } });

@@ -189,6 +189,23 @@ describe('linking records into places', () => {
     assert.ok(!home.identity.rules.includes('identity.site-brand-only'), 'on a home page the brand is the business');
   });
 
+  test('a search\'s first result on a listing\'s own branch page is a second origin, but never breaks a tie', () => {
+    const listing = (subject: string, postcode: string, page: string, placeId: string): ReturnType<typeof record> => record('google-places-api', [
+      fact.name('Example Estates Reading'), fact.address({ lines: ['1 Broad St'], town: 'Reading', postcode }), fact.website(page), fact.placeId(placeId),
+    ], { subject });
+    const found = (page: string): ReturnType<typeof record> => record('brave-search-api', [fact.website(page, 'loose')], { origin: 'site:example.com', scope: 'brand' });
+    const broadStreet = listing('broad', POSTCODE, 'https://example.com/branches/reading/', PLACE_ID);
+    const sole = score({ name: 'Example Estates', address: 'Reading' }, [broadStreet, found('https://example.com/branches/reading/')]);
+    expectRules(sole.identity.rules, ['identity.independent-agreement']);
+    assert.equal(sole.identity.confidence, 100);
+    const home = score({ name: 'Example Estates', address: 'Reading' }, [listing('broad', POSTCODE, 'https://example.com/', PLACE_ID), found('https://example.com/')]);
+    assert.equal(home.identity.confidence, 60, 'a site\'s home page is every branch\'s, so it confirms none');
+    const oxfordRoad = listing('oxford', OTHER_POSTCODE, 'https://example.com/branches/reading-oxford-road/', OTHER_PLACE_ID);
+    const tie = score({ name: 'Example Estates', address: 'Reading' }, [broadStreet, oxfordRoad, found('https://example.com/branches/reading/')]);
+    expectRules(tie.identity.rules, ['identity.single-structured', 'identity.tie']);
+    assert.equal(tie.identity.confidence, 30);
+  });
+
   test('one ZIP code isn\'t one building: branches with different building numbers still tie', () => {
     const market = record('google-places-api', [fact.name('Example Chowder'), fact.address({ lines: ['1530 Post Alley'], postcode: '98101' }), fact.placeId(PLACE_ID)], { subject: 'market' });
     const mall = record('google-places-api', [fact.name('Example Chowder - Pacific Place'), fact.address({ lines: ['600 Pine St'], postcode: '98101' }), fact.placeId(OTHER_PLACE_ID)], { subject: 'mall' });

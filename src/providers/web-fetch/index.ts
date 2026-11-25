@@ -283,35 +283,43 @@ function answersQuery(result: PageResult, knowledge: Knowledge): boolean {
   )));
 }
 
-/** How many different LocalBusiness entities the pages describe; the same branch repeated on every page counts once. */
-function distinctLocalBusinesses(results: readonly PageResult[]): number {
+/** A location's identity for counting: its postcode, else its phone, else its name; null when it has none. */
+function locationSignature(location: PageResult['locations'][number]): string | null {
+  const postcode = location.evidence.find((item) => item.field === 'address')?.value;
+  const phone = location.evidence.find((item) => item.field === 'phone')?.value;
+  const name = location.evidence.find((item) => item.field === 'name')?.value;
+  return [
+    postcode !== undefined && 'postcode' in postcode ? postcode.postcode : null,
+    phone !== undefined && 'e164' in phone ? phone.e164 : null,
+    typeof name === 'string' ? comparableName(name) : null,
+  ].find((part) => part !== null && part !== undefined) ?? null;
+}
+
+/** The different LocalBusiness entities the pages describe; the same branch repeated on every page counts once. */
+function localBusinessSignatures(results: readonly PageResult[]): Set<string> {
   const signatures = new Set<string>();
   for (const result of results) {
     for (const location of result.locations.filter((entry) => entry.isLocalBusiness)) {
-      const postcode = location.evidence.find((item) => item.field === 'address')?.value;
-      const phone = location.evidence.find((item) => item.field === 'phone')?.value;
-      const name = location.evidence.find((item) => item.field === 'name')?.value;
-      const signature = [
-        postcode !== undefined && 'postcode' in postcode ? postcode.postcode : null,
-        phone !== undefined && 'e164' in phone ? phone.e164 : null,
-        typeof name === 'string' ? comparableName(name) : null,
-      ].find((part) => part !== null && part !== undefined) ?? `${result.page.url}#${result.locations.indexOf(location)}`;
-      signatures.add(signature);
+      signatures.add(locationSignature(location) ?? `${result.page.url}#${result.locations.indexOf(location)}`);
     }
   }
-  return signatures.size;
+  return signatures;
 }
 
 /**
  * A location record's role: a single LocalBusiness on an inner page is a branch; a chain's home page is head office, and
- * so is an Organization on a site that lists branches, or, when an inner page was asked for, one read from another page
- * or one elsewhere than the query's name says (isElsewhere).
+ * so is an Organization on a site that lists branches (other than the one it repeats), or, when an inner page was asked
+ * for, one read from another page or one elsewhere than the query's name says (isElsewhere).
  */
-function roleFor(result: PageResult, isLocalBusiness: boolean, totalLocalBusinesses: number, isElsewhere: boolean): RecordRole {
-  const localOnPage = result.locations.filter((location) => location.isLocalBusiness).length;
+function roleFor(result: PageResult, location: PageResult['locations'][number], localSignatures: ReadonlySet<string>, isElsewhere: boolean): RecordRole {
+  const localOnPage = result.locations.filter((entry) => entry.isLocalBusiness).length;
   const isRoot = isSiteRoot(result.page.url);
+  const totalLocalBusinesses = localSignatures.size;
+  const signature = locationSignature(location);
+  // An Organization repeating the site's only LocalBusiness (same postcode or phone) is that business, not a head office.
+  const isOnlyBusiness = totalLocalBusinesses === 1 && signature !== null && localSignatures.has(signature);
   let role: RecordRole = 'unknown';
-  if (!isLocalBusiness && (totalLocalBusinesses > 0 || isElsewhere)) {
+  if (!location.isLocalBusiness && ((totalLocalBusinesses > 0 && !isOnlyBusiness) || isElsewhere)) {
     role = 'head-office';
   } else if (!isRoot && localOnPage === 1) {
     role = 'branch';
@@ -388,7 +396,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       }
 
       const origin = `${SITE_ORIGIN_PREFIX}${site}`;
-      const totalLocalBusinesses = distinctLocalBusinesses(readable);
+      const localSignatures = localBusinessSignatures(readable);
       const isInnerStart = !isSiteRoot(start.url);
       // The brand's name may sit in an Organization that also carries the head office's address.
       const organisationNames = readable.flatMap((result) => result.locations.filter((location) => !location.isLocalBusiness).flatMap((location) => location.evidence));
@@ -417,7 +425,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
           if (!isNameOnly) {
             records.push({
               source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
-              role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses,
+              role: roleFor(result, location, localSignatures,
                 isInnerStart && (result.page.url !== start.url || namesElsewhere(knowledge.query.name, location.evidence))), evidence,
               ...(location.mapsCids.length === 0 ? {} : { mapsCids: location.mapsCids }),
             });

@@ -170,6 +170,11 @@ describe('untrusted text', () => {
     assert.equal(Array.from(sanitiseText('x'.repeat(500), 'name')).length, TEXT_LIMITS.name);
   });
 
+  test('a double-encoded name is decoded fully; other text once', () => {
+    assert.equal(sanitiseText('Romans Estate Agents &amp;amp; Letting Agents', 'name'), 'Romans Estate Agents & Letting Agents');
+    assert.equal(sanitiseText('Smith &amp;amp; Sons', 'identifier'), 'Smith &amp; Sons');
+  });
+
   test('a malformed %-escape is left as it was', () => {
     assert.equal(decodeEscapes('100%'), '100%');
     assert.equal(decodeEscapes('a%20b'), 'a b');

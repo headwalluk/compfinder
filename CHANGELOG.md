@@ -135,6 +135,11 @@ All notable changes to this project are documented here. The format follows
   nation's code (`ENG`, `GB-SCT`) is written as its name.
 - An old branch URL that redirects to an alias of itself is a rename too, so Google's listing on
   the page it lands on confirms it.
+- A lookup by name and town reaches `identity.independent-agreement` when a search's first result
+  is exactly the branch page Google's listing gives. It never breaks a tie between places.
+- An Organization that repeats a site's only LocalBusiness (the same phone or postcode) is that
+  business, not a chain's head office.
+- A double-encoded name (`&amp;amp;`) is decoded fully.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

@@ -71,7 +71,8 @@ Oxford". A postcode written at the end of a street line isn't repeated. Cloudfla
 A LocalBusiness on an inner page is a **branch**. An Organization's own address, on a site that
 also lists branches, is the **head office**, and so is one read from another page when an inner
 page was asked for (a publisher's address on the site's articles). The same business repeated on
-every page counts once. An Organization on the page asked about is the head office too when the
+every page counts once, and an Organization that repeats the site's only LocalBusiness (the same
+phone or postcode) is that business, not a head office. An Organization on the page asked about is the head office too when the
 query's name has a word that is in neither the Organization's name nor its address ("Nested
 Chelmsford" against an Organization named "Nested" in London). A head office's address and phone
 are never used to search Google for a branch.

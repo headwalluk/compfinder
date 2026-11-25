@@ -6,6 +6,7 @@ import { addressesEqual } from './match.js';
 import { countryRules } from '../normalise/country/index.js';
 import type { Candidate } from './link.js';
 import { ruleScore, type RuleId } from './rules.js';
+import { PROVIDER_DECLARATIONS, PROVIDER_NAMES } from '../providers/declarations.js';
 
 export const QUERY_KEYS = ['place_id', 'phone', 'postcode', 'website-site', 'website-page', 'name', 'town'] as const;
 export type QueryKey = (typeof QUERY_KEYS)[number];
@@ -14,6 +15,8 @@ export type KeyState = 'confirmed' | 'contradicted' | 'silent';
 /** Query keys that, confirmed by structured evidence, pin the identity down (identity.input-confirmed). */
 const PINNING_KEYS: ReadonlySet<QueryKey> = new Set(['place_id', 'phone', 'postcode', 'website-page']);
 const NON_WORD = /[^\p{L}\p{N}]+/gu;
+/** Providers that discover a website by searching the web (stage "discover"). */
+const SEARCH_SOURCES: ReadonlySet<string> = new Set(PROVIDER_NAMES.filter((name) => PROVIDER_DECLARATIONS[name].stage === 'discover'));
 
 export interface KeyMatch {
   key: QueryKey;
@@ -39,6 +42,8 @@ export interface CandidateAssessment {
   /** True when the query is a whole business (a home page, no location) and this candidate is its head office. */
   /** For a whole-business query: 2 for the site's head office, 1 for another place its markup describes, else 0. */
   sitePlaceRank: number;
+  /** A search's first result that is exactly the candidate's own inner page (identity.independent-agreement); null when none. */
+  searchPage: SearchPage | null;
   /** For a branch-page query: the candidate's own page is another URL for it (an alias), neither confirmed nor contradicted. */
   isAliasPage: boolean;
   /** True when the query's site is confirmed and its name is the only contradiction (identity.name-mismatch). */
@@ -47,6 +52,12 @@ export interface CandidateAssessment {
   isNameExact: boolean;
   /** The candidate's postcodes, to tell listings in one building from branches elsewhere. */
   postcodes: Set<string>;
+}
+
+/** A search provider's first own-site result agreeing with a candidate's listed page. */
+export interface SearchPage {
+  url: string;
+  sources: string[];
 }
 
 export interface IdentityResult {
@@ -194,12 +205,42 @@ function assessCandidate(candidate: Candidate, query: Query, listedPaths: Readon
     baseRule,
     baseReason,
     isAliasPage: isAliasPage(candidate, query),
+    searchPage: searchPageFor(candidate, query),
     sitePlaceRank: !isWholeBusinessQuery ? 0
       : candidate.records.some((record) => record.role === 'head-office') ? 2
         : candidate.records.some((record) => isSiteMarkupPlace(record, querySite)) ? 1 : 0,
     isNameMismatch,
     isNameExact: query.name !== null && fieldItems(candidate.records, 'name').some((item) => compareNames(item.value, query.name ?? '') === 'equal'),
     postcodes: new Set(fieldItems(candidate.records, 'address').map((item) => item.value.postcode).filter((postcode) => postcode !== null)),
+  };
+}
+
+/** With no website asked about, a search's first result that is exactly an inner page a structured record of the candidate gives. */
+function searchPageFor(candidate: Candidate, query: Query): SearchPage | null {
+  const pages = new Map(fieldItems(candidate.records, 'website')
+    .filter((item) => item.quality === 'structured' && !isSiteRoot(item.value.url))
+    .map((item) => [`${item.value.domain}${pagePath(item.value.url)}`, item.value.url]));
+  const ownOrigins = new Set(candidate.records.map((record) => record.origin));
+  const searches = query.website !== null ? [] : candidate.brandRecords.filter((record) => SEARCH_SOURCES.has(record.source) && !ownOrigins.has(record.origin));
+  const matches = searches.flatMap((record) => fieldItems([record], 'website')
+    .map((item) => ({ url: pages.get(`${item.value.domain}${pagePath(item.value.url)}`), source: record.source })))
+    .filter((match) => match.url !== undefined);
+  const url = matches[0]?.url;
+  return url === undefined ? null : { url, sources: [...new Set(matches.map((match) => match.source))] };
+}
+
+/**
+ * A sole leader known from one origin, whose listed page a search found first, has a second, independent origin: the
+ * search stands in for a website given in the query (docs/confidence.md).
+ */
+function withSearchAgreement(assessment: CandidateAssessment): CandidateAssessment {
+  const page = assessment.searchPage;
+  const isSingleOrigin = assessment.baseRule === 'identity.single-structured' || assessment.baseRule === 'identity.single-loose';
+  return page === null || !isSingleOrigin ? assessment : {
+    ...assessment,
+    baseRule: 'identity.independent-agreement',
+    baseScore: ruleScore('identity.independent-agreement'),
+    baseReason: `${listInWords(sourceNames(assessment.candidate.records))}'s listing and ${listInWords(page.sources)}'s first result agree on the page ${page.url}`,
   };
 }
 
@@ -379,10 +420,12 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
   const assessments = candidates.map((candidate) => assessCandidate(candidate, query, listedPaths));
   const consistent = assessments.filter((assessment) => assessment.isConsistent).sort(compareAssessments);
   const rejected = assessments.filter((assessment) => !assessment.isConsistent);
-  const first = consistent[0];
-  const tied = first === undefined ? [] : consistent.filter((assessment) => rankDifference(first, assessment) === 0);
+  const ranked = consistent[0];
+  const tied = ranked === undefined ? [] : consistent.filter((assessment) => rankDifference(ranked, assessment) === 0);
   const offSite = tied.length > 1 ? offSiteLeaders(tied) : [];
   const leaders = tied.filter((assessment) => !offSite.includes(assessment));
+  // In a tie, a search's pick of one listing's page doesn't choose between them.
+  const first = ranked !== undefined && leaders.length === 1 && leaders[0] === ranked ? withSearchAgreement(ranked) : ranked;
   const others = [...offSite, ...consistent.slice(tied.length)];
   const rules: RuleId[] = [];
   const reasons: string[] = [];

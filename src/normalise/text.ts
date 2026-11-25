@@ -60,7 +60,9 @@ export function collapseRepeatedPhrase(name: string): string {
 
 /** Decodes character references, then strips markup, control and invisible characters, collapses whitespace, and caps the length. */
 export function sanitiseText(value: string, kind: TextKind): string {
-  const cleaned = decodeEntities(value)
+  // A name is decoded twice: a double-encoded one ("&amp;amp;") would otherwise keep an entity.
+  const decoded = kind === 'name' ? decodeEntities(decodeEntities(value)) : decodeEntities(value);
+  const cleaned = decoded
     .normalize('NFC')
     .replace(TAG_PATTERN, ' ')
     .replace(UNSAFE_CHARACTERS, ' ')
