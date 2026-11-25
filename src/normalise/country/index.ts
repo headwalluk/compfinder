@@ -9,6 +9,7 @@ const COUNTRY_RULES: Readonly<Record<string, CountryRules>> = { GB: GB_RULES };
 const NO_RULES: Omit<CountryRules, 'countryCode'> = {
   normalisePostcode: () => null,
   findPostcodes: () => [],
+  postcodeSector: (postcode) => postcode,
 };
 
 /** Returns the address rules for a country; one without a module gets rules that find nothing. */

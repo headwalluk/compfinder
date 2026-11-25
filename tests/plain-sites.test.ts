@@ -97,6 +97,32 @@ describe('web-fetch on sites without location markup', () => {
     assert.ok(!transport.requests.some((request) => request.includes('/cdn-cgi/')), 'Cloudflare\'s own links are never read');
   });
 
+  test('a home page\'s title that spells the domain names the brand; an inner page\'s title doesn\'t', async () => {
+    const home = await find({ url: 'https://www.example-gym.com/' }, {
+      'https://www.example-gym.com/robots.txt': ROBOTS,
+      'https://www.example-gym.com/': page('Cheap Gym Memberships | No Contract | ExampleGym', '<a href="tel:0113 496 0000">Call us</a>'),
+    });
+    assert.equal(home.result.fields.name.value, 'ExampleGym');
+    const inner = await find({ url: 'https://www.example-gym.com/about/' }, {
+      'https://www.example-gym.com/robots.txt': ROBOTS,
+      'https://www.example-gym.com/about/': page('About us | ExampleGym', '<a href="tel:0113 496 0000">Call us</a>'),
+      'https://www.example-gym.com/': page('Cheap Gym Memberships | ExampleGym', ''),
+    });
+    assert.equal(inner.result.fields.name.value, null);
+  });
+
+  test('an Organization read from another page, when an inner page was asked for, is the head office', async () => {
+    const organisation = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Vets', telephone: '01923 470000',
+      address: { '@type': 'PostalAddress', streetAddress: '38 Clarendon Road', addressLocality: 'Watford', postalCode: 'WD17 1HZ' } });
+    const { result } = await find({ url: 'https://example.com/practices/area/vets-in-oxford/' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/practices/area/vets-in-oxford/': page('Vets in Oxford', '<a href="/practices/north-oxford/">North Oxford</a> <a href="/practices/east-oxford/">East Oxford</a>'),
+      'https://example.com/': page('Example Vets', '', `<script type="application/ld+json">${organisation}</script>`),
+    });
+    assert.equal(result.fields.phone.value, '+441923470000');
+    assert.ok(result.fields.phone.rules.includes('field.head-office'));
+  });
+
   test('relative links resolve against <base href>, as a browser resolves them', async () => {
     const { transport } = await find({ url: 'https://example.com/contact/solicitors-wokingham' }, {
       'https://example.com/robots.txt': ROBOTS,

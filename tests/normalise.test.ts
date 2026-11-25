@@ -27,6 +27,12 @@ describe('UK postcodes', () => {
 
   test('a country without a module finds nothing, rather than guessing', () => {
     assert.equal(countryRules('FR').normalisePostcode('75001'), null);
+    assert.equal(countryRules('US').postcodeSector('98101'), '98101', 'and a postcode\'s sector is the whole code');
+  });
+
+  test('a UK postcode\'s sector is its outward code and the inward code\'s digit', () => {
+    assert.equal(gb.postcodeSector('OX20 1PP'), 'OX20 1');
+    assert.equal(gb.postcodeSector('ox20 1px'), 'OX20 1');
   });
 });
 

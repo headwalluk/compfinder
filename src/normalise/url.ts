@@ -9,6 +9,8 @@ const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 const WEB_PROTOCOLS = new Set(['http:', 'https:']);
 const DEFAULT_SCHEME = 'https://';
 const WWW_PREFIX = 'www.';
+/** Public suffixes removed from a domain to leave the business's own part (example.co.uk -> example). */
+const PUBLIC_SUFFIXES = ['co.uk', 'org.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'com.au', 'co.nz', 'com', 'net', 'org', 'uk', 'io', 'co', 'biz', 'info', 'us', 'ie', 'eu'];
 
 /** Query parameters that only track a click (Google Business Profile links carry utm_*); removed from every URL. */
 const TRACKING_PARAMETER = /^(?:utm_[a-z_]+|gclid|gbraid|wbraid|dclid|fbclid|msclkid|yclid|igshid|mc_cid|mc_eid|_ga|_gl)$/i;
@@ -53,4 +55,16 @@ export function pagePath(url: string): string {
 /** True when the URL is the site's root page. */
 export function isSiteRoot(url: string): boolean {
   return pagePath(url) === '';
+}
+
+/** The business's own part of a domain, as words: keenans-estateagents.co.uk -> "keenans estateagents". */
+export function nameFromDomain(domain: string): string {
+  const suffix = PUBLIC_SUFFIXES.find((candidate) => domain.endsWith(`.${candidate}`));
+  const withoutSuffix = suffix === undefined ? domain : domain.slice(0, -suffix.length - 1);
+  return (withoutSuffix.split('.').pop() ?? withoutSuffix).replace(/[-_]+/g, ' ');
+}
+
+/** Letters and digits only, lower-cased, for comparing a name with a domain: "Pure Gym" and "pure-gym" both read "puregym". */
+export function compactWords(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }

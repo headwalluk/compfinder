@@ -69,7 +69,8 @@ function knowledgeFrom(query: Query, score: ScoreResult): Knowledge {
   const settled = new Set<FieldName>();
   for (const field of FIELD_NAMES) {
     const result = score.fields[field];
-    if (field !== 'socials' && result.value !== null && result.confidence > 0) {
+    // A head office's address or phone, on a branch query, would steer the next search to the head office.
+    if (field !== 'socials' && result.value !== null && result.confidence > 0 && !result.rules.includes('field.head-office')) {
       Object.assign(fields, { [field]: result.value });
     }
     if (result.confidence === 100) {

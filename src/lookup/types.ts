@@ -101,6 +101,8 @@ export interface SourceRecord {
   mapsCids?: string[];
   /** For a site read after the query's site redirected to it: the domain it redirected from. */
   redirectedFrom?: string;
+  /** For a listing page asked about (one with no place of its own): the paths of the site's pages it links to. */
+  listedPages?: string[];
 }
 
 /** The caller's inputs, normalised. Any may be null. */

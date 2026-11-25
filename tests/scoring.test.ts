@@ -95,6 +95,52 @@ describe('linking records into places', () => {
     assert.equal(result.identity.confidence, 60);
   });
 
+  test('one place listed twice (same name and page, neighbouring postcodes, no differing phone) is co-listed', () => {
+    const site = record('web-fetch', [fact.name('Example Palace'), fact.phone(PHONE), fact.address({ postcode: 'OX20 1PP' })], { origin: 'site:example-palace.com' });
+    const full = record('google-places-api', [fact.name('Example Palace'), fact.phone(PHONE), fact.address({ town: 'Woodstock', postcode: 'OX20 1PS' }),
+      fact.website('https://www.example-palace.com/'), fact.placeId(PLACE_ID)], { subject: 'full' });
+    const second = record('google-places-api', [fact.name('Example Palace'), fact.address({ town: 'Woodstock', postcode: 'OX20 1PX' }),
+      fact.website('http://example-palace.com/'), fact.placeId(OTHER_PLACE_ID)], { subject: 'second' });
+    const heritage = record('google-places-api', [fact.name('Example Palace'), fact.address({ town: 'Woodstock' }),
+      fact.website('https://heritage.example.org/listing/1000434'), fact.placeId('ChIJexampleHeritage01')], { subject: 'heritage' });
+    const result = score({ name: 'Example Palace', address: 'Woodstock' }, [site, full, second, heritage]);
+    expectRules(result.identity.rules, ['identity.independent-agreement', 'identity.co-listed']);
+    assert.equal(result.identity.confidence, 100);
+    assert.equal(result.fields.place_id.value, PLACE_ID, 'the listing the site agrees with is shown');
+    assert.ok(result.identity.others.some((other) => other.candidate.records.includes(heritage)), 'the listing on another site is beaten, not tied');
+    assert.ok(result.identity.reasons.some((reason) => reason.includes('heritage.example.org')));
+  });
+
+  test('a listing page asked about ties the places it links to, and still rejects the pages it doesn\'t link to', () => {
+    const brand = record('web-fetch', [fact.name('Example Vets'), fact.website('https://example.com/')], { scope: 'brand' });
+    brand.listedPages = ['/practices/north-oxford', '/practices/east-oxford'];
+    const place = (subject: string, path: string, placeId: string) => record('google-places-api', [
+      fact.name(`Example Vets ${subject}`), fact.address({ town: 'Oxford', postcode: POSTCODE }), fact.website(`https://example.com${path}/`), fact.placeId(placeId)], { subject });
+    const result = score({ url: 'https://example.com/practices/area/vets-in-oxford/' }, [brand,
+      place('North Oxford', '/practices/north-oxford', PLACE_ID), place('East Oxford', '/practices/east-oxford', OTHER_PLACE_ID),
+      place('Wheatley', '/practices/wheatley', 'ChIJexampleWheatley01')]);
+    assert.equal(result.identity.leaders.length, 2);
+    assert.ok(result.identity.rules.includes('identity.tie'));
+    assert.equal(result.identity.rejected.length, 1, 'Wheatley is still a different page');
+    assert.ok(result.identity.warnings.some((warning) => warning.includes('lists several places')));
+  });
+
+  test('branches with the same name and website but their own phones still tie', () => {
+    const first = record('google-places-api', [fact.name('Example Bakery'), fact.phone(PHONE), fact.address({ postcode: 'RG1 1AA' }),
+      fact.website('https://example.com/'), fact.placeId(PLACE_ID)], { subject: 'first' });
+    const second = record('google-places-api', [fact.name('Example Bakery'), fact.phone(OTHER_PHONE), fact.address({ postcode: 'RG1 1BB' }),
+      fact.website('https://example.com/'), fact.placeId(OTHER_PLACE_ID)], { subject: 'second' });
+    const result = score({ name: 'Example Bakery', address: 'Reading' }, [first, second]);
+    assert.ok(result.identity.rules.includes('identity.tie'));
+  });
+
+  test('without the business\'s own site agreeing, a listing on another site isn\'t set aside', () => {
+    const own = record('google-places-api', [fact.name('Example Palace'), fact.address({ town: 'Woodstock', postcode: 'OX20 1PS' }), fact.website('https://example-palace.com/'), fact.placeId(PLACE_ID)], { subject: 'own' });
+    const heritage = record('google-places-api', [fact.name('Example Palace'), fact.address({ town: 'Woodstock' }), fact.website('https://heritage.example.org/1'), fact.placeId(OTHER_PLACE_ID)], { subject: 'heritage' });
+    const result = score({ name: 'Example Palace', address: 'Woodstock' }, [own, heritage]);
+    assert.ok(result.identity.rules.includes('identity.tie'));
+  });
+
   test('a home page whose only match is one of its branch pages on Google is the chain, not that branch', () => {
     const brand = record('web-fetch', [fact.name('Example Gyms'), fact.website('https://example.com/')], { scope: 'brand' });
     const leeds = record('google-places-api', [fact.name('Example Gyms Leeds'), fact.website('https://example.com/gyms/leeds/'), fact.placeId(PLACE_ID)]);

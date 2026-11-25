@@ -4,7 +4,7 @@ import { countryRules } from '../../normalise/country/index.js';
 import { mapsCid } from '../../normalise/maps.js';
 import { normalisePhone } from '../../normalise/phone.js';
 import { decodeEscapes, sanitiseText } from '../../normalise/text.js';
-import { isSameSite, normaliseUrl } from '../../normalise/url.js';
+import { compactWords, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl } from '../../normalise/url.js';
 import { apiRequest } from '../api-errors.js';
 import type { Knowledge, Provider, ProviderContext, Readiness } from '../contract.js';
 import { PROVIDER_DECLARATIONS } from '../declarations.js';
@@ -96,8 +96,6 @@ export function placeRecord(place: Place, countryCode: string, detail: string): 
   return record;
 }
 
-/** Public suffixes removed from a domain to leave the business's own part (example.co.uk -> example). */
-const PUBLIC_SUFFIXES = ['co.uk', 'org.uk', 'me.uk', 'ltd.uk', 'plc.uk', 'net.uk', 'com.au', 'co.nz', 'com', 'net', 'org', 'uk', 'io', 'co', 'biz', 'info', 'us', 'ie', 'eu'];
 /** A URL path's last segment longer than this isn't a usable place hint. */
 const MAX_PATH_HINT_CHARS = 60;
 
@@ -106,13 +104,6 @@ export interface SearchPlan {
   text: string;
   /** Set when no name was known: only places whose website is on this site are kept. */
   siteDomain: string | null;
-}
-
-/** The business's own part of a domain, as words: keenans-estateagents.co.uk -> "keenans estateagents". */
-export function nameFromDomain(domain: string): string {
-  const suffix = PUBLIC_SUFFIXES.find((candidate) => domain.endsWith(`.${candidate}`));
-  const withoutSuffix = suffix === undefined ? domain : domain.slice(0, -suffix.length - 1);
-  return (withoutSuffix.split('.').pop() ?? withoutSuffix).replace(/[-_]+/g, ' ');
 }
 
 /** The last segment of a URL's path, as words (/bookshops/reading -> "reading"); null for a site root or a non-word segment. */
@@ -127,7 +118,8 @@ export function pathHint(url: string): string | null {
  * branch's page) can't narrow a town-wide query to that branch: its postcode or address with the best name known; else
  * its phone; else a location another provider found; else a phone a page showed; else a hint from the URL's path.
  * With no name known, the domain stands in for one, and the path comes before a page's phone (which may be a call-
- * tracking number). A search on a domain-derived name, or on a name alone, keeps only places on the query's site.
+ * tracking number). A search on a domain-derived name, a name alone, or (for a home page) a found name that spells the
+ * domain, keeps only places on the query's site.
  */
 export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const { query, fields } = knowledge;
@@ -135,12 +127,16 @@ export function searchPlan(knowledge: Knowledge): SearchPlan | null {
   const queryPhone = query.phone?.display ?? null;
   const knownName = query.name ?? fields.name ?? null;
   const isNameFromDomain = knownName === null && query.website !== null;
-  const name = knownName ?? (query.website === null ? null : nameFromDomain(query.website.domain));
+  const domainName = query.website === null ? null : nameFromDomain(query.website.domain);
+  const name = knownName ?? domainName;
+  // On a home page, a found name that only spells the domain ("PureGym" on puregym.com) finds namesakes as the domain would.
+  const isDomainSpelling = query.name === null && query.website !== null && isSiteRoot(query.website.url)
+    && name !== null && domainName !== null && compactWords(name) === compactWords(domainName);
   const location = queryLocation ?? fields.address?.postcode ?? fields.address?.town ?? null;
   const foundPhone = fields.phone?.display ?? null;
   const hint = query.website === null ? null : pathHint(query.website.url);
   let text: string | null = null;
-  let isSiteOnly = isNameFromDomain;
+  let isSiteOnly = isNameFromDomain || isDomainSpelling;
   if (queryLocation === null && queryPhone !== null) {
     text = queryPhone;
   } else if (name !== null && location !== null) {

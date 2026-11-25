@@ -6,7 +6,8 @@ import { checkProviders, runLookup } from '../src/lookup/engine.js';
 import type { QueryInput } from '../src/lookup/query.js';
 import { buildResult, type LookupResult } from '../src/lookup/result.js';
 import type { Transport, TransportRequest } from '../src/net/transport.js';
-import { nameFromDomain, pathHint, searchPlan, searchText } from '../src/providers/google-places-api/index.js';
+import { pathHint, searchPlan, searchText } from '../src/providers/google-places-api/index.js';
+import { nameFromDomain } from '../src/normalise/url.js';
 import { builtInProviders } from '../src/providers/registry.js';
 import { fixtureTransport, type FixtureResponse, type FixtureRoute, type FixtureTransport } from './helpers/fixture-transport.js';
 import { makeQuery, testConfig } from './helpers/records.js';
@@ -166,6 +167,9 @@ describe('google-places-api', () => {
     assert.deepEqual(plan({ url: 'https://example.com/' }, { name: 'Example Estates' }), { text: 'Example Estates', siteDomain: 'example.com' });
     assert.deepEqual(plan({ url: 'https://www.example.co.uk/offices/estate-agents-in-wokingham/' }, { phone: { e164: '+441182178418', display: '0118 217 8418' } }),
       { text: 'example, estate agents in wokingham', siteDomain: 'example.co.uk' });
+    assert.deepEqual(plan({ url: 'https://www.example-gym.com/' }, { name: 'ExampleGym', address: { lines: [], town: null, county: null, postcode: 'LS2 8LY', country_code: 'GB', formatted: null, lat: null, lon: null } }),
+      { text: 'ExampleGym, LS2 8LY', siteDomain: 'example-gym.com' }, 'a found name that only spells the domain is kept to the site, as the domain would be');
+    assert.equal(plan({ url: 'https://www.example-gym.com/gyms/leeds/' }, { name: 'ExampleGym' })?.siteDomain, null, 'but not for an inner page');
   });
 
   test('with no name known, the domain stands in for it, and only places on that site are kept', async () => {

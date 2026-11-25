@@ -23,8 +23,15 @@ function findPostcodes(text: string): string[] {
   return found;
 }
 
+/** The postcode sector: the outward code and the inward code's digit (OX20 1PP -> OX20 1). */
+function postcodeSector(postcode: string): string {
+  const match = POSTCODE_PATTERN.exec(postcode.trim().toUpperCase().replace(/\s+/g, ' '));
+  return match === null ? postcode : `${match[1]} ${match[2]?.charAt(0) ?? ''}`;
+}
+
 export const GB_RULES: CountryRules = {
   countryCode: 'GB',
   normalisePostcode,
   findPostcodes,
+  postcodeSector,
 };

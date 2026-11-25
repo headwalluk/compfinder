@@ -45,6 +45,7 @@ Reads the business's own pages. It needs no key, and it's free.
 |---|---|
 | schema.org `Organization`, `LocalBusiness` and their subtypes, in JSON-LD (including `@graph`) and microdata | name, address (with `geo`), phone, email, website, logo, `sameAs` social profiles, and a Google Maps `?cid=` link in `hasMap` or `sameAs`. These are structured evidence |
 | Open Graph and Twitter tags | the site's name from `og:site_name` (loose evidence), and `og:image` and `twitter:image` as social images |
+| The page title | for a home page asked about, with no `og:site_name`, the part of the title that spells the domain (`… \| PureGym` on `puregym.com`), as the site's name (loose evidence). It isn't taken for an inner page, where a name steers Google's search |
 | `<link rel="icon">`, `apple-touch-icon`, and the web app manifest when the site has no schema.org logo | icons |
 | `tel:` and `mailto:` links, social links | phone, role email and social profiles. These are loose evidence |
 | The page text | a postcode, when the page has exactly one |
@@ -63,8 +64,15 @@ Oxford". A postcode written at the end of a street line isn't repeated. Cloudfla
 (`/cdn-cgi/`) are never read.
 
 A LocalBusiness on an inner page is a **branch**. An Organization's own address, on a site that
-also lists branches, is the **head office**. The same business repeated on every page counts
-once.
+also lists branches, is the **head office**, and so is one read from another page when an inner
+page was asked for (a publisher's address on the site's articles). The same business repeated on
+every page counts once. A head office's address and phone are never used to search Google for a
+branch.
+
+An inner page with no location of its own (no markup, and no phone or postcode, or those of
+several places) is a **listing page**: an area page that links each nearby branch. web-fetch
+reports the pages on the site that it links to, and a branch whose page is one of them isn't
+contradicted by the query's URL (see `docs/confidence.md`).
 
 **Sites with no location markup** give only loose evidence: `tel:` links and a postcode in the
 text. The start page's own loose details come first, so a branch page gives its own branch's
@@ -103,8 +111,9 @@ metered by Google.
   narrow a town-wide query to that one branch. When no name is known at all (the site is blocked,
   or has no name in its markup), the domain stands in for the name (`waterstones.com` gives
   `waterstones`), and the URL's path comes before a phone the page showed, which may be a
-  call-tracking number Google doesn't know. A search on a domain-derived name, or on a name
-  alone, **keeps only places whose website is on the query's site**, so a namesake elsewhere is
+  call-tracking number Google doesn't know. A search on a domain-derived name, on a name alone,
+  or, for a home page, on a found name that only spells the domain (`PureGym` on `puregym.com`),
+  **keeps only places whose website is on the query's site**, so a namesake elsewhere is
   never taken. With nothing to search for, it waits for an earlier stage, and is
   skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
   country as `regionCode`, which favours places there without excluding others.

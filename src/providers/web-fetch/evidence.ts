@@ -6,7 +6,7 @@ import { normalisePhone } from '../../normalise/phone.js';
 import { mapsCid } from '../../normalise/maps.js';
 import { parseSocialProfile } from '../../normalise/social.js';
 import { sanitiseText, type TextKind } from '../../normalise/text.js';
-import { normaliseUrl } from '../../normalise/url.js';
+import { compactWords, nameFromDomain, normaliseUrl, siteHost } from '../../normalise/url.js';
 import { resolveUrl, type ParsedPage } from './document.js';
 import type { BusinessBlock } from './structured.js';
 
@@ -16,6 +16,10 @@ const APPLE_TOUCH_ICON_DEFAULT_PX = 180;
 const FAVICON_PATH = '/favicon.ico';
 const SIZE_PATTERN = /(\d+)\s*x\s*(\d+)/i;
 const LINE_BREAKS = /\s*(?:\r?\n|<br\s*\/?>)\s*/i;
+/** The detail on a brand name read from a page title. */
+export const TITLE_NAME_DETAIL = 'page title, matching the domain';
+/** What sits between a page title's parts: "Cheap Gyms | PureGym", "Home - Acme", "Acme · Plumbers". */
+const TITLE_SEPARATOR = /\s+[|\-–—:·•]\s+|\s*[|·•]\s*/u;
 /** Marks a website taken from the page a LocalBusiness block sits on, rather than its own url property. */
 export const PAGE_FALLBACK_DETAIL = 'the page holding the';
 
@@ -183,6 +187,13 @@ function declaredWidth(sizes: string | null): number | null {
   return widths.length === 0 ? null : Math.max(...widths);
 }
 
+/** The part of a page title that spells the site's domain ("Cheap Gyms | PureGym" on puregym.com -> "PureGym"); else null. */
+function titleBrandName(page: ParsedPage): string | null {
+  const domainName = compactWords(nameFromDomain(siteHost(new URL(page.url).hostname)));
+  const segments = page.title.split(TITLE_SEPARATOR).map((segment) => sanitiseText(segment, 'name'));
+  return domainName === '' ? null : segments.find((segment) => compactWords(segment) === domainName) ?? null;
+}
+
 /** Brand evidence from a page's head: site name, social images, icons; plus the manifest URL if any. */
 export function metaEvidence(page: ParsedPage): { brand: Evidence[]; manifestUrl: string | null } {
   const brand: Evidence[] = [];
@@ -190,6 +201,10 @@ export function metaEvidence(page: ParsedPage): { brand: Evidence[]; manifestUrl
   const siteName = page.meta.get('og:site_name');
   if (siteName !== undefined && sanitiseText(siteName, 'name') !== '') {
     brand.push({ field: 'name', value: sanitiseText(siteName, 'name'), quality: 'loose', reference: reference('og:site_name') });
+  }
+  const titleName = titleBrandName(page);
+  if (titleName !== null && !brand.some((entry) => entry.field === 'name')) {
+    brand.push({ field: 'name', value: titleName, quality: 'loose', reference: reference(TITLE_NAME_DETAIL) });
   }
   for (const key of ['og:image', 'og:image:url', 'twitter:image']) {
     const image = page.meta.get(key);

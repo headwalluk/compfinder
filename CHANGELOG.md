@@ -83,6 +83,14 @@ All notable changes to this project are documented here. The format follows
 - `robots.txt` redirects are followed to another host. A branch named only by its place takes the
   brand's name. Brave gets `country=ALL` for countries it doesn't support. A home page whose only
   match is a branch's Google listing is `identity.chain`, and a chain's website is the home page.
+- An area page that lists several branches ties the branches it links to that Google found. An
+  Organization read from another page of the site, when an inner page was asked for, is the head
+  office, and a head office's address or phone no longer steers Google's search for a branch.
+- Listings with the same name and website page, in one postcode sector and with no differing
+  phone, are co-listed. A tied listing whose website is on another site drops out when the
+  business's own site agrees with the others.
+- A home page's title that spells the domain gives the site's name, so a chain with no name in
+  its markup gets its brand name. The chain warning reads right when one place matched.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

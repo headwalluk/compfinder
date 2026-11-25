@@ -5,4 +5,6 @@ export interface CountryRules {
   normalisePostcode(value: string): string | null;
   /** Every distinct postcode found in running text, in order. */
   findPostcodes(text: string): string[];
+  /** The part of a postcode that one street or a few neighbouring ones share (OX20 1PP -> OX20 1); else the whole code. */
+  postcodeSector(postcode: string): string;
 }

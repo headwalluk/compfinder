@@ -1,7 +1,7 @@
 import type { Evidence, RecordRole, SourceRecord, WebsiteValue } from '../../lookup/types.js';
 import { ProviderError } from '../../lookup/errors.js';
 import { comparableName, nameTokens } from '../../normalise/name.js';
-import { isSameSite, isSiteRoot, normaliseUrl, siteHost } from '../../normalise/url.js';
+import { isSameSite, isSiteRoot, normaliseUrl, pagePath, siteHost } from '../../normalise/url.js';
 import { decodeBody } from '../../net/charset.js';
 import { HttpError, type HttpResponse } from '../../net/http-client.js';
 import { isPathAllowed, parseRobots, type RobotsRules } from '../../net/robots.js';
@@ -9,7 +9,7 @@ import { ROBOTS_PRODUCT_TOKEN } from '../../net/user-agent.js';
 import type { Knowledge, Provider, ProviderContext, Readiness } from '../contract.js';
 import { PROVIDER_DECLARATIONS } from '../declarations.js';
 import { parsePage, type ParsedPage } from './document.js';
-import { blockEvidence, looseEvidence, manifestEvidence, metaEvidence, PAGE_FALLBACK_DETAIL, type Withheld } from './evidence.js';
+import { blockEvidence, looseEvidence, manifestEvidence, metaEvidence, PAGE_FALLBACK_DETAIL, TITLE_NAME_DETAIL, type Withheld } from './evidence.js';
 import { challengeName, isProtected503, isUnreadable, REFUSING_STATUSES, selectPages } from './pages.js';
 import { jsonLdBlocks, microdataBlocks } from './structured.js';
 
@@ -30,6 +30,8 @@ const PAGE_CACHE_TTL_SECONDS = 60 * 60;
 /** Most distinct phone numbers, and postcodes, loose page evidence may hold and still describe one place. */
 const MAX_LOOSE_PHONES = 2;
 const MAX_LOOSE_POSTCODES = 1;
+/** At most this many linked pages are kept from a listing page. */
+const MAX_LISTED_PAGES = 200;
 const ROBOTS_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 /** What reading one page produced. */
@@ -164,6 +166,20 @@ function isListing(evidence: readonly Evidence[]): boolean {
   return phones.size > MAX_LOOSE_PHONES || postcodes.size > MAX_LOOSE_POSTCODES;
 }
 
+/** True when a page describes no one place: no location markup, and no phone or postcode, or those of several places. */
+function isListingPage(result: PageResult | undefined): boolean {
+  const hasPlaceFacts = result !== undefined && result.loose.location.some((item) => item.field === 'phone' || item.field === 'address');
+  return result !== undefined && result.locations.length === 0 && (!hasPlaceFacts || isListing(result.loose.location));
+}
+
+/** The paths of the pages on the site that a page links to, other than itself. */
+function linkedPaths(page: ParsedPage, site: string): string[] {
+  const ownPath = pagePath(page.url);
+  const paths = page.links.filter((link) => URL.canParse(link.url) && siteHost(new URL(link.url).hostname) === site)
+    .map((link) => pagePath(link.url)).filter((path) => path !== '' && path !== ownPath);
+  return [...new Set(paths)].slice(0, MAX_LISTED_PAGES);
+}
+
 /** Loose evidence without the facts that belong to one place: what a listing still says about the business. */
 function withoutPlaceFacts(evidence: readonly Evidence[]): Evidence[] {
   return evidence.filter((item) => item.field !== 'phone' && item.field !== 'address');
@@ -249,13 +265,15 @@ function distinctLocalBusinesses(results: readonly PageResult[]): number {
   return signatures.size;
 }
 
-/** A location record's role: a single LocalBusiness on an inner page is a branch; a chain's home page is head office. */
-function roleFor(result: PageResult, isLocalBusiness: boolean, totalLocalBusinesses: number): RecordRole {
+/**
+ * A location record's role: a single LocalBusiness on an inner page is a branch; a chain's home page is head office, and
+ * so is an Organization on a site that lists branches, or one read from another page when an inner page was asked for.
+ */
+function roleFor(result: PageResult, isLocalBusiness: boolean, totalLocalBusinesses: number, isOtherPage: boolean): RecordRole {
   const localOnPage = result.locations.filter((location) => location.isLocalBusiness).length;
   const isRoot = isSiteRoot(result.page.url);
   let role: RecordRole = 'unknown';
-  if (!isLocalBusiness && totalLocalBusinesses > 0) {
-    // An Organization's own address is the head office only on a site that also lists branches.
+  if (!isLocalBusiness && (totalLocalBusinesses > 0 || isOtherPage)) {
     role = 'head-office';
   } else if (!isRoot && localOnPage === 1) {
     role = 'branch';
@@ -315,9 +333,12 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
 
       const origin = `${SITE_ORIGIN_PREFIX}${site}`;
       const totalLocalBusinesses = distinctLocalBusinesses(readable);
+      const isInnerStart = !isSiteRoot(start.url);
       // The brand's name may sit in an Organization that also carries the head office's address.
       const organisationNames = readable.flatMap((result) => result.locations.filter((location) => !location.isLocalBusiness).flatMap((location) => location.evidence));
-      const brandName = shortestBrandName(readable.flatMap((result) => [...result.brand, ...result.loose.brand, ...organisationNames]));
+      // A name from a title steers later searches; it's taken only for a home page asked about (docs/providers.md).
+      const brandOf = (result: PageResult): Evidence[] => result.brand.filter((item) => !isInnerStart || item.reference.detail !== TITLE_NAME_DETAIL);
+      const brandName = shortestBrandName(readable.flatMap((result) => [...brandOf(result), ...result.loose.brand, ...organisationNames]));
       const records: SourceRecord[] = [];
       for (const result of readable) {
         result.locations.forEach((location, index) => {
@@ -331,12 +352,13 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
           }
           records.push({
             source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
-            role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses), evidence,
+            role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses, isInnerStart && result.page.url !== start.url), evidence,
             ...(location.mapsCids.length === 0 ? {} : { mapsCids: location.mapsCids }),
           });
         });
       }
       const brand: Evidence[] = [];
+      const listedPages = isInnerStart && isListingPage(results[0]) ? linkedPaths(start, site) : [];
       if (records.length === 0) {
         // The start page's own details come first: a branch page names its branch, while the site's other pages
         // may list every branch. Only when the start page has no place facts are the pages merged.
@@ -356,7 +378,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       }
 
       for (const result of readable) {
-        addUnique(brand, result.brand);
+        addUnique(brand, brandOf(result));
         addUnique(brand, result.loose.brand);
       }
       const siteWebsite = normaliseUrl(new URL('/', start.url).href);
@@ -381,7 +403,10 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
         }
       }
       if (brand.length > 0) {
-        records.push({ source: 'web-fetch', origin, subject: `${start.url}#brand`, scope: 'brand', role: 'unknown', evidence: brand });
+        records.push({
+          source: 'web-fetch', origin, subject: `${start.url}#brand`, scope: 'brand', role: 'unknown', evidence: brand,
+          ...(listedPages.length === 0 ? {} : { listedPages }),
+        });
       }
       if (withheld.personalEmails > 0) {
         context.warn(`${withheld.personalEmails} possibly personal email address(es) seen on ${site}, not returned.`);
