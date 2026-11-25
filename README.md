@@ -13,8 +13,8 @@ needs no key. Google Places and Brave Search each add detail and confidence once
 an API key. compfinder is deterministic: it makes no LLM calls, and the same provider responses
 always give the same answer.
 
-**Status:** release candidate for 1.0. `web-fetch`, Google Places and Brave Search have all been
-checked against the live services.
+**Status:** 1.0. `web-fetch`, Google Places and Brave Search have all been checked against the
+live services, and the output follows semantic versioning ([docs/output.md](docs/output.md#versioning)).
 
 ```sh
 npm install -g @headwall/compfinder

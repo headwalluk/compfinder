@@ -1,6 +1,6 @@
 {
   "name": "@headwall/compfinder",
-  "version": "1.0.0-rc.17",
+  "version": "1.0.0",
   "description": "Find a business's website, address, phone, email, logo and Google place ID from several providers, with sources and confidence for every value.",
   "license": "MIT",
   "author": "Paul Faulkner (https://headwall-hosting.com)",
@@ -48,6 +48,9 @@
     "LICENSE",
     "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "compfinder": "tsx src/cli/main.ts",
     "build": "tsc -p tsconfig.build.json",

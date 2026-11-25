@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-25
+
 ### Added
 
 - The `compfinder` command, with `--output=text|json` and `--help` on every command.
@@ -176,3 +178,5 @@ All notable changes to this project are documented here. The format follows
 - A Google Maps `?cid=` link in a site's schema (`hasMap` or `sameAs`) links the site to Google's
   listing for the same place, so they agree even when their phone or address differs.
 
+[Unreleased]: https://github.com/headwalluk/compfinder/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/headwalluk/compfinder/releases/tag/v1.0.0
