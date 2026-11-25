@@ -167,6 +167,13 @@ describe('web-fetch on sites without location markup', () => {
     });
     assert.equal(closed.result.fields.phone.value, null, 'a closed branch sent to another branch\'s page is gone');
     assert.ok(closed.result.warnings.some((warning) => warning.includes('seems to be gone')));
+    const aliased = await find({ name: 'Example Estates Caversham', url: 'https://example.com/estate-lettings-agents/caversham' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/estate-lettings-agents/caversham': { status: 308, headers: { location: '/estate-lettings-agents/caversham/' } },
+      'https://example.com/estate-lettings-agents/caversham/': { status: 308, headers: { location: '/our-offices/estate-agents-in-caversham' } },
+      'https://example.com/our-offices/estate-agents-in-caversham': page('Caversham | Example Estates', '<a href="tel:0118 953 8791">Call</a> RG4 8AA'),
+    });
+    assert.ok(aliased.result.warnings.some((warning) => warning.includes('which is read as the page asked about')), 'an old alias URL, several hops away, is a rename too');
   });
 
   test('an Organization elsewhere than the query\'s name says, on the page asked about, is the head office', async () => {
@@ -230,10 +237,12 @@ describe('schema.org organisations that aren\'t the business', () => {
 });
 
 describe('cleaning values', () => {
-  test('a region that is only a country code and a hyphen ("GB-") is no region', () => {
+  test('a region that is only a country code and a hyphen ("GB-") is no region; a UK nation\'s code is its name', () => {
     const address = addressFrom({ streetAddress: '33 Orion Drive', addressLocality: 'Brackley', addressRegion: 'GB-', postalCode: 'NN13 6GE' }, null, 'GB');
     assert.equal(address?.county, null);
     assert.equal(addressFrom({ streetAddress: '1 High St', addressRegion: 'GB-NTH', postalCode: 'NN13 6GE' }, null, 'GB')?.county, 'GB-NTH');
+    assert.equal(addressFrom({ streetAddress: '1 High St', addressRegion: 'ENG', postalCode: 'NN13 6GE' }, null, 'GB')?.county, 'England', 'a UK nation\'s code is its name');
+    assert.equal(addressFrom({ streetAddress: '1 Main St', addressRegion: 'VA', postalCode: '22301' }, null, 'US')?.county, 'VA', 'a US state code stays');
   });
 
   test('HTML character references in text are decoded', () => {

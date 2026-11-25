@@ -131,7 +131,10 @@ All notable changes to this project are documented here. The format follows
 - When two names contradict each other with equal backing, the one the query agrees with wins.
 - `identity.site-brand-only` (capped at 40): an inner page that gives only the site's own brand,
   as a franchise network's agent page does, no longer passes the network's name as the agent's.
-- A schema.org region that is only a country code and a hyphen (`GB-`) is dropped.
+- A schema.org region that is only a country code and a hyphen (`GB-`) is dropped, and a UK
+  nation's code (`ENG`, `GB-SCT`) is written as its name.
+- An old branch URL that redirects to an alias of itself is a rename too, so Google's listing on
+  the page it lands on confirms it.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

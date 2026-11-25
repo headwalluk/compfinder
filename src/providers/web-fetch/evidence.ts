@@ -60,6 +60,21 @@ function numberFrom(value: unknown): number | null {
 
 /** A region that is only a country code and a hyphen. */
 const EMPTY_SUBDIVISION = /^[A-Za-z]{2}-$/;
+/** The UK nations' ISO 3166-2 codes, written with or without the GB- prefix, as names. */
+const UK_NATION_CODES: Readonly<Record<string, string>> = { ENG: 'England', SCT: 'Scotland', WLS: 'Wales', NIR: 'Northern Ireland' };
+const UK_NATION_CODE = /^(?:GB-)?(ENG|SCT|WLS|NIR)$/i;
+
+/** A schema.org region as written for an address: an empty subdivision is none, and a UK nation's code is its name. */
+function regionName(region: string | null): string | null {
+  const nation = region === null ? null : UK_NATION_CODE.exec(region)?.[1]?.toUpperCase() ?? null;
+  let name = region;
+  if (region !== null && EMPTY_SUBDIVISION.test(region)) {
+    name = null;
+  } else if (nation !== null) {
+    name = UK_NATION_CODES[nation] ?? region;
+  }
+  return name;
+}
 
 /** A line with a postcode (in any case or spacing) taken out, and the commas around it tidied. */
 function withoutPostcode(line: string, postcode: string): string {
@@ -85,9 +100,7 @@ export function addressFrom(value: unknown, geo: unknown, countryCode: string): 
     // A street line that already ends in the postcode would repeat it when the address is written out.
     const streetLines = postcode === null ? lines : lines.map((line) => withoutPostcode(line, postcode)).filter((line) => line !== '');
     const town = firstText(fields.addressLocality, 'town');
-    const region = firstText(fields.addressRegion, 'town');
-    // An ISO 3166-2 code with its subdivision left empty ("GB-") names no region.
-    const county = region !== null && EMPTY_SUBDIVISION.test(region) ? null : region;
+    const county = regionName(firstText(fields.addressRegion, 'town'));
     address = {
       lines: streetLines,
       town,

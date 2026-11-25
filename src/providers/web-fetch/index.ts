@@ -362,10 +362,14 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       }
 
       // A branch page that now redirects to another inner page (the branch list) is gone: the site's loose numbers and
-      // postcodes belong to other branches, so none is taken as this one's. Landing on the home page isn't a move, and
-      // landing on one place's page that keeps a word of the old one's name (putney-vale to putney-branch) is a rename.
-      const isRedirected = !isSiteRoot(website.url) && !isSiteRoot(start.url) && !isRelatedPath(pagePath(start.url), pagePath(website.url));
-      const isPageMoved = isRedirected && !isListingPage(results[0]) && sharesPlaceWord(pagePath(start.url), pagePath(website.url));
+      // postcodes belong to other branches, so none is taken as this one's. Landing on the home page isn't a move;
+      // landing on an alias, or on one place's page that keeps a word of the old one's name (putney-vale to
+      // putney-branch), is a rename (docs/providers.md).
+      const startPath = pagePath(start.url);
+      const askedPath = pagePath(website.url);
+      const isRedirected = !isSiteRoot(website.url) && !isSiteRoot(start.url) && startPath !== askedPath;
+      const isAlias = isRelatedPath(startPath, askedPath);
+      const isPageMoved = isRedirected && (isAlias || (!isListingPage(results[0]) && sharesPlaceWord(startPath, askedPath)));
       const isPageGone = isRedirected && !isPageMoved;
       if (isPageMoved) {
         context.warn(`${website.url} redirected to ${start.url}, which is read as the page asked about.`);

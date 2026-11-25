@@ -79,12 +79,13 @@ are never used to search Google for a branch.
 A branch page that **redirects elsewhere on the site** (`/locations/formby/` to `/our-branches/`)
 seems to be gone. A warning says so, and no loose phone number or postcode on the site is taken as
 the business's, since they belong to other branches. Markup on the page it lands on still counts.
-An alias redirect (a longer slug, a new URL scheme with the same last segment) isn't a move.
-A redirect to a page that describes one place and keeps a place word of the old slug
-(`/branches/putney-roehampton-and-putney-vale` to `/putney-branch/`) is a **rename**: a warning
-says so, the page it lands on is read as the page asked about, and its details count. Words for a
-kind of page or trade (`branch`, `office`, `estate`, `agents`, `contact` and the like) aren't
-place words, so a closed branch sent to another branch's page is still gone.
+A redirect, over any number of hops, to an alias (`/estate-lettings-agents/caversham` to
+`/our-offices/estate-agents-in-caversham/`) or to a page that describes one place and keeps a
+place word of the old slug (`/branches/putney-roehampton-and-putney-vale` to `/putney-branch/`)
+is a **rename**: a warning says so, the page it lands on is read as the page asked about, and
+its details count. Words for a kind of page or trade (`branch`, `office`, `estate`, `agents`,
+`contact` and the like) aren't place words, so a closed branch sent to another branch's page is
+still gone.
 
 An inner page with no location of its own (no markup, and no phone or postcode, or those of
 several places) is a **listing page**: an area page that links each nearby branch. web-fetch
