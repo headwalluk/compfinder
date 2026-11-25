@@ -140,6 +140,10 @@ All notable changes to this project are documented here. The format follows
 - An Organization that repeats a site's only LocalBusiness (the same phone or postcode) is that
   business, not a chain's head office.
 - A double-encoded name (`&amp;amp;`) is decoded fully.
+- A query's town found only in a street's name ("7 Blackburn Rd, Accrington") no longer excuses a
+  listing's different name, and a name with a place qualifier before the query's place ("South
+  Kensington" for "Kensington") is another place.
+- In text output, a conflicting phone and each source's phone are shown with their own display.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

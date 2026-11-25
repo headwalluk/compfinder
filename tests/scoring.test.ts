@@ -146,6 +146,19 @@ describe('linking records into places', () => {
     assert.ok(!inFormatted.identity.rules.includes('identity.name-mismatch'), 'a district named only in Google\'s formatted line counts too');
   });
 
+  test('a query\'s town found only in a street\'s name, or after a place qualifier, is a different name', () => {
+    const accrington = record('google-places-api', [fact.name('Example Estates - Accrington Branch'), fact.phone(PHONE),
+      fact.address({ lines: ['7 Blackburn Road'], town: 'Accrington', postcode: 'BB5 1HF', formatted: '7 Blackburn Rd, Accrington BB5 1HF' }), fact.placeId(PLACE_ID)]);
+    const byStreet = score({ name: 'Example Estates Blackburn', address: 'Blackburn' }, [accrington]);
+    expectRules(byStreet.identity.rules, ['identity.none']);
+    const southKensington = record('google-places-api', [fact.name('Example Estates South Kensington'), fact.phone(PHONE),
+      fact.address({ lines: ['1 Example Road'], town: 'London', postcode: 'SW7 3RD', formatted: '1 Example Rd, South Kensington, London SW7 3RD' }), fact.placeId(PLACE_ID)]);
+    const byQualifier = score({ name: 'Example Estates Kensington', address: 'Kensington' }, [southKensington]);
+    assert.equal(byQualifier.identity.confidence, 0, 'South Kensington isn\'t Kensington');
+    const asked = score({ name: 'Example Estates South Kensington', address: 'South Kensington' }, [southKensington]);
+    assert.equal(asked.identity.confidence, 60);
+  });
+
   test('an address without a postcode agrees with the same street given with one', () => {
     const site = record('web-fetch', [fact.name('Example Woodworks'), fact.phone(PHONE), fact.address({ lines: ['329 W 18th St, Ste 914'], town: 'Chicago' })]);
     const google = record('google-places-api', [fact.name('Example Woodworks'), fact.phone(PHONE), fact.address({ lines: ['329 West 18th Street'], town: 'Chicago', postcode: '60616' }), fact.placeId(PLACE_ID)]);

@@ -1,3 +1,7 @@
+/** Words that, added to a place's name, make it another place: "South Kensington" isn't "Kensington". */
+export const PLACE_QUALIFIERS: ReadonlySet<string> = new Set([
+  'north', 'south', 'east', 'west', 'upper', 'lower', 'central', 'new', 'old', 'great', 'little', 'greater', 'high', 'inner', 'outer',
+]);
 /** Legal suffixes dropped from the end of a name before comparing. */
 const LEGAL_SUFFIXES = new Set(['ltd', 'limited', 'plc', 'llp', 'inc', 'llc', 'gmbh', 'co', 'company']);
 /** Suffixes that may follow "and" ("& Co"), which goes with them. */
@@ -79,6 +83,18 @@ export function isOneEditApart(first: string, second: string): boolean {
   return isNear;
 }
 
+/**
+ * True when a source's name puts a place qualifier, after its first word, before the query's last word (its place):
+ * "Foxtons South Kensington" for "Foxtons Kensington".
+ */
+export function namesOtherPlace(queryName: string, sourceName: string): boolean {
+  const queryTokens = nameTokens(queryName);
+  const sourceTokens = nameTokens(sourceName);
+  const queryPlace = queryTokens.length >= 2 ? queryTokens.at(-1) : undefined;
+  return queryPlace !== undefined && sourceTokens.some((token, index) => index > 0 && PLACE_QUALIFIERS.has(token)
+    && !queryTokens.includes(token) && sourceTokens[index + 1] === queryPlace);
+}
+
 /** Compares a name typed into the query with a source's name, forgiving one typo in each longer word. */
 export function compareQueryName(queryName: string, sourceName: string): NameRelation {
   let relation = compareNames(queryName, sourceName);
@@ -91,5 +107,5 @@ export function compareQueryName(queryName: string, sourceName: string): NameRel
     && (queryTokens.every((token) => isNearMatch(token, sourceTokens)) || sourceTokens.every((token) => isNearMatch(token, queryTokens)))) {
     relation = 'compatible';
   }
-  return relation;
+  return namesOtherPlace(queryName, sourceName) ? 'incompatible' : relation;
 }

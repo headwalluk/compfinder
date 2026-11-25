@@ -1,3 +1,4 @@
+import { PLACE_QUALIFIERS } from './name.js';
 export interface WebsiteValue {
   /** Absolute http(s) URL, without a fragment. */
   url: string;
@@ -83,11 +84,6 @@ export function sharesPlaceWord(first: string, second: string): boolean {
   const firstWords = new Set(placeWords(first));
   return placeWords(second).some((word) => firstWords.has(word));
 }
-
-/** Words that, added to a place's name, make it another place: "South Kensington" isn't "Kensington". */
-const PLACE_QUALIFIERS: ReadonlySet<string> = new Set([
-  'north', 'south', 'east', 'west', 'upper', 'lower', 'central', 'new', 'old', 'great', 'little', 'greater', 'high', 'inner', 'outer',
-]);
 
 /**
  * True when every word of one path's last segment is in the other's (/offices/chiswick and

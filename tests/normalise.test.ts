@@ -122,6 +122,12 @@ describe('business names', () => {
     assert.equal(compareNames('Smyth Estates', 'Smith Estates'), 'incompatible', 'source names are never fuzzy');
   });
 
+  test('a source name that puts a place qualifier before the query\'s place names another place', () => {
+    assert.equal(compareQueryName('Foxtons Kensington', 'Foxtons South Kensington Estate Agents'), 'incompatible');
+    assert.equal(compareQueryName('Foxtons South Kensington', 'Foxtons South Kensington Estate Agents'), 'compatible');
+    assert.equal(compareQueryName('Example Woodworks', 'New Example Woodworks'), 'compatible', 'a qualifier before no query word is just part of the name');
+  });
+
   test('one edit apart: substitution, insertion, deletion or a swap of neighbours', () => {
     assert.ok(isOneEditApart('headwall', 'headwlal'));
     assert.ok(isOneEditApart('headwall', 'headwal'));

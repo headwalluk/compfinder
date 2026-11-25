@@ -1,5 +1,5 @@
 import { QUERY_SOURCE, type Query, type SourceRecord } from '../lookup/types.js';
-import { compareNames, compareQueryName, nameTokens } from '../normalise/name.js';
+import { compareNames, compareQueryName, namesOtherPlace, nameTokens } from '../normalise/name.js';
 import { isRelatedPath, isSameSite, isSiteRoot, normaliseUrl, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
 import { addressesEqual } from './match.js';
@@ -15,6 +15,11 @@ export type KeyState = 'confirmed' | 'contradicted' | 'silent';
 /** Query keys that, confirmed by structured evidence, pin the identity down (identity.input-confirmed). */
 const PINNING_KEYS: ReadonlySet<QueryKey> = new Set(['place_id', 'phone', 'postcode', 'website-page']);
 const NON_WORD = /[^\p{L}\p{N}]+/gu;
+/** Street types, written out and short, that end a street's name ("Blackburn Road", "Bridge St"). */
+const STREET_TYPES: ReadonlySet<string> = new Set([
+  'street', 'st', 'road', 'rd', 'avenue', 'ave', 'drive', 'dr', 'lane', 'ln', 'place', 'pl', 'court', 'ct', 'crescent', 'cres',
+  'boulevard', 'blvd', 'terrace', 'ter', 'square', 'sq', 'parkway', 'pkwy', 'highway', 'hwy', 'way', 'close', 'row', 'mews', 'parade', 'walk',
+]);
 /** Providers that discover a website by searching the web (stage "discover"). */
 const SEARCH_SOURCES: ReadonlySet<string> = new Set(PROVIDER_NAMES.filter((name) => PROVIDER_DECLARATIONS[name].stage === 'discover'));
 
@@ -141,12 +146,12 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
     const items = fieldItems(records, 'name');
     // A query's town that the place's name leaves out ("Michael Poole Nunthorpe" for a listing in Nunthorpe) isn't a mismatch.
     const placeWords = new Set(fieldItems(records, 'address').flatMap((item) => [
-      ...item.value.lines, item.value.town ?? '', item.value.county ?? '', item.value.formatted ?? '',
-    ].flatMap((part) => nameTokens(part))));
+      ...item.value.lines, item.value.town ?? '', item.value.county ?? '', ...(item.value.formatted ?? '').split(','),
+    ].filter((part) => !isStreetPart(part)).flatMap((part) => nameTokens(part))));
     const withoutPlace = nameTokens(query.name).filter((word) => !placeWords.has(word)).join(' ');
     const queryName = query.name;
     const isCompatible = (name: string): boolean => compareQueryName(queryName, name) !== 'incompatible'
-      || (withoutPlace !== '' && compareQueryName(withoutPlace, name) !== 'incompatible');
+      || (withoutPlace !== '' && compareQueryName(withoutPlace, name) !== 'incompatible' && !namesOtherPlace(queryName, name));
     for (const item of items.filter((candidate) => isCompatible(candidate.value))) {
       confirm(item.value, item.quality === 'structured', item.record.source);
     }
@@ -162,6 +167,12 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
     }
   }
   return { key, state, isStructured, value, sources };
+}
+
+/** True when an address part is a street ("7 Blackburn Rd"): its last word is a street type, so its words aren't a place. */
+function isStreetPart(part: string): boolean {
+  const lastWord = part.toLowerCase().replace(NON_WORD, ' ').trim().split(' ').at(-1) ?? '';
+  return STREET_TYPES.has(lastWord);
 }
 
 /** Scores one candidate on its own (the identity base rules), before any tie. */

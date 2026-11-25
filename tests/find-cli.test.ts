@@ -5,7 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { after, before, describe, test } from 'node:test';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { CSV_COLUMNS, csvCell } from '../src/cli/output/csv.js';
-import { terminalSafe } from '../src/cli/output/text.js';
+import { renderLookupText, terminalSafe } from '../src/cli/output/text.js';
+import type { LookupResult } from '../src/lookup/result.js';
 import { makeTemporaryHome, runCli, runCliAsync, type CliRun } from './helpers/cli.js';
 
 const FIXTURES = new URL('./fixtures/web-fetch/', import.meta.url);
@@ -164,5 +165,20 @@ describe('text output', () => {
   test('strips terminal escape sequences and control characters from page text', () => {
     const escape = String.fromCodePoint(0x1b);
     assert.equal(terminalSafe(`Example${escape}[31m Estates${escape}]0;title${String.fromCodePoint(7)}`), 'Example Estates0;title');
+  });
+
+  test('a conflicting phone is shown with its own display, not the chosen number\'s', () => {
+    const phone = {
+      value: '+441254389384', display: '01254 389384', confidence: 30, sources: ['google-places-api'], rules: [], reasons: [],
+      conflicts: [{ value: '+441254916276', sources: ['web-fetch'] }],
+      evidence: [{ source: 'web-fetch', value: '+441254916276', quality: 'loose', reference: { url: null, record_id: null, detail: 'tel: link' }, agreed: false }],
+    };
+    const result = {
+      query: { name: 'Example Estates', url: null, country: 'GB' }, identity: { confidence: 60, candidates: [] },
+      fields: { name: { ...phone, value: 'Example Estates', conflicts: [], evidence: [] }, phone }, providers: [], warnings: [], error: null,
+    } as unknown as LookupResult;
+    const text = renderLookupText(result, false);
+    assert.match(text, /≠ 01254 916276 {2}\(\+441254916276\) \(web-fetch\)/);
+    assert.match(text, /× web-fetch: 01254 916276 {2}\(\+441254916276\)/);
   });
 });

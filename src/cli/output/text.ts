@@ -1,5 +1,6 @@
 import type { PlannedProvider } from '../../lookup/engine.js';
 import type { LookupResult, OutputField } from '../../lookup/result.js';
+import { normalisePhone } from '../../normalise/phone.js';
 
 const LABEL_WIDTH = 11;
 const VALUE_WIDTH = 46;
@@ -54,8 +55,14 @@ function describeValue(name: string, field: OutputField): string {
   return terminalSafe(text);
 }
 
+/** A field holding another value (a conflict or one source's evidence), with a phone's display written for that number. */
+function otherValue(field: OutputField, value: unknown, countryCode: string | null): OutputField {
+  const phone = typeof value === 'string' && countryCode !== null ? normalisePhone(value, countryCode) : null;
+  return { ...field, value, conflicts: [], ...('display' in field ? { display: phone?.display ?? value } : {}) };
+}
+
 /** One field's lines: label, value, confidence and sources, then any conflicts and evidence. */
-function fieldLines(name: string, field: OutputField, isColour: boolean): string[] {
+function fieldLines(name: string, field: OutputField, isColour: boolean, countryCode: string | null): string[] {
   const label = { place_id: 'Place ID' }[name] ?? `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
   const value = describeValue(name, field);
   const sources = field.sources.join(', ');
@@ -63,11 +70,11 @@ function fieldLines(name: string, field: OutputField, isColour: boolean): string
     ? [`${INDENT}${label.padEnd(LABEL_WIDTH)}${value}`, `${CONTINUATION}${''.padEnd(VALUE_WIDTH)}${score(field.confidence, isColour)}  ${sources}`]
     : [`${INDENT}${label.padEnd(LABEL_WIDTH)}${value.padEnd(VALUE_WIDTH)}${score(field.confidence, isColour)}  ${sources}`.trimEnd()];
   for (const conflict of field.conflicts) {
-    const shown = describeValue(name, { ...field, value: conflict.value, conflicts: [] });
+    const shown = describeValue(name, otherValue(field, conflict.value, countryCode));
     lines.push(`${CONTINUATION}≠ ${shown} (${conflict.sources.join(', ')})`);
   }
   for (const evidence of field.evidence ?? []) {
-    const shown = describeValue(name, { ...field, value: evidence.value, conflicts: [] });
+    const shown = describeValue(name, otherValue(field, evidence.value, countryCode));
     lines.push(`${CONTINUATION}${evidence.agreed ? '·' : '×'} ${evidence.source}: ${shown} [${terminalSafe(evidence.reference.detail)}]`);
   }
   return lines;
@@ -82,7 +89,7 @@ export function renderLookupText(result: LookupResult, isColour: boolean, headin
     `${titleText.padEnd(INDENT.length + LABEL_WIDTH + VALUE_WIDTH)} identity ${score(result.identity.confidence, isColour).trim()}`,
   ];
   for (const [name, field] of Object.entries(result.fields)) {
-    lines.push(...fieldLines(name, field, isColour));
+    lines.push(...fieldLines(name, field, isColour, result.query.country ?? null));
   }
   if (result.identity.candidates.length > 0) {
     lines.push('', `${INDENT}${'Candidates'.padEnd(LABEL_WIDTH)}${result.identity.candidates.length} match equally:`);

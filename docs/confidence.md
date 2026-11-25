@@ -97,7 +97,10 @@ Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the sa
 your query's name that is in a candidate's own address (its town, or any part of Google's
 formatted address) can be missing from the
 candidate's name: `Michael Poole Nunthorpe` matches a listing called `Michael Poole Estate Agents`
-in Nunthorpe.
+in Nunthorpe. A street's name doesn't count as a place: `Keenans Blackburn` doesn't match
+`Keenans Estate Agents - Accrington Branch` at `7 Blackburn Rd, Accrington`. A candidate's name
+that puts a place qualifier before your query's place names another place, so `Foxtons Kensington`
+doesn't match `Foxtons South Kensington Estate Agents`, as with branch pages.
 
 For a home page with no location (a whole business), the site's head office ranks first, then a
 place its own markup gives an address or phone for. When the leading place has nothing from the site
