@@ -54,11 +54,14 @@ function sharedKeys(first: SourceRecord, second: SourceRecord): SharedKey[] {
   if (page !== undefined) {
     keys.push({ label: `page ${page.value.url}`, strength: KEY_STRENGTH.page });
   }
-  const isNamedAlike = namesCompatible(first, second);
-  if (postcode !== undefined && isNamedAlike) {
+  // A building holds several businesses: records on two different websites aren't one place by their building alone.
+  const firstSite = recordSite(first);
+  const secondSite = recordSite(second);
+  const canLinkByBuilding = namesCompatible(first, second) && (firstSite === null || secondSite === null || isSameSite(firstSite, secondSite));
+  if (postcode !== undefined && canLinkByBuilding) {
     keys.push({ label: `postcode ${postcode}`, strength: KEY_STRENGTH.postcode });
   }
-  if (street !== undefined && street !== null && isNamedAlike) {
+  if (street !== undefined && street !== null && canLinkByBuilding) {
     keys.push({ label: `address ${street}`, strength: KEY_STRENGTH.street });
   }
   return keys;

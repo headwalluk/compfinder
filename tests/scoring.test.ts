@@ -140,6 +140,10 @@ describe('linking records into places', () => {
       fact.website('https://example.com/our-offices/nunthorpe'), fact.placeId(PLACE_ID)]);
     const result = score({ name: 'Example Poole Nunthorpe', url: 'https://example.com/our-offices/nunthorpe' }, [listing]);
     assert.ok(!result.identity.rules.includes('identity.name-mismatch'));
+    const district = record('google-places-api', [fact.name('Example Poole Estate Agents'), fact.address({ lines: ['95 Guisborough Road'], town: 'Middlesbrough',
+      postcode: 'TS7 0JS', formatted: '95 Guisborough Rd, Nunthorpe, Middlesbrough TS7 0JS' }), fact.website('https://example.com/'), fact.placeId(PLACE_ID)]);
+    const inFormatted = score({ name: 'Example Poole  Nunthorpe', url: 'https://example.com/our-offices/nunthorpe' }, [district]);
+    assert.ok(!inFormatted.identity.rules.includes('identity.name-mismatch'), 'a district named only in Google\'s formatted line counts too');
   });
 
   test('an address without a postcode agrees with the same street given with one', () => {
@@ -147,6 +151,25 @@ describe('linking records into places', () => {
     const google = record('google-places-api', [fact.name('Example Woodworks'), fact.phone(PHONE), fact.address({ lines: ['329 West 18th Street'], town: 'Chicago', postcode: '60616' }), fact.placeId(PLACE_ID)]);
     const result = score({ name: 'Example Woodworks' }, [site, google]);
     assert.deepEqual(result.fields.address.conflicts, []);
+  });
+
+  test('a site\'s record isn\'t joined to another website\'s place by sharing its building', () => {
+    const site = record('web-fetch', [fact.phone(PHONE, 'loose'), fact.address({ postcode: POSTCODE }, 'loose')], { origin: 'site:example.com' });
+    const neighbour = record('google-places-api', [fact.name('Rival Mortgages'), fact.address({ lines: ['1 Broad St'], postcode: POSTCODE }),
+      fact.website('https://rival.example.org/'), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Mortgages', url: 'https://example.com/' }, [site, neighbour]);
+    expectRules(result.identity.rules, ['identity.single-loose']);
+    assert.equal(result.fields.phone.value?.e164, PHONE_E164, 'the site\'s own details stand when the neighbour is rejected');
+  });
+
+  test('on a home page, the site\'s own postcode that Google\'s listing disagrees with is a conflict, not dropped', () => {
+    const site = record('web-fetch', [fact.address({ postcode: 'SW16 3BF' }, 'loose')], { origin: 'site:example.com' });
+    const google = record('google-places-api', [fact.name('Example Sales'), fact.address({ lines: ['1 Empire Mews'], postcode: 'SW16 2BF' }),
+      fact.website('https://example.com/'), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Sales Training', url: 'https://example.com/' }, [site, google]);
+    assert.equal(result.fields.place_id.value, PLACE_ID);
+    assert.ok(result.fields.address.conflicts.some((conflict) => (conflict.value as { postcode: string }).postcode === 'SW16 3BF'));
+    assert.equal(result.identity.confidence, 60, 'the site\'s record isn\'t counted as agreement');
   });
 
   test('identity.head-office-only: a branch was asked for, but every source describes the head office', () => {

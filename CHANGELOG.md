@@ -120,6 +120,10 @@ All notable changes to this project are documented here. The format follows
   Kensington. A listing with an alias of the branch page beats the head office's home page.
 - A query's town that a listing's name leaves out isn't a name mismatch, and an address without a
   postcode agrees with the same street given with one.
+- A site's record isn't joined to a place on another website by sharing a postcode or street, so
+  a rival in the same building no longer takes the site's own details down with it. On a home
+  page, the site's own details that match no place show as conflicts with the leader's.
+- A query's town found only in Google's formatted address isn't a name mismatch either.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

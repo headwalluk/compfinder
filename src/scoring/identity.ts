@@ -129,7 +129,9 @@ function matchKey(key: QueryKey, query: Query, records: readonly SourceRecord[],
   } else if (key === 'name' && query.name !== null) {
     const items = fieldItems(records, 'name');
     // A query's town that the place's name leaves out ("Michael Poole Nunthorpe" for a listing in Nunthorpe) isn't a mismatch.
-    const placeWords = new Set(fieldItems(records, 'address').flatMap((item) => [...item.value.lines, item.value.town ?? ''].flatMap((part) => nameTokens(part))));
+    const placeWords = new Set(fieldItems(records, 'address').flatMap((item) => [
+      ...item.value.lines, item.value.town ?? '', item.value.county ?? '', item.value.formatted ?? '',
+    ].flatMap((part) => nameTokens(part))));
     const withoutPlace = nameTokens(query.name).filter((word) => !placeWords.has(word)).join(' ');
     const queryName = query.name;
     const isCompatible = (name: string): boolean => compareQueryName(queryName, name) !== 'incompatible'

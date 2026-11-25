@@ -44,6 +44,10 @@ Linking keeps places apart that are different:
   fits several places (one switchboard for two listings), it joins the one it shares the most keys
   with (the street as well), then the one with the same name, or, with none of those (a head
   office known only by its postcode), none of them.
+- A postcode or street only says two records are in one building, and a building can hold several
+  businesses. Records whose websites are on two different sites aren't joined by their building
+  alone: a broker's footer postcode doesn't join a rival broker's listing in the same office block.
+  A phone, a place ID or a Maps listing still joins them.
 - A record that says nothing about where a place is (an About page's markup: a name, a website,
   an email) joins the candidate holding its site's other records, rather than standing as a
   place of its own.
@@ -79,12 +83,16 @@ are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` sta
 All name comparisons ignore case, punctuation, word order, legal suffixes, connecting words
 (`and`, `in`, `at`, `of`, `the`, `for`) and plain plurals. So `Martin & Co Estate Agents & Letting
 Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name. A word of
-your query's name that is in a candidate's own address (its town) can be missing from the
+your query's name that is in a candidate's own address (its town, or any part of Google's
+formatted address) can be missing from the
 candidate's name: `Michael Poole Nunthorpe` matches a listing called `Michael Poole Estate Agents`
 in Nunthorpe.
 
 For a home page with no location (a whole business), the site's head office ranks first, then a
-place its own markup gives an address or phone for. The site saying where it is counts as the
+place its own markup gives an address or phone for. When the leading place has nothing from the site
+itself, the site's own details that matched no place still count towards the fields, so where they
+differ from Google's (another postcode) they show as conflicts. They don't count towards the
+identity. The site saying where it is counts as the
 query saying so. Loose details, such as a postcode in a footer, don't count.
 
 When candidates match the query equally, the best match ranks first only inside one building:
