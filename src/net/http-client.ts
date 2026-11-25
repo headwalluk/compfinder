@@ -115,6 +115,8 @@ function decompressor(encoding: string | undefined): Gunzip | ReturnType<typeof 
 async function readBody(body: AsyncIterable<Uint8Array>, encoding: string | undefined, maxBytes: number, url: string): Promise<Buffer> {
   const source = Readable.from(body);
   const decoder = decompressor(encoding);
+  // pipe() doesn't pass errors on: a reset mid-body would be an unhandled 'error' on source, which ends the process.
+  source.on('error', (error) => decoder?.destroy(error));
   const decoded: AsyncIterable<Uint8Array> = decoder === null ? source : source.pipe(decoder);
   const chunks: Buffer[] = [];
   let total = 0;

@@ -10,9 +10,12 @@ import { createHttpClient, HttpError, type HttpClient } from '../src/net/http-cl
 import { redact } from '../src/net/redact.js';
 import { isPathAllowed, parseRobots } from '../src/net/robots.js';
 import { LIVE_TRANSPORT } from '../src/net/transport.js';
+import { httpFailureCause } from '../src/providers/api-errors.js';
 
 const COMPRESSION_BOMB_BYTES = 3 * 1024 * 1024;
 const SHORT_TIMEOUT_MS = 200;
+/** How long the test server waits before resetting a connection it has started answering. */
+const RESET_DELAY_MS = 50;
 
 /** Routes for the local test server. */
 const ROUTES: Record<string, (request: IncomingMessage, response: ServerResponse) => void> = {
@@ -47,6 +50,22 @@ const ROUTES: Record<string, (request: IncomingMessage, response: ServerResponse
   '/silent': () => {
     // Never answers, to test the timeout.
   },
+  '/reset-mid-body': (request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' });
+    response.write('<p>Half a page');
+    setTimeout(() => request.socket.destroy(), RESET_DELAY_MS);
+  },
+  '/reset-mid-gzip': (request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'gzip' });
+    response.write(gzipSync(Buffer.alloc(COMPRESSION_BOMB_BYTES)).subarray(0, 1024));
+    setTimeout(() => request.socket.destroy(), RESET_DELAY_MS);
+  },
+  '/redirect-then-reset': (request, response) => {
+    // A redirect whose body never ends, then a reset: the redirect's unread body must not crash the process.
+    response.writeHead(302, { location: '/page', 'content-type': 'text/html' });
+    response.write('<p>Moved');
+    setTimeout(() => request.socket.destroy(), RESET_DELAY_MS);
+  },
 };
 
 let server: Server;
@@ -62,6 +81,11 @@ function client(meter = new CallMeter(false, []), requestTimeoutMs = 5000): Http
     meter,
     signal: new AbortController().signal,
   });
+}
+
+/** How many connections the test server has open. */
+function connectionCount(): Promise<number> {
+  return new Promise((resolve, reject) => server.getConnections((error, count) => (error === null ? resolve(count) : reject(error))));
 }
 
 /** Asserts that a promise rejects with an HttpError of the given kind. */
@@ -163,6 +187,24 @@ describe('HTTP client', () => {
       meter: new CallMeter(false, []), signal: new AbortController().signal,
     });
     await rejectsWith(guarded.request({ url: 'http://localhost/', kind: 'html' }), 'refused_address');
+  });
+
+  test('a connection reset part-way through a body is a network failure with cause connection_reset, not a crash', async () => {
+    const failure = await client().request({ url: `${baseUrl}/reset-mid-body`, kind: 'html' }).then(() => null, (error: unknown) => error);
+    assert.ok(failure instanceof HttpError && failure.failure === 'network', String(failure));
+    assert.equal(httpFailureCause(failure), 'connection_reset');
+    const compressed = await client().request({ url: `${baseUrl}/reset-mid-gzip`, kind: 'html' }).then(() => null, (error: unknown) => error);
+    assert.ok(compressed instanceof HttpError && compressed.failure === 'network', `a compressed body too: ${String(compressed)}`);
+  });
+
+  test('a reset on a redirect\'s unread body, after the redirect is followed, doesn\'t crash the process', async () => {
+    const before = await connectionCount();
+    const response = await client().request({ url: `${baseUrl}/redirect-then-reset`, kind: 'html' });
+    assert.equal(response.status, 200);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(await connectionCount() <= before, 'the redirect\'s connection is closed, not left open until the server gives up');
+    // The reset lands after the request has returned: an unhandled 'error' event would surface here as a failure.
+    await new Promise((resolve) => setTimeout(resolve, RESET_DELAY_MS * 4));
   });
 
   test('a metered client stops when the budget is used up', async () => {

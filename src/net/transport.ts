@@ -36,6 +36,35 @@ function flattenHeaders(message: IncomingMessage): Record<string, string> {
   return headers;
 }
 
+/**
+ * A response body that can't crash the process: Node throws an 'error' event no one listens to (a connection reset
+ * before the body is read), so one is listened for from the start and rethrown to whoever reads the body. A body
+ * abandoned unread (a redirect's) closes the response.
+ */
+function readIncoming(incoming: IncomingMessage): AsyncIterable<Uint8Array> {
+  let failure: Error | null = null;
+  incoming.on('error', (error) => {
+    failure = error;
+  });
+  return {
+    [Symbol.asyncIterator](): AsyncIterator<Uint8Array> {
+      const chunks = incoming[Symbol.asyncIterator]() as AsyncIterator<Uint8Array>;
+      return {
+        async next(): Promise<IteratorResult<Uint8Array>> {
+          if (failure !== null) {
+            throw failure;
+          }
+          return chunks.next();
+        },
+        async return(): Promise<IteratorResult<Uint8Array>> {
+          incoming.destroy();
+          return { done: true, value: undefined };
+        },
+      };
+    },
+  };
+}
+
 /** The real network: node:http and node:https, with the address guard on every connection. */
 export const LIVE_TRANSPORT: Transport = {
   send(request: TransportRequest): Promise<TransportResponse> {
@@ -48,7 +77,7 @@ export const LIVE_TRANSPORT: Transport = {
         agent: false,
         ...(request.allowPrivateAddresses ? {} : { lookup: guardedLookup }),
       }, (incoming) => {
-        resolve({ status: incoming.statusCode ?? 0, headers: flattenHeaders(incoming), body: incoming });
+        resolve({ status: incoming.statusCode ?? 0, headers: flattenHeaders(incoming), body: readIncoming(incoming) });
       });
       outgoing.on('error', reject);
       outgoing.end(request.body ?? undefined);
