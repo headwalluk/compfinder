@@ -31,6 +31,8 @@ const PAGE_CACHE_TTL_SECONDS = 60 * 60;
 /** Most distinct phone numbers, and postcodes, loose page evidence may hold and still describe one place. */
 const MAX_LOOSE_PHONES = 2;
 const MAX_LOOSE_POSTCODES = 1;
+/** Words that name a branch as such ("Crosby Branch", "Leeds Office"), not as a business. */
+const BRANCH_WORDS: ReadonlySet<string> = new Set(['branch', 'office', 'store', 'shop', 'showroom', 'centre', 'center', 'location', 'site']);
 /** At most this many linked pages are kept from a listing page. */
 const MAX_LISTED_PAGES = 200;
 const ROBOTS_CACHE_TTL_SECONDS = 24 * 60 * 60;
@@ -147,11 +149,13 @@ function shortestBrandName(brand: readonly Evidence[]): string | null {
 
 /**
  * A branch's name with the brand in front when the name is only a place ("Oxford", every word of it in the branch's
- * own address): "Notcutts Oxford". A name with any word of its own ("York Vets for Pets") is left as it is.
+ * own address, beside words like "branch"): "Notcutts Oxford". A name with any word of its own ("York Vets for Pets")
+ * is left as it is.
  */
 function withBrand(item: Evidence, brandName: string, placeWords: ReadonlySet<string>): Evidence {
   const words = item.field === 'name' ? nameTokens(item.value) : [];
-  const isOnlyPlace = words.length > 0 && words.every((word) => placeWords.has(word)) && !nameTokens(brandName).some((word) => words.includes(word));
+  const placeOnly = words.filter((word) => !BRANCH_WORDS.has(word));
+  const isOnlyPlace = placeOnly.length > 0 && placeOnly.every((word) => placeWords.has(word)) && !nameTokens(brandName).some((word) => words.includes(word));
   return isOnlyPlace && item.field === 'name' ? { ...item, value: `${brandName} ${item.value}` } : item;
 }
 
@@ -339,9 +343,9 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
         }
       }
 
-      // A branch page that now redirects elsewhere on the site (to the branch list, say) is gone: the site's loose
-      // numbers and postcodes belong to other branches, so none is taken as this one's. Its markup still counts.
-      const isPageGone = !isSiteRoot(website.url) && !isRelatedPath(pagePath(start.url), pagePath(website.url));
+      // A branch page that now redirects to another inner page (the branch list) is gone: the site's loose numbers and
+      // postcodes belong to other branches, so none is taken as this one's. Landing on the home page isn't a move.
+      const isPageGone = !isSiteRoot(website.url) && !isSiteRoot(start.url) && !isRelatedPath(pagePath(start.url), pagePath(website.url));
       if (isPageGone) {
         context.warn(`${website.url} redirected to ${start.url}: the page asked about seems to be gone, so the site's loose phone numbers and postcodes aren't taken as this business's.`);
         for (const result of results) {

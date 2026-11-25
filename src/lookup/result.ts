@@ -6,7 +6,7 @@ import type { RuleId } from '../scoring/rules.js';
 import { fieldItems } from '../scoring/evidence.js';
 import type { LookupOutcome, ProviderReport } from './engine.js';
 import { FIELD_NAMES, type FieldName } from './fields.js';
-import type { AddressValue, FieldValues, SourceName } from './types.js';
+import type { AddressValue, BusinessStatus, FieldValues, SourceName } from './types.js';
 
 /** The output contract's version (semver): docs/output.md. */
 export const SCHEMA_VERSION = '1.0';
@@ -35,6 +35,8 @@ export interface OutputCandidate {
   address: string | null;
   place_id: string | null;
   website: string | null;
+  /** Google's trading status for the place, or null when Google isn't behind it. */
+  business_status: BusinessStatus | null;
   confidence: number;
 }
 
@@ -46,6 +48,8 @@ export interface LookupResult {
     rules: RuleId[];
     reasons: string[];
     candidates: OutputCandidate[];
+    /** Google's trading status for the place the identity rests on, or null. */
+    business_status: BusinessStatus | null;
     considered?: Array<OutputCandidate & { status: 'leader' | 'beaten' | 'rejected'; keys: Record<string, string> }>;
   };
   fields: Record<FieldName, OutputField>;
@@ -153,6 +157,7 @@ function summariseCandidate(assessment: CandidateAssessment, confidence: number)
     address: address === undefined ? null : addressLine(address),
     place_id: fieldItems(records, 'place_id')[0]?.value ?? null,
     website: fieldItems(records, 'website')[0]?.value.url ?? null,
+    business_status: records.find((record) => record.businessStatus !== undefined)?.businessStatus ?? null,
     confidence,
   };
 }
@@ -196,6 +201,8 @@ export function buildResult(outcome: LookupOutcome, options: { isExplain: boolea
       rules: identity.rules,
       reasons: identity.reasons,
       candidates: isTie ? identity.leaders.map((leader) => summariseCandidate(leader, identity.confidence)) : [],
+      business_status: identity.rules.includes('identity.chain') ? null
+        : identity.leaders[0]?.candidate.records.find((record) => record.businessStatus !== undefined)?.businessStatus ?? null,
     },
     fields,
     providers: outcome.reports.map((report) => ({ ...report })),

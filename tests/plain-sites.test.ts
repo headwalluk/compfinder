@@ -93,6 +93,15 @@ describe('web-fetch on sites without location markup', () => {
       'https://example.com/centres/oxford': page('Oxford', '<a href="/cdn-cgi/l/email-protection">email</a>', `<script type="application/ld+json">${markup}</script>`),
     });
     assert.equal(result.fields.name.value, 'Example Gardens Oxford');
+    const branch = await find({ url: 'https://example.com/crosby-branch/' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/crosby-branch/': page('Crosby', '', `<script type="application/ld+json">${JSON.stringify([
+        { '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Estates' },
+        { '@context': 'https://schema.org', '@type': 'RealEstateAgent', name: 'Crosby Branch', telephone: '0151 924 6000',
+          address: { '@type': 'PostalAddress', streetAddress: 'Crown Buildings', addressLocality: 'Crosby', postalCode: 'L23 5SR' } },
+      ])}</script>`),
+    });
+    assert.equal(branch.result.fields.name.value, 'Example Estates Crosby Branch', 'a word like "branch" beside the place still takes the brand');
     assert.equal((result.fields.address.value as { formatted: string }).formatted, 'Nuneham Courtenay, Oxford, OX44 9PY');
     assert.ok(!transport.requests.some((request) => request.includes('/cdn-cgi/')), 'Cloudflare\'s own links are never read');
   });
@@ -131,6 +140,14 @@ describe('web-fetch on sites without location markup', () => {
     });
     assert.equal(result.fields.phone.value, null);
     assert.ok(result.warnings.some((warning) => warning.includes('seems to be gone')));
+    const home = await find({ name: 'Example Mortgages', url: 'https://www.example.com/home' }, {
+      'https://www.example.com/robots.txt': ROBOTS,
+      'https://www.example.com/home': { status: 301, headers: { location: 'https://example.com/' } },
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/': page('Example Mortgages', '<a href="tel:0118 496 0123">Call us</a> Reading RG1 1AA'),
+    });
+    assert.equal(home.result.fields.phone.value, '+441184960123', 'an old URL that lands on the home page keeps the site\'s own details');
+    assert.ok(!home.result.warnings.some((warning) => warning.includes('seems to be gone')));
   });
 
   test('an Organization elsewhere than the query\'s name says, on the page asked about, is the head office', async () => {

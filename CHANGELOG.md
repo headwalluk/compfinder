@@ -105,6 +105,12 @@ All notable changes to this project are documented here. The format follows
   loose numbers and postcodes aren't taken as the branch's.
 - Every failed provider has a `cause` code (`dns`, `tls_certificate`, `http_404`, …) beside its
   `detail`, so a dead website can be told apart from nothing found.
+- `identity.business_status` (and a `business_status` CSV column, and one per candidate): Google's
+  trading status for the place, so a permanently closed business can be rejected without reading
+  warnings.
+- Google's website checks are plain page fetches: no longer metered or counted in its calls, so a
+  dry run's "at most" holds. An old URL that redirects to the home page isn't a gone branch page,
+  so a small site's own details are kept. A branch named "Crosby Branch" takes the brand's name.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

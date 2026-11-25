@@ -14,7 +14,7 @@ export const CSV_COLUMNS = [
   'place_id', 'place_id_confidence',
   'socials', 'socials_confidence',
   'conflict_fields', 'failed_providers', 'warnings',
-  'error_code',
+  'error_code', 'business_status',
 ] as const;
 export type CsvColumn = (typeof CSV_COLUMNS)[number];
 
@@ -86,6 +86,7 @@ export function csvRow(result: LookupResult | null, id: string | null, errorCode
       conflict_fields: Object.entries(result.fields).filter(([, field]) => field.conflicts.length > 0).map(([name]) => name).join(MULTI_VALUE_SEPARATOR),
       failed_providers: result.providers.filter((provider) => !FAILURE_STATUSES_TO_SKIP.has(provider.status)).map((provider) => `${provider.name}: ${provider.status}`).join(MULTI_VALUE_SEPARATOR),
       warnings: result.warnings.join(MULTI_VALUE_SEPARATOR),
+      business_status: result.identity.business_status,
     });
   }
   return `${CSV_COLUMNS.map((column) => csvCell(cells[column])).join(',')}${LINE_END}`;

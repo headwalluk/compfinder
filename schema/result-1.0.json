@@ -25,12 +25,13 @@
     },
     "identity": {
       "type": "object",
-      "required": ["confidence", "rules", "reasons", "candidates"],
+      "required": ["confidence", "rules", "reasons", "candidates", "business_status"],
       "properties": {
         "confidence": { "$ref": "#/$defs/confidence" },
         "rules": { "$ref": "#/$defs/strings" },
         "reasons": { "$ref": "#/$defs/strings" },
         "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+        "business_status": { "$ref": "#/$defs/businessStatus" },
         "considered": {
           "type": "array",
           "items": {
@@ -221,14 +222,16 @@
     },
     "candidate": {
       "type": "object",
-      "required": ["name", "address", "place_id", "website", "confidence"],
+      "required": ["name", "address", "place_id", "website", "business_status", "confidence"],
       "properties": {
         "name": { "type": ["string", "null"] },
         "address": { "type": ["string", "null"] },
         "place_id": { "type": ["string", "null"] },
         "website": { "type": ["string", "null"] },
+        "business_status": { "$ref": "#/$defs/businessStatus" },
         "confidence": { "$ref": "#/$defs/confidence" }
       }
-    }
+    },
+    "businessStatus": { "enum": ["operational", "closed_temporarily", "closed_permanently", null] }
   }
 }

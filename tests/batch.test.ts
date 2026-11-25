@@ -92,7 +92,7 @@ describe('find --input (batch)', () => {
     const rows = result.stdout.slice(BYTE_ORDER_MARK.length).split('\r\n').filter((row) => row !== '');
     assert.equal(rows[0], CSV_COLUMNS.join(','));
     assert.equal(rows.length, 5);
-    assert.match(rows[2] ?? '', /,input\.bad_json$/);
+    assert.match(rows[2] ?? '', /,input\.bad_json,$/);
     assert.match(rows[3] ?? '', /^7,/);
   });
 

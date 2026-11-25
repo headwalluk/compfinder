@@ -103,7 +103,13 @@ export interface SourceRecord {
   redirectedFrom?: string;
   /** For a listing page asked about (one with no place of its own): the paths of the site's pages it links to. */
   listedPages?: string[];
+  /** Whether the place is open, as Google lists it. */
+  businessStatus?: BusinessStatus;
 }
+
+/** A place's trading status, as Google lists it (docs/output.md: identity). */
+export const BUSINESS_STATUSES = ['operational', 'closed_temporarily', 'closed_permanently'] as const;
+export type BusinessStatus = (typeof BUSINESS_STATUSES)[number];
 
 /** The caller's inputs, normalised. Any may be null. */
 export interface Query {

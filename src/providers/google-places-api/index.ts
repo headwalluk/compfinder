@@ -1,4 +1,4 @@
-import type { AddressValue, Evidence, SourceRecord } from '../../lookup/types.js';
+import { BUSINESS_STATUSES, type AddressValue, type Evidence, type SourceRecord } from '../../lookup/types.js';
 import { ProviderError } from '../../lookup/errors.js';
 import { countryRules } from '../../normalise/country/index.js';
 import { mapsCid } from '../../normalise/maps.js';
@@ -96,7 +96,11 @@ export function placeRecord(place: Place, countryCode: string, detail: string): 
       evidence.push({ field: 'website', value: website, quality: 'structured', reference: { ...reference, url: website.url } });
     }
     const cid = place.googleMapsUri === undefined ? null : mapsCid(place.googleMapsUri);
-    record = { source: 'google-places-api', origin: ORIGIN, subject: placeId, scope: 'location', role: 'unknown', evidence, ...(cid === null ? {} : { mapsCids: [cid] }) };
+    const status = BUSINESS_STATUSES.find((known) => known === place.businessStatus?.toLowerCase());
+    record = {
+      source: 'google-places-api', origin: ORIGIN, subject: placeId, scope: 'location', role: 'unknown', evidence,
+      ...(cid === null ? {} : { mapsCids: [cid] }), ...(status === undefined ? {} : { businessStatus: status }),
+    };
   }
   return record;
 }
@@ -197,7 +201,7 @@ async function resolveOffSiteWebsites(records: SourceRecord[], knowledge: Knowle
     let isDead = false;
     try {
       // Stopped at the first hop onto the query's site, so that page isn't fetched here.
-      await context.http.request({
+      await context.webHttp.request({
         url: website.value.url, kind: 'html', cacheTtlSeconds: WEBSITE_CHECK_TTL_SECONDS,
         canFollowRedirect: (unusedFrom, to) => {
           landed = isSameSite(to.hostname, querySite) ? to.href : null;

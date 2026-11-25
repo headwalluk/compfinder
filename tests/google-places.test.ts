@@ -223,6 +223,7 @@ describe('google-places-api', () => {
     assert.equal(result.fields.website.value, 'https://example.com/');
     assert.ok(result.fields.website.sources.includes('google-places-api'), 'Google\'s website, followed, agrees with the query');
     assert.ok(!transport.requests.includes('GET https://www.example.com/'), 'the query\'s own page isn\'t fetched by the check');
+    assert.equal(googleReport(result)?.calls, 1, 'the website check is a plain page fetch: not metered, not one of Google\'s calls');
   });
 
   test('a namesake\'s website whose host doesn\'t resolve is left out, so it doesn\'t contradict the query', async () => {
@@ -266,6 +267,7 @@ describe('google-places-api', () => {
   test('a permanently closed place is reported in warnings', async () => {
     const { result } = await find({ name: 'Example Estates', postcode: 'RG9 1AA' }, { [SEARCH_URL]: google('search-closed.json') });
     assert.ok(result.warnings.includes('Google lists Example Estates Henley as closed permanently.'));
+    assert.equal(result.identity.business_status, 'closed_permanently');
   });
 
   test('no results is a successful call that found nothing', async () => {

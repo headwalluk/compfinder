@@ -154,9 +154,9 @@ describe('CSV cells', () => {
   });
 
   test('the column list is pinned: changing it is a schema version change (docs/output.md)', () => {
-    assert.equal(CSV_COLUMNS.length, 34);
+    assert.equal(CSV_COLUMNS.length, 35);
     assert.equal(CSV_COLUMNS[0], 'id');
-    assert.equal(CSV_COLUMNS[CSV_COLUMNS.length - 1], 'error_code');
+    assert.equal(CSV_COLUMNS[CSV_COLUMNS.length - 1], 'business_status');
   });
 });
 

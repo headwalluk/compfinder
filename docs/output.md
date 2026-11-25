@@ -23,7 +23,7 @@ reading:
   "exitCode": 0,
   "schema_version": "1.0",
   "query": {"name":"Example Estates","url":"https://example.com/branches/reading/","address":null,"postcode":null,"phone":null,"place_id":null,"country":"GB"},
-  "identity": {"confidence":100,"rules":["identity.input-confirmed"],"reasons":["web-fetch confirms the query's page https://example.com/branches/reading/"],"candidates":[]},
+  "identity": {"confidence":100,"rules":["identity.input-confirmed"],"reasons":["web-fetch confirms the query's page https://example.com/branches/reading/"],"candidates":[],"business_status":"operational"},
   "fields": {
     "name": {"value":"Example Estates Reading","confidence":100,"sources":["web-fetch","google-places-api"],"rules":["field.independent-agreement"],"reasons":["web-fetch and google-places-api agree"],"conflicts":[]},
     "website": {"value":"https://example.com/branches/reading/","domain":"example.com","confidence":100,"sources":["query","web-fetch","google-places-api"],"rules":["field.independent-agreement"],"reasons":["web-fetch and google-places-api agree"],"conflicts":[]},
@@ -64,7 +64,8 @@ reading:
 |---|---|
 | `confidence` | 0–100: how sure the tool is which business this is |
 | `rules`, `reasons` | The rule IDs that produced the score ([confidence.md](confidence.md)), and the same in words |
-| `candidates` | Empty when one business matches. When several match equally (two branches of one chain), each is listed with `name`, `address`, `place_id`, `website` and its share of the `confidence`. The fields then come from the first, capped at its confidence |
+| `candidates` | Empty when one business matches. When several match equally (two branches of one chain), each is listed with `name`, `address`, `place_id`, `website`, `business_status` and its share of the `confidence`. The fields then come from the first, capped at its confidence |
+| `business_status` | Google's trading status for the place the identity rests on: `operational`, `closed_temporarily` or `closed_permanently`. `null` when Google isn't behind the identity, or for a chain. Each candidate has one too. A warning also says when a place is closed |
 | `considered` | With `--explain` only: every candidate that was weighed, each with the same summary plus a `status` (`leader`, `beaten` or `rejected`) and `keys`, saying which of your query's values it `confirmed` or `contradicted` |
 
 With `--explain`, each field also has `evidence`: every piece behind it, agreeing or not, each
@@ -209,7 +210,8 @@ address_lines, address_town, address_county, address_postcode, address_country_c
 address_lat, address_lon, address_confidence,
 phone, phone_display, phone_confidence, email, email_confidence,
 logo_url, logo_path, logo_confidence, place_id, place_id_confidence,
-socials, socials_confidence, conflict_fields, failed_providers, warnings, error_code
+socials, socials_confidence, conflict_fields, failed_providers, warnings, error_code,
+business_status
 ```
 
 `id` is the caller's id in batch mode. `conflict_fields` names the fields that have conflicts,

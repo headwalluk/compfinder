@@ -180,10 +180,24 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           directory: config.cacheDir, clock: request.clock ?? SYSTEM_CLOCK, logger, warn: (message) => warnings.push(message),
         }),
       });
+      const webHttp = createHttpClient({
+        transport: request.transport ?? LIVE_TRANSPORT,
+        userAgent: userAgent(),
+        requestTimeoutMs: config.timeouts.requestMs,
+        allowPrivateAddresses: config.net.allowPrivateAddresses,
+        meter: new CallMeter(false, budgets),
+        signal,
+        logger: logger.child(name),
+        secrets,
+        cache: request.isCacheBypassed === true ? NO_CACHE : providerCache('web-fetch', {
+          directory: config.cacheDir, clock: request.clock ?? SYSTEM_CLOCK, logger, warn: (message) => warnings.push(message),
+        }),
+      });
       const context: ProviderContext = {
         settings: config.providers[name],
         meter,
         http,
+        webHttp,
         warn: (message) => warnings.push(redact(message, secrets)),
         signal,
         logger: logger.child(name),
@@ -383,7 +397,7 @@ export async function checkProviders(request: Pick<LookupRequest, 'providers' | 
         transport: request.transport ?? LIVE_TRANSPORT, userAgent: userAgent(), requestTimeoutMs: config.timeouts.requestMs,
         allowPrivateAddresses: config.net.allowPrivateAddresses, meter, signal, logger: logger.child(name), secrets,
       });
-      const context: ProviderContext = { settings, meter, http, warn: () => undefined, signal, logger: logger.child(name) };
+      const context: ProviderContext = { settings, meter, http, webHttp: http, warn: () => undefined, signal, logger: logger.child(name) };
       try {
         await provider.check(context);
         report = { name, status: 'ok', detail: null };
