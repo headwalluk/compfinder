@@ -66,8 +66,15 @@ Oxford". A postcode written at the end of a street line isn't repeated. Cloudfla
 A LocalBusiness on an inner page is a **branch**. An Organization's own address, on a site that
 also lists branches, is the **head office**, and so is one read from another page when an inner
 page was asked for (a publisher's address on the site's articles). The same business repeated on
-every page counts once. A head office's address and phone are never used to search Google for a
-branch.
+every page counts once. An Organization on the page asked about is the head office too when the
+query's name has a word that is in neither the Organization's name nor its address ("Nested
+Chelmsford" against an Organization named "Nested" in London). A head office's address and phone
+are never used to search Google for a branch.
+
+A branch page that **redirects elsewhere on the site** (`/locations/formby/` to `/our-branches/`)
+seems to be gone. A warning says so, and no loose phone number or postcode on the site is taken as
+the business's, since they belong to other branches. Markup on the page it lands on still counts.
+An alias redirect (a longer slug, a new URL scheme with the same last segment) isn't a move.
 
 An inner page with no location of its own (no markup, and no phone or postcode, or those of
 several places) is a **listing page**: an area page that links each nearby branch. web-fetch
@@ -117,6 +124,13 @@ metered by Google.
   never taken. With nothing to search for, it waits for an earlier stage, and is
   skipped if nothing turns up. It asks for at most 5 candidates, and sends the lookup's
   country as `regionCode`, which favours places there without excluding others.
+- **Checking a namesake's website.** When a place is named like the query but its website is on
+  another site, its website is fetched (for at most two places a lookup, cached for an hour, and
+  not metered). One that redirects to the query's site (an old `.co.uk` sending visitors to the
+  `.com`) counts as on that site; the check stops at that redirect, so the query's own page isn't
+  fetched again. One whose host doesn't answer at all (no DNS, connection refused) is left out
+  with a warning, so a dead old domain doesn't contradict the query. This runs before a search
+  kept to the query's site drops the places on other sites.
 - **Fields read** (the field mask decides Google's billing tier): `id`, `displayName`,
   `formattedAddress`, `addressComponents`, `location`, `nationalPhoneNumber`,
   `internationalPhoneNumber`, `websiteUri`, `googleMapsUri`, `businessStatus`. Phone and website

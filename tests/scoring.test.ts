@@ -80,6 +80,50 @@ describe('linking records into places', () => {
     assert.equal(result.fields.place_id.value, PLACE_ID);
   });
 
+  test('a site\'s address with no postcode links to Google\'s by its street, however it\'s spelt', () => {
+    const site = record('web-fetch', [fact.name('Example Woodworks'), fact.phone(PHONE), fact.address({ lines: ['329 W 18th St, Ste 914'], town: 'Chicago' })]);
+    const google = record('google-places-api', [fact.name('Example Woodworks'), fact.address({ lines: ['Ste 914', '329 West 18th Street'], town: 'Chicago', postcode: '60616' }),
+      fact.website('https://example.com/'), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Woodworks', url: 'https://example.com/' }, [site, google]);
+    expectRules(result.identity.rules, ['identity.independent-agreement']);
+    assert.ok(result.identity.reasons[0]?.includes('address 329 w 18th st'), 'the reason names the key the two sources share');
+  });
+
+  test('one switchboard for two listings: the site joins the listing whose street it shares, and is preferred on its home page', () => {
+    const site = record('web-fetch', [fact.name('Example Roofing'), fact.phone(PHONE), fact.address({ lines: ['6 Fern Road, Sandyford'], town: 'Dublin' }), fact.website('https://example.com/')]);
+    const fern = record('google-places-api', [fact.name('Example Roofing'), fact.phone(PHONE), fact.address({ lines: ['6 Fern Road'], postcode: 'D18 FP98' }),
+      fact.website('https://example.com/'), fact.placeId(PLACE_ID)], { subject: 'fern' });
+    const clontarf = record('google-places-api', [fact.name('Example Roofing'), fact.phone(PHONE), fact.address({ lines: ['57 Clontarf Road'], postcode: 'D03 A7P0' }),
+      fact.website('https://example.com/'), fact.placeId(OTHER_PLACE_ID)], { subject: 'clontarf' });
+    const result = score({ name: 'Example Roofing', url: 'https://example.com/' }, [site, fern, clontarf]);
+    expectRules(result.identity.rules, ['identity.independent-agreement']);
+    assert.equal(result.fields.place_id.value, PLACE_ID);
+  });
+
+  test('a record that says nothing about a place (an About page\'s markup) joins its site\'s other records', () => {
+    const home = record('web-fetch', [fact.name('Example Property'), fact.phone(PHONE), fact.website('https://example.com/')], { subject: 'home' });
+    const about = record('web-fetch', [fact.name('Example Property'), fact.website('https://example.com/'), fact.email('contact@example.com', 'loose')], { subject: 'about' });
+    const google = record('google-places-api', [fact.name('Example Property Limited'), fact.phone(PHONE), fact.address({ postcode: POSTCODE }), fact.placeId(PLACE_ID)]);
+    const result = score({ name: 'Example Property', url: 'https://example.com/' }, [home, about, google]);
+    assert.equal(result.identity.leaders.length, 1, 'not a second place');
+    expectRules(result.identity.rules, ['identity.independent-agreement']);
+  });
+
+  test('a page asked about that a source gives exactly is the website shown, not a longer page from the markup', () => {
+    const page = record('web-fetch', [fact.name('Example Lettings'), fact.phone(PHONE), fact.website('https://example.com/uk')], { subject: 'page' });
+    const about = record('web-fetch', [fact.name('Example Lettings'), fact.phone(PHONE), fact.website('https://example.com/uk/about-us/')], { subject: 'about' });
+    const result = score({ name: 'Example Lettings', url: 'https://example.com/uk' }, [page, about]);
+    assert.equal(result.fields.website.value?.url, 'https://example.com/uk');
+  });
+
+  test('identity.head-office-only: a branch was asked for, but every source describes the head office', () => {
+    const office = record('web-fetch', [fact.name('Example Homes'), fact.phone(PHONE), fact.address({ lines: ['24 Greville Street'], town: 'London', postcode: 'EC1N 8SS' })], { role: 'head-office' });
+    const result = score({ name: 'Example Homes Chelmsford', url: 'https://example.com/chelmsford' }, [office]);
+    expectRules(result.identity.rules, ['identity.single-structured', 'identity.head-office-only']);
+    assert.equal(result.identity.confidence, 30);
+    assert.ok(result.identity.warnings.some((warning) => warning.includes('(London)')));
+  });
+
   test('one ZIP code isn\'t one building: branches with different building numbers still tie', () => {
     const market = record('google-places-api', [fact.name('Example Chowder'), fact.address({ lines: ['1530 Post Alley'], postcode: '98101' }), fact.placeId(PLACE_ID)], { subject: 'market' });
     const mall = record('google-places-api', [fact.name('Example Chowder - Pacific Place'), fact.address({ lines: ['600 Pine St'], postcode: '98101' }), fact.placeId(OTHER_PLACE_ID)], { subject: 'mall' });

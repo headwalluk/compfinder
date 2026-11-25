@@ -164,8 +164,12 @@ function chooseValue<Field extends FieldName>(field: Field, group: ValueGroup<Fi
   const pool = sourced.length > 0 ? sourced : group.items;
   let chosen: FieldItem<Field> | undefined;
   const queryItem = group.items.find((item) => item.record.source === QUERY_SOURCE);
-  if (field === 'website' && context.identity.rules.includes('identity.chain') && queryItem !== undefined) {
-    // A chain's website is the home page asked about, not one of its pages.
+  const queryUrl = field === 'website' && queryItem !== undefined ? (queryItem.value as FieldValues['website']).url : null;
+  // An inner page asked about that a source gives exactly; one that redirected to another URL shows where it went.
+  const isConfirmedPage = queryUrl !== null && !isSiteRoot(queryUrl) && sourced.some((item) => item.quality === 'structured'
+    && pagePath((item.value as FieldValues['website']).url) === pagePath(queryUrl));
+  if (field === 'website' && queryItem !== undefined && (context.identity.rules.includes('identity.chain') || isConfirmedPage)) {
+    // A chain's website is the home page asked about; a page asked about and confirmed is shown as given.
     chosen = queryItem;
   } else if (field === 'website') {
     const trusted = group.items.filter((item) => item.record.source === QUERY_SOURCE || item.quality === 'structured');

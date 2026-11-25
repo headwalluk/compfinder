@@ -65,7 +65,7 @@ describe('runLookup', () => {
     const webFetch = stubProvider('web-fetch', { readiness: needsWebsite });
     const outcome = await lookup([webFetch], { query: makeQuery({ name: 'Example Estates' }) });
     assert.deepEqual(reportFor(outcome.reports, 'web-fetch'), {
-      name: 'web-fetch', status: 'skipped', reason: 'no website known', detail: null, calls: 0, cached_calls: 0, metered: false,
+      name: 'web-fetch', status: 'skipped', reason: 'no website known', detail: null, cause: null, calls: 0, cached_calls: 0, metered: false,
     });
   });
 
@@ -134,13 +134,16 @@ describe('runLookup', () => {
 
   test('a classified failure and an unexpected error are each recorded, and the lookup carries on', async () => {
     const outcome = await lookup([
-      stubProvider('web-fetch', { error: new ProviderError('blocked', 'HTTP 403 from example.com') }),
+      stubProvider('web-fetch', { error: new ProviderError('blocked', 'HTTP 403 from example.com', 'http_403') }),
       stubProvider('google-places-api', { error: new TypeError('Cannot read properties of undefined') }),
       stubProvider('brave-search-api', { records: [record('brave-search-api', [fact.name('Example Estates')], { scope: 'brand' })] }),
     ]);
     assert.equal(reportFor(outcome.reports, 'web-fetch')?.status, 'blocked');
     assert.equal(reportFor(outcome.reports, 'web-fetch')?.detail, 'HTTP 403 from example.com');
+    assert.equal(reportFor(outcome.reports, 'web-fetch')?.cause, 'http_403');
     assert.equal(reportFor(outcome.reports, 'google-places-api')?.status, 'internal_error');
+    assert.equal(reportFor(outcome.reports, 'google-places-api')?.cause, 'internal');
+    assert.equal(reportFor(outcome.reports, 'brave-search-api')?.cause, null, 'a provider that worked has no cause');
     assert.equal(reportFor(outcome.reports, 'brave-search-api')?.status, 'ok');
     assert.equal(outcome.score.fields.name.value, 'Example Estates');
   });

@@ -2,6 +2,7 @@ import { QUERY_SOURCE, type Query, type SourceRecord } from '../lookup/types.js'
 import { compareNames } from '../normalise/name.js';
 import { isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
+import { streetAddress } from './match.js';
 
 /** One possible real-world place: linked location records, plus the brand records that apply to it. */
 export interface Candidate {
@@ -21,11 +22,11 @@ interface SharedKey {
   strength: number;
 }
 
-const KEY_STRENGTH = { placeId: 4, mapsCid: 4, phone: 3, page: 3, postcode: 2 } as const;
+const KEY_STRENGTH = { placeId: 4, mapsCid: 4, phone: 3, page: 3, postcode: 2, street: 2 } as const;
 
-/** The strongest key two records share, or null when they share none (docs/confidence.md: identity). */
-function sharedKey(first: SourceRecord, second: SourceRecord): SharedKey | null {
-  let key: SharedKey | null = null;
+/** Every key two records share, strongest first (docs/confidence.md: identity). */
+function sharedKeys(first: SourceRecord, second: SourceRecord): SharedKey[] {
+  const keys: SharedKey[] = [];
   const firstPlaceIds = fieldItems([first], 'place_id').map((item) => item.value);
   const secondPlaceIds = new Set(fieldItems([second], 'place_id').map((item) => item.value));
   const firstPhones = fieldItems([first], 'phone').map((item) => item.value.e164);
@@ -36,21 +37,31 @@ function sharedKey(first: SourceRecord, second: SourceRecord): SharedKey | null 
   const mapsCid = first.mapsCids?.find((value) => second.mapsCids?.includes(value) === true);
   const phone = firstPhones.find((value) => secondPhones.has(value));
   const postcode = firstPostcodes.find((value) => secondPostcodes.has(value));
+  const secondStreets = new Set(fieldItems([second], 'address').map((item) => streetAddress(item.value)).filter((street) => street !== null));
+  const street = fieldItems([first], 'address').map((item) => streetAddress(item.value)).find((value) => value !== null && secondStreets.has(value));
   const page = fieldItems([first], 'website').find((firstItem) => !isSiteRoot(firstItem.value.url)
     && fieldItems([second], 'website').some((secondItem) => isSameSite(firstItem.value.domain, secondItem.value.domain)
       && pagePath(firstItem.value.url) === pagePath(secondItem.value.url)));
   if (placeId !== undefined) {
-    key = { label: `place ID ${placeId}`, strength: KEY_STRENGTH.placeId };
-  } else if (mapsCid !== undefined) {
-    key = { label: `Google Maps listing cid ${mapsCid}`, strength: KEY_STRENGTH.mapsCid };
-  } else if (phone !== undefined) {
-    key = { label: `phone ${phone}`, strength: KEY_STRENGTH.phone };
-  } else if (page !== undefined) {
-    key = { label: `page ${page.value.url}`, strength: KEY_STRENGTH.page };
-  } else if (postcode !== undefined && namesCompatible(first, second)) {
-    key = { label: `postcode ${postcode}`, strength: KEY_STRENGTH.postcode };
+    keys.push({ label: `place ID ${placeId}`, strength: KEY_STRENGTH.placeId });
   }
-  return key;
+  if (mapsCid !== undefined) {
+    keys.push({ label: `Google Maps listing cid ${mapsCid}`, strength: KEY_STRENGTH.mapsCid });
+  }
+  if (phone !== undefined) {
+    keys.push({ label: `phone ${phone}`, strength: KEY_STRENGTH.phone });
+  }
+  if (page !== undefined) {
+    keys.push({ label: `page ${page.value.url}`, strength: KEY_STRENGTH.page });
+  }
+  const isNamedAlike = namesCompatible(first, second);
+  if (postcode !== undefined && isNamedAlike) {
+    keys.push({ label: `postcode ${postcode}`, strength: KEY_STRENGTH.postcode });
+  }
+  if (street !== undefined && street !== null && isNamedAlike) {
+    keys.push({ label: `address ${street}`, strength: KEY_STRENGTH.street });
+  }
+  return keys;
 }
 
 /** True when the records share a name, compared after removing case, punctuation and legal suffixes. */
@@ -77,15 +88,19 @@ function placeIdsOf(record: SourceRecord): Set<string> {
  * strongest key is shared with two or more places (a head office's postcode, in a building of several listings), it
  * can't say which it is, and joins none: null. Records it shares no key with places aren't in the map.
  */
-function allowedPlaces(locations: readonly SourceRecord[], keys: ReadonlyArray<ReadonlyArray<SharedKey | null>>): Map<number, string | null> {
+function allowedPlaces(locations: readonly SourceRecord[], keys: ReadonlyArray<ReadonlyArray<SharedKey[]>>): Map<number, string | null> {
   const allowed = new Map<number, string | null>();
   locations.forEach((record, index) => {
     const links = locations.flatMap((other, otherIndex) => {
-      const key = keys[index]?.[otherIndex] ?? null;
-      return key === null ? [] : [...placeIdsOf(other)].map((placeId) => ({ placeId, strength: key.strength }));
+      const shared = keys[index]?.[otherIndex] ?? [];
+      const strength = shared[0]?.strength ?? 0;
+      return shared.length === 0 ? [] : [...placeIdsOf(other)].map((placeId) => ({ placeId, strength, count: shared.length }));
     });
     const strongest = Math.max(0, ...links.map((link) => link.strength));
-    const places = [...new Set(links.filter((link) => link.strength === strongest).map((link) => link.placeId))];
+    const atStrongest = links.filter((link) => link.strength === strongest);
+    // One switchboard for two listings: the one that also shares the street (or another key) is this record's place.
+    const mostKeys = Math.max(0, ...atStrongest.map((link) => link.count));
+    const places = [...new Set(atStrongest.filter((link) => link.count === mostKeys).map((link) => link.placeId))];
     // Several places at the strongest key (a brewery and its tap room, one switchboard): the one named exactly as this record.
     const sameName = places.filter((placeId) => locations.some((other) => placeIdsOf(other).has(placeId) && namesEqual(record, other)));
     if (placeIdsOf(record).size === 0 && places.length > 0) {
@@ -129,13 +144,13 @@ export function linkCandidates(records: readonly SourceRecord[], query: Query): 
     const parents = locations.map((unusedRecord, index) => index);
     const linkKeys = new Map<number, string[]>();
     const keys = locations.map((first, firstIndex) => locations.map((second, secondIndex) => (
-      firstIndex === secondIndex ? null : sharedKey(first, second)
+      firstIndex === secondIndex ? [] : sharedKeys(first, second)
     )));
     const allowed = allowedPlaces(locations, keys);
     const rootPlaceIds = new Map<number, Set<string>>(locations.map((record, index) => [index, placeIdsOf(record)]));
     for (let first = 0; first < locations.length; first += 1) {
       for (let second = first + 1; second < locations.length; second += 1) {
-        const key = keys[first]?.[second] ?? null;
+        const key = keys[first]?.[second]?.[0] ?? null;
         const firstRoot = findRoot(parents, first);
         const secondRoot = findRoot(parents, second);
         const firstIds = rootPlaceIds.get(firstRoot) ?? new Set<string>();
@@ -148,7 +163,10 @@ export function linkCandidates(records: readonly SourceRecord[], query: Query): 
           parents[firstRoot] = root;
           parents[secondRoot] = root;
           rootPlaceIds.set(root, new Set([...firstIds, ...secondIds]));
-          linkKeys.set(root, [...(linkKeys.get(firstRoot) ?? []), ...(linkKeys.get(secondRoot) ?? []), key.label]);
+          // A key that links two sources says why they agree, so it's listed before one linking a site's own pages.
+          const isAcrossSources = locations[first]?.source !== locations[second]?.source;
+          const earlier = [...(linkKeys.get(firstRoot) ?? []), ...(linkKeys.get(secondRoot) ?? [])];
+          linkKeys.set(root, isAcrossSources ? [key.label, ...earlier] : [...earlier, key.label]);
         }
       }
     }
@@ -157,15 +175,43 @@ export function linkCandidates(records: readonly SourceRecord[], query: Query): 
       const root = findRoot(parents, index);
       groups.set(root, [...(groups.get(root) ?? []), record]);
     });
-    candidates = [...groups.entries()].map(([root, groupRecords], index) => ({
-      index,
+    candidates = joinPlaceless([...groups.entries()].map(([root, groupRecords]) => ({
+      index: 0,
       records: groupRecords,
       brandRecords: [],
       linkedBy: [...new Set(linkKeys.get(root) ?? [])],
-    }));
+    }))).map((candidate, index) => ({ ...candidate, index }));
     attachBrandRecords(candidates, brands, query);
   }
   return candidates;
+}
+
+/** True when a record says nothing about where a place is: no place ID, Maps listing, phone or address. */
+function isPlaceless(record: SourceRecord): boolean {
+  return (record.mapsCids ?? []).length === 0
+    && !record.evidence.some((item) => item.field === 'place_id' || item.field === 'phone' || item.field === 'address');
+}
+
+/**
+ * Joins candidates made only of placeless records (an About page's markup: a name and a website) to the one candidate
+ * holding the same source's other records; with several such, they stay apart. Placeless candidates of one origin with
+ * nowhere to go are joined to each other.
+ */
+function joinPlaceless(candidates: readonly Candidate[]): Candidate[] {
+  const joined = candidates.map((candidate) => ({ ...candidate, records: [...candidate.records] }));
+  const isPlacelessOnly = (candidate: Candidate): boolean => candidate.records.every(isPlaceless);
+  for (const candidate of joined.filter(isPlacelessOnly)) {
+    const origins = new Set(candidate.records.map((record) => record.origin));
+    const holders = joined.filter((other) => other !== candidate && other.records.length > 0
+      && other.records.some((record) => origins.has(record.origin)));
+    const placed = holders.filter((other) => !isPlacelessOnly(other));
+    const target = placed.length === 1 ? placed[0] : placed.length === 0 ? holders[0] : undefined;
+    if (target !== undefined && origins.size === 1) {
+      target.records.push(...candidate.records);
+      candidate.records = [];
+    }
+  }
+  return joined.filter((candidate) => candidate.records.length > 0);
 }
 
 /** Gives each candidate the brand records for its site; brand records from the queried site go to all. */

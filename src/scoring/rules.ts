@@ -13,6 +13,7 @@ export const RULES = {
   'identity.co-listed': { score: null, summary: 'The tied candidates share one address and phone: one place with several listings, not a tie' },
   'identity.chain': { score: null, summary: 'A chain\'s home page with no location matches several of its places: the identity is the chain' },
   'identity.head-office': { score: null, summary: 'A chain\'s home page with no location: the identity is the head office' },
+  'identity.head-office-only': { score: 30, summary: 'A branch was asked for, but every source describes only the head office: capped at this score' },
 
   'field.independent-agreement': { score: 100, summary: 'Two or more independent sources agree' },
   'field.input-confirmed': { score: 100, summary: 'One source confirms the query\'s value, with structured evidence' },

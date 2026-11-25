@@ -109,7 +109,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "status", "reason", "detail", "calls", "cached_calls", "metered"],
+        "required": ["name", "status", "reason", "detail", "cause", "calls", "cached_calls", "metered"],
         "properties": {
           "name": { "type": "string" },
           "status": {
@@ -118,6 +118,15 @@
           },
           "reason": { "type": ["string", "null"] },
           "detail": { "type": ["string", "null"] },
+          "cause": {
+            "anyOf": [
+              { "type": "null" },
+              { "enum": ["dns", "connection_refused", "connection_reset", "tls_certificate", "tls_handshake", "network", "timeout",
+                "too_large", "too_many_redirects", "redirect_refused", "refused_address", "refused_url", "not_html", "not_json",
+                "bot_protection", "robots_disallowed", "unreadable", "no_api_key", "auth_rejected", "quota", "internal"] },
+              { "type": "string", "pattern": "^http_[0-9]{3}$" }
+            ]
+          },
           "calls": { "type": "integer", "minimum": 0 },
           "cached_calls": { "type": "integer", "minimum": 0 },
           "metered": { "type": "boolean" }

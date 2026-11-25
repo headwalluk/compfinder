@@ -12,7 +12,7 @@ import { scoreLookup, type ScoreResult } from '../scoring/index.js';
 import { SYSTEM_CLOCK, type Clock } from './clock.js';
 import { settleLogo } from './logo.js';
 import { CallBudget, CallMeter } from './budget.js';
-import { BudgetExhaustedError, ProviderError, type ProviderRunStatus } from './errors.js';
+import { BudgetExhaustedError, ProviderError, type FailureCause, type ProviderRunStatus } from './errors.js';
 import { FIELD_NAMES, type FieldName } from './fields.js';
 import { queryRecord } from './query.js';
 import type { Query, SourceRecord } from './types.js';
@@ -25,6 +25,8 @@ export interface ProviderReport {
   reason: string | null;
   /** What went wrong, for a failure. Never holds a credential. */
   detail: string | null;
+  /** Why it failed, as a short stable code (docs/output.md: providers); null unless it failed. */
+  cause: FailureCause | null;
   calls: number;
   /** Requests answered from the cache, which cost nothing. */
   cached_calls: number;
@@ -102,7 +104,7 @@ function staticSkip(name: ProviderName, request: LookupRequest, requested: Reado
   const declaration = PROVIDER_DECLARATIONS[name];
   const settings = request.config.providers[name];
   const skip = (status: ProviderRunStatus, reason: string): ProviderReport => (
-    { name, status, reason, detail: null, calls: 0, cached_calls: 0, metered: declaration.metered }
+    { name, status, reason, detail: null, cause: null, calls: 0, cached_calls: 0, metered: declaration.metered }
   );
   let report: ProviderReport | null = null;
   if ((request.only !== undefined && !request.only.includes(name)) || request.exclude?.includes(name) === true) {
@@ -148,7 +150,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
   const attempt = async (provider: Provider, isLatePass: boolean): Promise<void> => {
     const { name, metered, supplies } = provider.declaration;
     const skip = (status: ProviderRunStatus, reason: string): void => {
-      reports.set(name, { name, status, reason, detail: null, calls: 0, cached_calls: 0, metered });
+      reports.set(name, { name, status, reason, detail: null, cause: null, calls: 0, cached_calls: 0, metered });
     };
     const readiness = provider.readiness(knowledge);
     const meter = new CallMeter(metered, budgets);
@@ -188,6 +190,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
       };
       let status: ProviderRunStatus = 'ok';
       let detail: string | null = null;
+      let cause: FailureCause | null = null;
       try {
         records.push(...await provider.run(knowledge, context));
       } catch (error) {
@@ -195,6 +198,7 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           detail = redact(error.detail, secrets);
           logger.warn(`${name} failed: ${error.status}`, { detail });
           status = error.status;
+          cause = error.failureCause;
         } else if (error instanceof BudgetExhaustedError) {
           logger.info(`${name} stopped at the metered call budget`);
           status = meter.calls > 0 ? 'ok' : 'skipped';
@@ -203,13 +207,15 @@ export async function runLookup(request: LookupRequest): Promise<LookupOutcome> 
           logger.warn(`${name} ran out of time`, { error });
           status = 'timeout';
           detail = 'the lookup timed out';
+          cause = 'timeout';
         } else {
           detail = redact(error instanceof Error ? error.message : String(error), secrets);
           logger.error(`${name} failed unexpectedly`, { detail, stack: error instanceof Error ? redact(error.stack ?? '', secrets) : null });
           status = 'internal_error';
+          cause = 'internal';
         }
       }
-      reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, calls: meter.calls, cached_calls: meter.cachedCalls, metered });
+      reports.set(name, { name, status, reason: status === 'skipped' ? 'over budget' : null, detail, cause, calls: meter.calls, cached_calls: meter.cachedCalls, metered });
       score = scoreLookup(records, query, anchor, config.priority);
       knowledge = knowledgeFrom(query, score);
     }

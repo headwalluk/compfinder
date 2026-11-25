@@ -211,6 +211,58 @@ describe('google-places-api', () => {
     assert.equal(result.identity.confidence, 60, 'one source, the site confirmed; the page neither confirmed nor contradicted');
   });
 
+  test('a namesake\'s website that redirects to the query\'s site is on the query\'s site', async () => {
+    const { result, transport } = await find({ name: 'Example Lettings', url: 'https://example.com/' }, {
+      'https://example.com/robots.txt': { status: 403, body: '' },
+      [SEARCH_URL]: { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places: [
+        { id: 'ChIJexampleReading001', displayName: { text: 'Example Lettings' }, websiteUri: 'http://www.example.co.uk/' },
+      ] }) },
+      'http://www.example.co.uk/': { status: 301, headers: { location: 'https://www.example.com/' } },
+    });
+    assert.equal(result.fields.place_id.value, 'ChIJexampleReading001', 'kept, though the search keeps only places on the site');
+    assert.equal(result.fields.website.value, 'https://example.com/');
+    assert.ok(result.fields.website.sources.includes('google-places-api'), 'Google\'s website, followed, agrees with the query');
+    assert.ok(!transport.requests.includes('GET https://www.example.com/'), 'the query\'s own page isn\'t fetched by the check');
+  });
+
+  test('a namesake\'s website whose host doesn\'t resolve is left out, so it doesn\'t contradict the query', async () => {
+    const fixtures = fixtureTransport({
+      'https://example.com/robots.txt': { body: 'User-agent: *\nAllow: /\n', headers: { 'content-type': 'text/plain' } },
+      'https://example.com/branch/stevenage/': { body: '<html><head><title>Stevenage</title></head><body><h1>Example Homes Stevenage</h1></body></html>' },
+      [SEARCH_URL]: { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ places: [
+        { id: 'ChIJexampleStevenage1', displayName: { text: 'Example Homes Stevenage' }, websiteUri: 'https://old-example.co.uk/stevenage' },
+      ] }) },
+    });
+    const transport: Transport = {
+      send: (request) => (request.url.hostname === 'old-example.co.uk'
+        ? Promise.reject(Object.assign(new Error('getaddrinfo ENOTFOUND old-example.co.uk'), { code: 'ENOTFOUND' }))
+        : fixtures.send(request)),
+    };
+    const config = testConfig({ variables: { COMPFINDER_GOOGLE_PLACES_API_KEY: API_KEY } });
+    const outcome = await runLookup({
+      query: makeQuery({ name: 'Example Homes Stevenage', url: 'https://example.com/branch/stevenage/' }),
+      providers: builtInProviders(config), config, logger: quietLogger, transport, isDownloadSkipped: true,
+    });
+    const result = buildResult(outcome, { isExplain: false });
+    assert.equal(result.fields.place_id.value, 'ChIJexampleStevenage1');
+    assert.ok(result.warnings.some((warning) => warning.includes('doesn\'t answer')));
+  });
+
+  test('a website that doesn\'t resolve fails web-fetch with cause dns; an HTTP status, with http_NNN', async () => {
+    const dead: Transport = { send: () => Promise.reject(Object.assign(new Error('getaddrinfo ENOTFOUND example.com'), { code: 'ENOTFOUND' })) };
+    const config = testConfig();
+    const outcome = await runLookup({ query: makeQuery({ url: 'https://example.com/' }), providers: builtInProviders(config), config, logger: quietLogger, transport: dead, isDownloadSkipped: true });
+    const report = buildResult(outcome, { isExplain: false }).providers.find((provider) => provider.name === 'web-fetch');
+    assert.equal(report?.status, 'unreachable');
+    assert.equal(report?.cause, 'dns');
+    const { result } = await find({ url: 'https://example.com/branch/gone/' }, {
+      'https://example.com/robots.txt': { body: 'User-agent: *\nAllow: /\n', headers: { 'content-type': 'text/plain' } },
+      'https://example.com/branch/gone/': { status: 404, body: '' },
+    });
+    assert.equal(result.providers.find((provider) => provider.name === 'web-fetch')?.cause, 'http_404');
+    assert.ok(validate(result), 'the result still fits the schema');
+  });
+
   test('a permanently closed place is reported in warnings', async () => {
     const { result } = await find({ name: 'Example Estates', postcode: 'RG9 1AA' }, { [SEARCH_URL]: google('search-closed.json') });
     assert.ok(result.warnings.includes('Google lists Example Estates Henley as closed permanently.'));

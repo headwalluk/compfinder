@@ -5,6 +5,8 @@ import { mapsCid } from '../../normalise/maps.js';
 import { normalisePhone } from '../../normalise/phone.js';
 import { decodeEscapes, sanitiseText } from '../../normalise/text.js';
 import { compactWords, isSameSite, isSiteRoot, nameFromDomain, normaliseUrl } from '../../normalise/url.js';
+import { HttpError } from '../../net/http-client.js';
+import { compareQueryName } from '../../normalise/name.js';
 import { apiRequest } from '../api-errors.js';
 import type { Knowledge, Provider, ProviderContext, Readiness } from '../contract.js';
 import { PROVIDER_DECLARATIONS } from '../declarations.js';
@@ -18,6 +20,9 @@ const PLACE_FIELDS = [
   'id', 'displayName', 'formattedAddress', 'addressComponents', 'location',
   'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri', 'googleMapsUri', 'businessStatus',
 ];
+/** At most this many off-site websites of Google's places are checked per lookup, and each answer is kept this long. */
+const MAX_WEBSITE_CHECKS = 2;
+const WEBSITE_CHECK_TTL_SECONDS = 60 * 60;
 /** Candidates asked for per text search. */
 const SEARCH_PAGE_SIZE = 5;
 /** The IDs-only field mask, for the credentials check. */
@@ -163,9 +168,64 @@ export function searchText(knowledge: Knowledge): string | null {
 /** The API key, which the engine only gives a configured provider. */
 function apiKey(context: ProviderContext): string {
   if (context.settings.apiKey === null) {
-    throw new ProviderError('auth_failed', 'no API key');
+    throw new ProviderError('auth_failed', 'no API key', 'no_api_key');
   }
   return context.settings.apiKey;
+}
+
+/**
+ * Checks the websites of places named like the query but on another site (docs/providers.md): one that redirects to the
+ * query's site is given that address, and one whose host doesn't answer at all is dropped as dead. At most a few are tried.
+ */
+async function resolveOffSiteWebsites(records: SourceRecord[], knowledge: Knowledge, context: ProviderContext): Promise<SourceRecord[]> {
+  const { query } = knowledge;
+  const querySite = query.website?.domain ?? null;
+  const queryName = query.name ?? knowledge.fields.name ?? null;
+  let tried = 0;
+  const resolved: SourceRecord[] = [];
+  for (const record of records) {
+    const website = record.evidence.find((item) => item.field === 'website');
+    const name = record.evidence.find((item) => item.field === 'name');
+    const isOffSiteNamesake = querySite !== null && queryName !== null && website?.field === 'website' && name?.field === 'name'
+      && !isSameSite(website.value.domain, querySite) && compareQueryName(queryName, name.value) !== 'incompatible';
+    if (!isOffSiteNamesake || tried >= MAX_WEBSITE_CHECKS) {
+      resolved.push(record);
+      continue;
+    }
+    tried += 1;
+    let landed: string | null = null;
+    let isDead = false;
+    try {
+      // Stopped at the first hop onto the query's site, so that page isn't fetched here.
+      await context.http.request({
+        url: website.value.url, kind: 'html', cacheTtlSeconds: WEBSITE_CHECK_TTL_SECONDS,
+        canFollowRedirect: (unusedFrom, to) => {
+          landed = isSameSite(to.hostname, querySite) ? to.href : null;
+          return landed === null;
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof HttpError)) {
+        throw error;
+      }
+      isDead = error.failure === 'network';
+      if (landed === null) {
+        context.logger.warn(`Couldn't check Google's website for ${name.value}: ${error.message}`);
+      }
+    }
+    const landedWebsite = landed === null ? null : normaliseUrl(landed);
+    if (landedWebsite !== null) {
+      resolved.push({ ...record, evidence: record.evidence.map((item) => (item === website
+        ? { ...item, value: landedWebsite, reference: { ...item.reference, detail: `${item.reference.detail}: ${website.value.url}, which redirects to ${landedWebsite.url}` } }
+        : item)) });
+    } else if (isDead) {
+      context.warn(`Google's website for ${name.value} (${website.value.url}) doesn't answer, so it's left out.`);
+      resolved.push({ ...record, evidence: record.evidence.filter((item) => item !== website) });
+    } else {
+      resolved.push(record);
+    }
+  }
+  return resolved;
 }
 
 /** Builds the Google Places provider: Place Details for a known place ID, else one Text Search (docs/providers.md). */
@@ -183,6 +243,7 @@ export function createGooglePlacesProvider(): Provider {
       const countryCode = knowledge.query.country;
       let places: Place[];
       let detail: string;
+      let siteDomain: string | null = null;
       if (knowledge.query.placeId !== null) {
         detail = 'Google Places Place Details';
         const place = await apiRequest(() => context.http.request({
@@ -193,7 +254,7 @@ export function createGooglePlacesProvider(): Provider {
         places = [place];
       } else {
         const plan = searchPlan(knowledge);
-        const siteDomain = plan?.siteDomain ?? null;
+        siteDomain = plan?.siteDomain ?? null;
         detail = siteDomain === null ? 'Google Places Text Search' : `Google Places Text Search for ${siteDomain}`;
         const response = await apiRequest(() => context.http.request({
           url: `${API_BASE}/places:searchText`,
@@ -202,20 +263,23 @@ export function createGooglePlacesProvider(): Provider {
           headers: { [KEY_HEADER]: key, [FIELD_MASK_HEADER]: PLACE_FIELDS.map((field) => `places.${field}`).join(',') },
           json: { textQuery: plan?.text, regionCode: countryCode.toLowerCase(), pageSize: SEARCH_PAGE_SIZE },
         }), API_NAME) as { places?: Place[] };
-        const found = Array.isArray(response.places) ? response.places : [];
-        // A search on the domain's name finds namesakes too: keep only places whose website is on that site.
-        places = siteDomain === null ? found : found.filter((place) => {
-          const website = place.websiteUri === undefined ? null : normaliseUrl(place.websiteUri);
-          return website !== null && isSameSite(website.domain, siteDomain);
-        });
+        places = Array.isArray(response.places) ? response.places : [];
       }
-      const records: SourceRecord[] = [];
-      for (const place of places) {
+      const found = places.flatMap((place) => {
         const record = placeRecord(place, countryCode, detail);
-        if (record !== null) {
+        return record === null ? [] : [{ place, record }];
+      });
+      const resolved = await resolveOffSiteWebsites(found.map((entry) => entry.record), knowledge, context);
+      const records: SourceRecord[] = [];
+      for (const [index, record] of resolved.entries()) {
+        const place = found[index]?.place;
+        // A search on the domain's name finds namesakes too: keep only places whose website is on that site.
+        const website = record.evidence.find((item) => item.field === 'website');
+        const isKept = siteDomain === null || (website?.field === 'website' && isSameSite(website.value.domain, siteDomain));
+        if (isKept) {
           records.push(record);
         }
-        if (record !== null && place.businessStatus !== undefined && place.businessStatus !== OPERATIONAL) {
+        if (isKept && place?.businessStatus !== undefined && place.businessStatus !== OPERATIONAL) {
           const name = place.displayName?.text === undefined ? record.subject : sanitiseText(place.displayName.text, 'name');
           context.warn(`Google lists ${name} as ${place.businessStatus.toLowerCase().replace(/_/g, ' ')}.`);
         }

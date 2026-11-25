@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 import { ExitCode } from '../src/cli/exit-codes.js';
 import { SETTING_FLAGS, knownVariables, settingSpecs } from '../src/config.js';
-import { PROVIDER_RUN_STATUSES } from '../src/lookup/errors.js';
+import { FAILURE_CAUSES, PROVIDER_RUN_STATUSES } from '../src/lookup/errors.js';
 import { ERROR_CODES } from '../src/messages/error-codes.js';
 import { RULE_IDS } from '../src/scoring/rules.js';
 
@@ -49,6 +49,9 @@ describe('documentation agrees with the code', () => {
     }
     for (const status of PROVIDER_RUN_STATUSES) {
       assert.match(OUTPUT_DOC, new RegExp(`^\\| \`${status}\` \\|`, 'm'), `${status} documented`);
+    }
+    for (const cause of FAILURE_CAUSES) {
+      assert.match(OUTPUT_DOC, new RegExp(`^\\| \`${cause}\` \\|`, 'm'), `cause ${cause} documented`);
     }
   });
 

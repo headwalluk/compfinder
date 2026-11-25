@@ -1,6 +1,6 @@
-import type { Query, SourceRecord } from '../lookup/types.js';
+import { QUERY_SOURCE, type Query, type SourceRecord } from '../lookup/types.js';
 import { compareNames, compareQueryName } from '../normalise/name.js';
-import { isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
+import { isRelatedPath, isSameSite, isSiteRoot, pagePath } from '../normalise/url.js';
 import { fieldItems, recordSite } from './evidence.js';
 import { addressesEqual } from './match.js';
 import { countryRules } from '../normalise/country/index.js';
@@ -37,7 +37,8 @@ export interface CandidateAssessment {
   baseRule: RuleId;
   baseReason: string;
   /** True when the query is a whole business (a home page, no location) and this candidate is its head office. */
-  isPreferredHeadOffice: boolean;
+  /** For a whole-business query: 2 for the site's head office, 1 for another place its markup describes, else 0. */
+  sitePlaceRank: number;
   /** True when the query's site is confirmed and its name is the only contradiction (identity.name-mismatch). */
   isNameMismatch: boolean;
   /** True when one of the candidate's names equals the query's, not just contains it. */
@@ -70,15 +71,6 @@ export function sourceNames(records: readonly SourceRecord[]): string[] {
 /** Joins words as "a", "a and b", "a, b and c". */
 export function listInWords(items: readonly string[]): string {
   return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`;
-}
-
-/** True when every word of one path's last segment is in the other's (/offices/chiswick and /offices/dexters-chiswick-estate-agents). */
-function isRelatedPath(first: string, second: string): boolean {
-  const segmentWords = (path: string): Set<string> => new Set((path.split('/').pop() ?? '').split(/[-_.+]+/).filter((word) => word !== ''));
-  const firstWords = segmentWords(first);
-  const secondWords = segmentWords(second);
-  const isWithin = (inner: Set<string>, outer: Set<string>): boolean => inner.size > 0 && [...inner].every((word) => outer.has(word));
-  return isWithin(firstWords, secondWords) || isWithin(secondWords, firstWords);
 }
 
 /** Compares one query key with a candidate's values. */
@@ -192,16 +184,25 @@ function assessCandidate(candidate: Candidate, query: Query, listedPaths: Readon
     baseScore: ruleScore(baseRule),
     baseRule,
     baseReason,
-    isPreferredHeadOffice: isWholeBusinessQuery && candidate.records.some((record) => record.role === 'head-office'),
+    sitePlaceRank: !isWholeBusinessQuery ? 0
+      : candidate.records.some((record) => record.role === 'head-office') ? 2
+        : candidate.records.some((record) => isSiteMarkupPlace(record, querySite)) ? 1 : 0,
     isNameMismatch,
     isNameExact: query.name !== null && fieldItems(candidate.records, 'name').some((item) => compareNames(item.value, query.name ?? '') === 'equal'),
     postcodes: new Set(fieldItems(candidate.records, 'address').map((item) => item.value.postcode).filter((postcode) => postcode !== null)),
   };
 }
 
+/** True when a record is the query's own site describing a place in its markup: a structured address or phone. */
+function isSiteMarkupPlace(record: SourceRecord, querySite: string | null): boolean {
+  const site = recordSite(record);
+  return record.source === 'web-fetch' && querySite !== null && site !== null && isSameSite(site, querySite)
+    && record.evidence.some((item) => (item.field === 'address' || item.field === 'phone') && item.quality === 'structured');
+}
+
 /**
- * Ranks how well two candidates match the query: a confirmed place ID, a matching name, the head office for a
- * whole-business query, most confirmed keys, fewest contradictions, then (in one building only) the exact name. 0 is a tie. How many sources back a candidate
+ * Ranks how well two candidates match the query: a confirmed place ID, a matching name, for a whole-business query the
+ * site's head office and then a place its markup describes, most confirmed keys, fewest contradictions, then (in one building only) the exact name. 0 is a tie. How many sources back a candidate
  * isn't a match to the query, so it never breaks a tie (docs/confidence.md: identity.tie).
  */
 function rankDifference(first: CandidateAssessment, second: CandidateAssessment): number {
@@ -211,7 +212,7 @@ function rankDifference(first: CandidateAssessment, second: CandidateAssessment)
   const count = (assessment: CandidateAssessment, state: KeyState): number => assessment.keys.filter((match) => match.state === state).length;
   return placeIdRank(second) - placeIdRank(first)
     || Number(first.isNameMismatch) - Number(second.isNameMismatch)
-    || Number(second.isPreferredHeadOffice) - Number(first.isPreferredHeadOffice)
+    || second.sitePlaceRank - first.sitePlaceRank
     || count(second, 'confirmed') - count(first, 'confirmed')
     || count(first, 'contradicted') - count(second, 'contradicted')
     || (isSameBuilding(first, second) ? Number(second.isNameExact) - Number(first.isNameExact) : 0);
@@ -417,6 +418,17 @@ export function resolveIdentity(candidates: readonly Candidate[], query: Query):
       rules.push('identity.head-office');
       reasons.push('a chain\'s home page with no location given: this is the head office');
       warnings.push('The query is a chain\'s home page with no location, so the identity is the head office, not a branch.');
+    }
+    const sourced = first.candidate.records.filter((record) => record.source !== QUERY_SOURCE);
+    if (queryHasLocation(query) && sourced.length > 0 && sourced.every((record) => record.role === 'head-office')) {
+      const cap = ruleScore('identity.head-office-only');
+      const office = fieldItems(sourced, 'address')[0]?.value;
+      const place = office?.town ?? office?.postcode ?? null;
+      const where = place === null ? '' : ` (${place})`;
+      confidence = Math.min(confidence, cap);
+      rules.push('identity.head-office-only');
+      reasons.push(`every source describes the head office${where}, not the branch asked about; capped at ${cap}`);
+      warnings.push(`A branch was asked for, but the site only gives its head office's details${where}. The address and phone are the head office's, not the branch's.`);
     }
   }
   return { confidence, rules, reasons, leaders, rejected, others, brandConfidence, isHeadOffice, warnings };

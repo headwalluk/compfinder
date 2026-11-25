@@ -1,4 +1,4 @@
-import { ProviderError } from '../lookup/errors.js';
+import { httpStatusCause, ProviderError, type FailureCause } from '../lookup/errors.js';
 import { HttpError, type HttpResponse } from '../net/http-client.js';
 
 const UNAUTHORISED = 401;
@@ -13,6 +13,26 @@ const AUTH_MARKERS = /API_KEY_INVALID|API_KEY_SERVICE_BLOCKED|PERMISSION_DENIED|
 const QUOTA_MARKERS = /RESOURCE_EXHAUSTED|quota|rate limit/i;
 const MAX_DETAIL_CHARS = 300;
 
+/** Network error codes, and the cause each means. */
+const NETWORK_CAUSES: ReadonlyArray<[RegExp, FailureCause]> = [
+  [/ENOTFOUND|EAI_AGAIN|EAI_NONAME|getaddrinfo/, 'dns'],
+  [/ECONNREFUSED/, 'connection_refused'],
+  [/ECONNRESET|EPIPE|socket hang up/, 'connection_reset'],
+  [/CERT_|_CERT|certificate|altnames/i, 'tls_certificate'],
+  [/EPROTO|ERR_SSL_|ERR_TLS_|SSL routines|handshake/i, 'tls_handshake'],
+];
+
+/** The cause code for an HTTP client failure: for a network failure, from the underlying error's code and message. */
+export function httpFailureCause(error: HttpError): FailureCause {
+  let cause: FailureCause = error.failure;
+  if (error.failure === 'network') {
+    const underlying = error.cause as (Error & { code?: unknown }) | undefined;
+    const text = `${typeof underlying?.code === 'string' ? underlying.code : ''} ${underlying?.message ?? ''} ${error.message}`;
+    cause = NETWORK_CAUSES.find(([pattern]) => pattern.test(text))?.[1] ?? 'network';
+  }
+  return cause;
+}
+
 /** Maps an HTTP client failure to the status it means for an API provider. */
 export function apiFailure(error: HttpError): ProviderError {
   const statuses: Record<HttpError['failure'], ConstructorParameters<typeof ProviderError>[0]> = {
@@ -24,7 +44,7 @@ export function apiFailure(error: HttpError): ProviderError {
     timeout: 'timeout',
     network: 'unreachable',
   };
-  return new ProviderError(statuses[error.failure], error.message);
+  return new ProviderError(statuses[error.failure], error.message, httpFailureCause(error));
 }
 
 /** Parses a JSON API response, or throws the ProviderError its status and body mean. */
@@ -33,16 +53,16 @@ export function parseApiResponse(response: HttpResponse, api: string): unknown {
   const detail = `${api} answered HTTP ${response.status}: ${text.slice(0, MAX_DETAIL_CHARS).replace(/\s+/g, ' ')}`;
   let parsed: unknown;
   if (response.status === UNAUTHORISED || response.status === FORBIDDEN || (response.status === BAD_REQUEST && AUTH_MARKERS.test(text))) {
-    throw new ProviderError('auth_failed', detail);
+    throw new ProviderError('auth_failed', detail, 'auth_rejected');
   }
   if (response.status === TOO_MANY_REQUESTS || QUOTA_MARKERS.test(response.status >= BAD_REQUEST ? text : '')) {
-    throw new ProviderError('quota_exceeded', detail);
+    throw new ProviderError('quota_exceeded', detail, 'quota');
   }
   if (response.status >= SERVER_ERROR_MIN) {
-    throw new ProviderError('unreachable', detail);
+    throw new ProviderError('unreachable', detail, httpStatusCause(response.status));
   }
   if (response.status < SUCCESS_MIN || response.status > SUCCESS_MAX) {
-    throw new ProviderError('bad_response', detail);
+    throw new ProviderError('bad_response', detail, httpStatusCause(response.status));
   }
   try {
     parsed = JSON.parse(text);
@@ -50,7 +70,7 @@ export function parseApiResponse(response: HttpResponse, api: string): unknown {
     if (!(error instanceof SyntaxError)) {
       throw error;
     }
-    throw new ProviderError('bad_response', `${api} answered with something that isn't JSON`);
+    throw new ProviderError('bad_response', `${api} answered with something that isn't JSON`, 'not_json');
   }
   return parsed;
 }

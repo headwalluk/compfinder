@@ -17,6 +17,7 @@ export { ConfigError, type Config } from './config.js';
 export type { Logger } from './logger.js';
 export { CallBudget } from './lookup/budget.js';
 export type { CheckReport, PlannedProvider, ProviderReport } from './lookup/engine.js';
+export { FAILURE_CAUSES, type FailureCause } from './lookup/errors.js';
 export { FIELD_NAMES, type FieldName } from './lookup/fields.js';
 export { QUERY_INPUT_KEYS, type QueryInput } from './lookup/query.js';
 export { SCHEMA_VERSION, type LookupResult, type OutputCandidate, type OutputEvidence, type OutputField } from './lookup/result.js';

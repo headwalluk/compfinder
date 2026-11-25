@@ -1,9 +1,10 @@
 import type { Evidence, RecordRole, SourceRecord, WebsiteValue } from '../../lookup/types.js';
-import { ProviderError } from '../../lookup/errors.js';
+import { httpStatusCause, ProviderError } from '../../lookup/errors.js';
 import { comparableName, nameTokens } from '../../normalise/name.js';
-import { isSameSite, isSiteRoot, normaliseUrl, pagePath, siteHost } from '../../normalise/url.js';
+import { isRelatedPath, isSameSite, isSiteRoot, normaliseUrl, pagePath, siteHost } from '../../normalise/url.js';
 import { decodeBody } from '../../net/charset.js';
 import { HttpError, type HttpResponse } from '../../net/http-client.js';
+import { httpFailureCause } from '../api-errors.js';
 import { isPathAllowed, parseRobots, type RobotsRules } from '../../net/robots.js';
 import { ROBOTS_PRODUCT_TOKEN } from '../../net/user-agent.js';
 import type { Knowledge, Provider, ProviderContext, Readiness } from '../contract.js';
@@ -55,7 +56,7 @@ function failureFor(error: HttpError): ProviderError {
     timeout: 'timeout',
     network: 'unreachable',
   };
-  return new ProviderError(statuses[error.failure], error.message);
+  return new ProviderError(statuses[error.failure], error.message, httpFailureCause(error));
 }
 
 /** Fetches robots.txt: 4xx allows everything; 5xx disallows everything (RFC 9309), reported as blocked. */
@@ -74,7 +75,7 @@ async function loadRobots(origin: string, context: ProviderContext): Promise<Rob
     throw failureFor(error);
   }
   if (response.status >= SERVER_ERROR_MIN || REFUSING_STATUSES.has(response.status)) {
-    throw new ProviderError('blocked', `robots.txt unavailable (HTTP ${response.status}), so the site is treated as disallowed`);
+    throw new ProviderError('blocked', `robots.txt unavailable (HTTP ${response.status}), so the site is treated as disallowed`, httpStatusCause(response.status));
   }
   return parseRobots(response.status >= CLIENT_ERROR_MIN ? '' : decodeBody(response.body, response.headers['content-type']));
 }
@@ -93,20 +94,20 @@ async function fetchPage(url: string, isStart: boolean, site: string, context: P
     });
     const contentType = response.headers['content-type'] ?? 'text/html';
     if (REFUSING_STATUSES.has(response.status) || isProtected503(response.status, response.headers)) {
-      problem = new ProviderError('blocked', `${url} refused the request (HTTP ${response.status})`);
+      problem = new ProviderError('blocked', `${url} refused the request (HTTP ${response.status})`, isProtected503(response.status, response.headers) ? 'bot_protection' : httpStatusCause(response.status));
     } else if (response.status >= SERVER_ERROR_MIN) {
-      problem = new ProviderError('unreachable', `${url} answered HTTP ${response.status}`);
+      problem = new ProviderError('unreachable', `${url} answered HTTP ${response.status}`, httpStatusCause(response.status));
     } else if (response.status < SUCCESS_MIN || response.status > SUCCESS_MAX) {
-      problem = new ProviderError('bad_response', `${url} answered HTTP ${response.status}`);
+      problem = new ProviderError('bad_response', `${url} answered HTTP ${response.status}`, httpStatusCause(response.status));
     } else if (!HTML_CONTENT_TYPE.test(contentType)) {
-      problem = new ProviderError('bad_response', `${url} is ${contentType}, not an HTML page`);
+      problem = new ProviderError('bad_response', `${url} is ${contentType}, not an HTML page`, 'not_html');
     } else {
       const parsed = parsePage(decodeBody(response.body, contentType), response.url);
       const challenge = challengeName(parsed);
       if (challenge === null) {
         page = parsed;
       } else {
-        problem = new ProviderError('blocked', `${url} returned a ${challenge} page`);
+        problem = new ProviderError('blocked', `${url} returned a ${challenge} page`, 'bot_protection');
       }
     }
   } catch (error) {
@@ -158,6 +159,20 @@ function withBrand(item: Evidence, brandName: string, placeWords: ReadonlySet<st
 function addressWords(evidence: readonly Evidence[]): Set<string> {
   const parts = evidence.flatMap((item) => (item.field === 'address' ? [...item.value.lines, item.value.town ?? '', item.value.county ?? ''] : []));
   return new Set(parts.flatMap((part) => nameTokens(part)));
+}
+
+/**
+ * True when the query's name has words that are neither in a record's name nor in its address: "Nested Chelmsford" for
+ * an Organization named "Nested" in London. The query asks about a branch somewhere the record isn't.
+ */
+function namesElsewhere(queryName: string | null, evidence: readonly Evidence[]): boolean {
+  const recordWords = new Set([
+    ...addressWords(evidence),
+    ...evidence.flatMap((item) => (item.field === 'name' ? nameTokens(item.value) : [])),
+  ]);
+  const hasAddress = evidence.some((item) => item.field === 'address');
+  const extraWords = queryName === null ? [] : nameTokens(queryName).filter((word) => !recordWords.has(word));
+  return hasAddress && extraWords.length > 0;
 }
 
 /** True when loose evidence lists several places (a branch directory, a footer of numbers) rather than one (docs/providers.md). */
@@ -267,13 +282,14 @@ function distinctLocalBusinesses(results: readonly PageResult[]): number {
 
 /**
  * A location record's role: a single LocalBusiness on an inner page is a branch; a chain's home page is head office, and
- * so is an Organization on a site that lists branches, or one read from another page when an inner page was asked for.
+ * so is an Organization on a site that lists branches, or, when an inner page was asked for, one read from another page
+ * or one elsewhere than the query's name says (isElsewhere).
  */
-function roleFor(result: PageResult, isLocalBusiness: boolean, totalLocalBusinesses: number, isOtherPage: boolean): RecordRole {
+function roleFor(result: PageResult, isLocalBusiness: boolean, totalLocalBusinesses: number, isElsewhere: boolean): RecordRole {
   const localOnPage = result.locations.filter((location) => location.isLocalBusiness).length;
   const isRoot = isSiteRoot(result.page.url);
   let role: RecordRole = 'unknown';
-  if (!isLocalBusiness && (totalLocalBusinesses > 0 || isOtherPage)) {
+  if (!isLocalBusiness && (totalLocalBusinesses > 0 || isElsewhere)) {
     role = 'head-office';
   } else if (!isRoot && localOnPage === 1) {
     role = 'branch';
@@ -301,7 +317,7 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
       const startUrl = new URL(website.url);
       const robots = options.honourRobots ? await loadRobots(startUrl.origin, context) : null;
       if (robots !== null && !isPathAllowed(robots, ROBOTS_PRODUCT_TOKEN, `${startUrl.pathname}${startUrl.search}`)) {
-        throw new ProviderError('blocked', `robots.txt disallows ${startUrl.pathname}`);
+        throw new ProviderError('blocked', `robots.txt disallows ${startUrl.pathname}`, 'robots_disallowed');
       }
 
       const start = await fetchPage(website.url, true, website.domain, context) as ParsedPage;
@@ -323,9 +339,18 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
         }
       }
 
+      // A branch page that now redirects elsewhere on the site (to the branch list, say) is gone: the site's loose
+      // numbers and postcodes belong to other branches, so none is taken as this one's. Its markup still counts.
+      const isPageGone = !isSiteRoot(website.url) && !isRelatedPath(pagePath(start.url), pagePath(website.url));
+      if (isPageGone) {
+        context.warn(`${website.url} redirected to ${start.url}: the page asked about seems to be gone, so the site's loose phone numbers and postcodes aren't taken as this business's.`);
+        for (const result of results) {
+          result.loose.location = withoutPlaceFacts(result.loose.location);
+        }
+      }
       const readable = results.filter((result) => !result.isUnreadable);
       if (readable.length === 0) {
-        throw new ProviderError('unreadable', `${start.url} has no usable content as served; it probably builds its content with JavaScript`);
+        throw new ProviderError('unreadable', `${start.url} has no usable content as served; it probably builds its content with JavaScript`, 'unreadable');
       }
       if (readable.length < results.length) {
         context.warn(`${results.length - readable.length} page(s) on ${site} had no usable content as served.`);
@@ -352,7 +377,8 @@ export function createWebFetchProvider(options: WebFetchOptions): Provider {
           }
           records.push({
             source: 'web-fetch', origin, subject: `${result.page.url}#${index}`, scope: 'location',
-            role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses, isInnerStart && result.page.url !== start.url), evidence,
+            role: roleFor(result, location.isLocalBusiness, totalLocalBusinesses,
+              isInnerStart && (result.page.url !== start.url || namesElsewhere(knowledge.query.name, location.evidence))), evidence,
             ...(location.mapsCids.length === 0 ? {} : { mapsCids: location.mapsCids }),
           });
         });

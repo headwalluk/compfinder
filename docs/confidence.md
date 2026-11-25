@@ -37,9 +37,16 @@ Linking keeps places apart that are different:
   when they share a phone (a chain's switchboard) or a postcode (several listings in one
   building).
 - Keys have a strength: a place ID or a Maps listing names one place, a phone number or a branch
-  page nearly so, and a postcode only a building. A record without a place ID joins the place it
-  shares its **strongest** key with. When that key fits several places, it joins the one with
-  the same name, or, with no such name (a head office known only by its postcode), none of them.
+  page nearly so, and a postcode or a street address only a building. A street address is the
+  building number and street, compared with common words shortened and units left out, so
+  `329 W 18th St, Ste 914` and `Ste 914, 329 West 18th Street` match without a postcode. A
+  record without a place ID joins the place it shares its **strongest** key with. When that key
+  fits several places (one switchboard for two listings), it joins the one it shares the most keys
+  with (the street as well), then the one with the same name, or, with none of those (a head
+  office known only by its postcode), none of them.
+- A record that says nothing about where a place is (an About page's markup: a name, a website,
+  an email) joins the candidate holding its site's other records, rather than standing as a
+  place of its own.
 
 Candidates are matched against your query. A branch page in your query isn't contradicted by a
 different URL for what may be the same page: a longer slug, or an old URL scheme that redirects
@@ -68,6 +75,10 @@ are never matched with typos allowed, so `Smith Estates` and `Smyth Estates` sta
 All name comparisons ignore case, punctuation, word order, legal suffixes, connecting words
 (`and`, `in`, `at`, `of`, `the`, `for`) and plain plurals. So `Martin & Co Estate Agents & Letting
 Agents in Reading` and `Martin & Co Reading Lettings & Estate Agents` are the same name.
+
+For a home page with no location (a whole business), the site's head office ranks first, then a
+place its own markup gives an address or phone for. The site saying where it is counts as the
+query saying so. Loose details, such as a postcode in a footer, don't count.
 
 When candidates match the query equally, the best match ranks first only inside one building:
 of several listings at one address (the same postcode and building number), the one named exactly
@@ -98,6 +109,7 @@ search, which returns only its best few matches, so the list may not be complete
 | `identity.co-listed` | — | The tied candidates are one place listed several times: they share one address and one phone (sales and lettings, say), or one name and website page in one postcode sector with no differing phone. It isn't a tie: the score isn't divided. The listing shown is the one with the most support: a website found for the business (by a search, say) whose name matches that listing's |
 | `identity.chain` | — | A chain's home page with no location given matches several of its places (a tie), or only Google listings whose websites are branch pages on its site, which nothing the site says joins. The identity is the chain: the fields come from the brand's own records (name, website, logo, socials) at the brand's confidence, place fields (address, phone, place ID) are left empty, the places are listed in `candidates`, and a warning says so. `identity.confidence` is still the tie's divided score, because it measures which place, and no one place is meant |
 | `identity.head-office` | — | A chain's home page with no location given: the identity is the head office, and a warning says so |
+| `identity.head-office-only` | ≤ 30 | A branch was asked for (a branch page, or a name with a place in it), but every source describes only the head office: an online agent's town page that carries its London office's markup. The identity is capped at 30, the address and phone are the head office's (and capped by `field.head-office`), and a warning names where the head office is |
 
 ## Fields
 

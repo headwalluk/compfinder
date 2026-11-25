@@ -295,8 +295,9 @@ const finder = createFinder({ variables, logger: compfinderLogger() });
 
 The package ships TypeScript declarations. The main types are `Finder`, `FindOptions`,
 `QueryInput`, `LookupResult` (and its parts `OutputField`, `OutputEvidence` and
-`OutputCandidate`), `ProviderReport`, `LookupPlan` and `CheckReport`. `FIELD_NAMES` and
-`PROVIDER_NAMES` list the fields and providers.
+`OutputCandidate`), `ProviderReport` (with its `FailureCause`), `LookupPlan` and `CheckReport`.
+`FIELD_NAMES` and `PROVIDER_NAMES` list the fields and providers, and `FAILURE_CAUSES` the fixed
+`cause` codes (an HTTP status is `http_NNN` besides).
 
 The JSON Schema for a result is exported too, for checking results you have stored or passed
 between services:

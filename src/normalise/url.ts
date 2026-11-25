@@ -68,3 +68,12 @@ export function nameFromDomain(domain: string): string {
 export function compactWords(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
+
+/** True when every word of one path's last segment is in the other's (/offices/chiswick and /offices/dexters-chiswick-estate-agents). */
+export function isRelatedPath(first: string, second: string): boolean {
+  const segmentWords = (path: string): Set<string> => new Set((path.split('/').pop() ?? '').split(/[-_.+]+/).filter((word) => word !== ''));
+  const firstWords = segmentWords(first);
+  const secondWords = segmentWords(second);
+  const isWithin = (inner: Set<string>, outer: Set<string>): boolean => inner.size > 0 && [...inner].every((word) => outer.has(word));
+  return isWithin(firstWords, secondWords) || isWithin(secondWords, firstWords);
+}

@@ -91,6 +91,20 @@ All notable changes to this project are documented here. The format follows
   business's own site agrees with the others.
 - A home page's title that spells the domain gives the site's name, so a chain with no name in
   its markup gets its brand name. The chain warning reads right when one place matched.
+- A street address (building number and street, abbreviations evened out) links a site's record
+  to Google's when one has no postcode. A record with nothing about a place joins its site's
+  other records. When one phone fits several listings, the record joins the one it shares the
+  street with, and a home page's own marked-up place ranks first. So single-site businesses with
+  duplicate Google listings are no longer read as chains.
+- Google's website for a namesake is checked: one that redirects to the query's site counts as on
+  it, and one whose host doesn't answer is left out rather than contradicting the query.
+- `identity.head-office-only`: a branch asked about with only the head office's details is capped at
+  30, with a warning. An Organization on the page asked about is the head office when the query's
+  name has a place it isn't in.
+- A branch page that redirects to another page on the site is reported as gone, and the site's
+  loose numbers and postcodes aren't taken as the branch's.
+- Every failed provider has a `cause` code (`dns`, `tls_certificate`, `http_404`, …) beside its
+  `detail`, so a dead website can be told apart from nothing found.
 - An address's `formatted` line is always filled: Google's normalised form, or the parts joined.
 - Names compare equal regardless of word order, connecting words and plain plurals. Departments
   and parent companies in schema.org markup aren't read as the business.

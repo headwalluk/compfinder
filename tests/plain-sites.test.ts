@@ -123,6 +123,30 @@ describe('web-fetch on sites without location markup', () => {
     assert.ok(result.fields.phone.rules.includes('field.head-office'));
   });
 
+  test('a branch page that redirects to the branch list is gone: the list\'s numbers aren\'t taken as the branch\'s', async () => {
+    const { result } = await find({ name: 'Example Estates Formby', url: 'https://example.com/locations/formby/' }, {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/locations/formby/': { status: 308, headers: { location: 'https://example.com/our-branches/' } },
+      'https://example.com/our-branches/': page('Our branches', '<a href="tel:0151 924 6000">Maghull</a> <a href="tel:0151 527 2700">Crosby</a>'),
+    });
+    assert.equal(result.fields.phone.value, null);
+    assert.ok(result.warnings.some((warning) => warning.includes('seems to be gone')));
+  });
+
+  test('an Organization elsewhere than the query\'s name says, on the page asked about, is the head office', async () => {
+    const organisation = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: 'Example Homes', telephone: '020 3858 0695',
+      address: { '@type': 'PostalAddress', streetAddress: '24 Greville Street', addressLocality: 'London', postalCode: 'EC1N 8SS' } });
+    const routes = {
+      'https://example.com/robots.txt': ROBOTS,
+      'https://example.com/chelmsford': page('Estate agents in Chelmsford', '', `<script type="application/ld+json">${organisation}</script>`),
+    };
+    const branch = await find({ name: 'Example Homes Chelmsford', url: 'https://example.com/chelmsford' }, routes);
+    assert.ok(branch.result.identity.rules.includes('identity.head-office-only'));
+    assert.ok(branch.result.fields.address.rules.includes('field.head-office'));
+    const same = await find({ name: 'Example Homes', url: 'https://example.com/chelmsford' }, routes);
+    assert.ok(!same.result.identity.rules.includes('identity.head-office-only'), 'a query name the record matches is that record');
+  });
+
   test('relative links resolve against <base href>, as a browser resolves them', async () => {
     const { transport } = await find({ url: 'https://example.com/contact/solicitors-wokingham' }, {
       'https://example.com/robots.txt': ROBOTS,

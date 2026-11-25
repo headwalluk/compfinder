@@ -64,7 +64,7 @@ export function websiteRecord(provider: ProviderName, hit: SearchHit, detail: st
 /** The provider's API key; the engine only runs a configured provider. */
 export function searchApiKey(context: ProviderContext): string {
   if (context.settings.apiKey === null) {
-    throw new ProviderError('auth_failed', 'no API key');
+    throw new ProviderError('auth_failed', 'no API key', 'no_api_key');
   }
   return context.settings.apiKey;
 }

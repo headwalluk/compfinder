@@ -7,6 +7,36 @@ import { isSameSite, pagePath } from '../normalise/url.js';
 const BUILDING_NUMBER = /^(\d+[a-z]?(?:-\d+[a-z]?)?)\b/i;
 const WHITESPACE_RUN = /\s+/g;
 
+/** Street words written out in full, and the short form each is compared as. */
+const STREET_WORDS: Readonly<Record<string, string>> = {
+  street: 'st', saint: 'st', road: 'rd', avenue: 'ave', drive: 'dr', lane: 'ln', place: 'pl', court: 'ct', crescent: 'cres',
+  boulevard: 'blvd', terrace: 'ter', square: 'sq', parkway: 'pkwy', highway: 'hwy', west: 'w', east: 'e', north: 'n', south: 's',
+};
+/** A part of an address that is only a unit: "Ste 914", "Suite 2", "Unit 4", "Flat 3". */
+const UNIT_PART = /^(?:ste|suite|unit|flat|apt|apartment|floor|fl)\.? ?\w+$/;
+/** A building number followed by a street: "6 fern rd". */
+const NUMBERED_STREET = /^(\d+[a-z]?(?:-\d+[a-z]?)?) (\D.*)$/;
+
+/**
+ * The building number and street of an address, in a form two spellings share ("329 W 18th St, Ste 914" and "Ste 914,
+ * 329 West 18th Street" both give "329 w 18th st"); null without a numbered street. Units and postcodes are left out.
+ */
+export function streetAddress(address: AddressValue): string | null {
+  const parts = address.lines.flatMap((line) => line.split(','))
+    .map((part) => part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').map((word) => STREET_WORDS[word] ?? word).join(' '))
+    .filter((part) => part !== '' && !UNIT_PART.test(part));
+  let street: string | null = null;
+  for (const [index, part] of parts.entries()) {
+    // Google may give the number as a line of its own: "25", then "Saint Peter's Park Road".
+    const candidate = /^\d+[a-z]?$/.test(part) && parts[index + 1] !== undefined ? `${part} ${parts[index + 1] ?? ''}` : part;
+    if (NUMBERED_STREET.test(candidate)) {
+      street = candidate;
+      break;
+    }
+  }
+  return street;
+}
+
 /** The leading building number of an address's first line, lower-cased; null when there isn't one. */
 export function buildingNumber(address: AddressValue): string | null {
   const firstLine = address.lines[0]?.trim() ?? '';
